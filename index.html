@@ -5,137 +5,28 @@
     <title>VESSEL | CREATOR</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        /* FORCE VISIBILITY */
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100vw;
-            height: 100vh;
-            background-color: #050505 !important;
-            color: #0f0;
-            font-family: 'Courier New', monospace;
-            overflow: hidden;
-        }
-
-        #map {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            display: block !important;
-        }
-
-        /* UI ELEMENTS */
-        #fab {
-            position: absolute;
-            bottom: 30px;
-            right: 30px;
-            width: 60px;
-            height: 60px;
-            background: #000;
-            border: 2px solid #0f0;
-            border-radius: 50%;
-            color: #0f0;
-            font-size: 30px;
-            cursor: pointer;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 0 15px #0f0;
-        }
-
-        .hud-panel {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 200;
-            background: rgba(0,0,0,0.95);
-            border: 1px solid #0f0;
-            padding: 25px;
-            width: 320px;
-        }
-
-        .option-btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            background: transparent;
-            color: #0f0;
-            border: 1px solid #0f0;
-            cursor: pointer;
-            font-family: monospace;
-        }
-
-        #inbox-launcher {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            z-index: 100;
-            background: #000;
-            border: 1px solid #0f0;
-            padding: 10px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        #inbox-panel {
-            display: none;
-            position: absolute;
-            top: 70px;
-            right: 15px;
-            width: 300px;
-            height: 400px;
-            background: rgba(0,0,0,0.95);
-            border: 1px solid #0f0;
-            z-index: 100;
-            flex-direction: column;
-        }
-
-        #terminal {
-            display: none;
-            height: 100%;
-            width: 100%;
-            flex-direction: column;
-            background: #000;
-            padding: 20px;
-            box-sizing: border-box;
-            z-index: 300;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        #msg-box {
-            flex-grow: 1;
-            overflow-y: auto;
-            border: 1px solid #0f0;
-            padding: 15px;
-            margin-bottom: 15px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .msg { margin-bottom: 8px; padding: 8px; border: 1px solid #030; }
-        .msg.me { align-self: flex-end; border-color: #0f0; }
+        :root { --neon: #0f0; --bg: #000; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { width: 100%; height: 100%; background: #000; overflow: hidden; color: var(--neon); font-family: monospace; }
+        #map { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        #fab { position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #000; border: 2px solid var(--neon); border-radius: 50%; color: var(--neon); font-size: 30px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px var(--neon); }
+        .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 200; background: rgba(0,0,0,0.95); border: 1px solid var(--neon); padding: 25px; width: 320px; }
+        .option-btn { display: block; width: 100%; padding: 12px; margin: 8px 0; background: transparent; color: var(--neon); border: 1px solid var(--neon); cursor: pointer; font-family: monospace; }
+        #inbox-launcher { position: absolute; top: 15px; right: 15px; z-index: 100; background: #000; border: 1px solid var(--neon); padding: 10px; cursor: pointer; font-size: 12px; }
+        #inbox-panel { display: none; position: absolute; top: 70px; right: 15px; width: 300px; height: 400px; background: rgba(0,0,0,0.95); border: 1px solid var(--neon); z-index: 100; flex-direction: column; }
+        #queue-list { flex-grow: 1; overflow-y: auto; padding: 10px; }
+        #terminal { display: none; height: 100vh; width: 100vw; flex-direction: column; background: #000; padding: 20px; box-sizing: border-box; z-index: 300; position: absolute; top: 0; left: 0; }
+        #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid var(--neon); padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; }
+        .msg { margin-bottom: 8px; max-width: 80%; padding: 8px; border: 1px solid #030; }
+        .msg.me { align-self: flex-end; border-color: var(--neon); }
         .msg.them { align-self: flex-start; background: #010; }
     </style>
 </head>
 <body>
-
     <div id="map"></div>
     <button id="fab" onclick="startCreation()">+</button>
     <div id="inbox-launcher" onclick="toggleInbox()">[ INBOX ]</div>
-    
-    <div id="inbox-panel">
-        <div style="padding:10px; border-bottom:1px solid #0f0; text-align:center;">QUALIFIED</div>
-        <div id="queue-list" style="padding:10px;"></div>
-    </div>
+    <div id="inbox-panel"><div id="queue-list"></div></div>
 
     <div id="step-category" class="hud-panel">
         <button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button>
@@ -143,9 +34,7 @@
         <button class="option-btn" onclick="selectCategory('🚶 Walk')">🚶 Walk</button>
         <button class="option-btn" onclick="selectCategory('✨ Connect')">✨ Connect</button>
     </div>
-
     <div id="step-vibe" class="hud-panel"><div id="vibe-options"></div></div>
-
     <div id="step-secret" class="hud-panel">
         <div id="secret-q-text" style="margin-bottom:15px;"></div>
         <button class="option-btn" id="opt-a" onclick="finalizeNode(true)"></button>
@@ -153,35 +42,23 @@
     </div>
 
     <div id="terminal">
-        <div style="color:red; text-align:right;">45:00</div>
         <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="TYPE..." style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; outline:none;" onkeypress="if(event.key==='Enter') sendMsg()">
+        <input type="text" id="chat-in" placeholder="TYPE..." style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; width:100%; outline:none;" onkeypress="if(event.key==='Enter') sendMsg()">
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-
     <script>
-        console.log("CRITICAL: APP STARTING");
-
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
-
-        let map;
-        try {
-            map = new mapboxgl.Map({
-                container: 'map',
-                style: 'mapbox://styles/mapbox/dark-v11',
-                center: [55.2708, 25.2048],
-                zoom: 11
-            });
-            console.log("MAP INITIALIZED");
-        } catch (e) {
-            console.error("MAP ERROR:", e);
-            alert("Mapbox failed to load. Check console.");
-        }
-
+        
+        // UNIQUE ANCHORING
+        const myUserId = "CREATOR_" + Math.random().toString(36).substr(2, 5);
+        let peerId = null; 
         let nodeData = {}, myNodeId = null;
+
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
+
         const templates = {
             '☕ Coffee': { vibes: ['Quick chat', 'Deep convo'], q: 'Quiet café or loud café?', a: ['Quiet café', 'Loud café'] },
             '💬 Chat': { vibes: ['Deep talk', 'Funny banter'], q: 'Deep talks or small talk?', a: ['Deep talks', 'Small talk'] },
@@ -189,77 +66,30 @@
             '✨ Connect': { vibes: ['Genuine curiosity'], q: 'Best first energy?', a: ['Genuine curiosity', 'Flexing'] }
         };
 
-        window.startCreation = () => {
-            alert("Step 1: Click map location.");
-            map.once('click', (e) => {
-                nodeData.lat = e.lngLat.lat;
-                nodeData.lng = e.lngLat.lng;
-                document.getElementById('step-category').style.display = 'block';
-            });
-        };
-
-        window.selectCategory = (cat) => {
-            nodeData.intent = cat;
-            document.getElementById('step-category').style.display = 'none';
-            const vDiv = document.getElementById('vibe-options');
-            vDiv.innerHTML = '';
-            templates[cat].vibes.forEach(v => {
-                vDiv.innerHTML += `<button class="option-btn" onclick="selectVibe('${v}')">${v}</button>`;
-            });
-            document.getElementById('step-vibe').style.display = 'block';
-        };
-
-        window.selectVibe = (vibe) => {
-            nodeData.vibe_tag = vibe;
-            document.getElementById('step-vibe').style.display = 'none';
-            const t = templates[nodeData.intent];
-            document.getElementById('secret-q-text').innerText = t.q;
-            document.getElementById('opt-a').innerText = t.a[0];
-            document.getElementById('opt-b').innerText = t.a[1];
-            document.getElementById('step-secret').style.display = 'block';
-        };
+        window.startCreation = () => { map.once('click', (e) => { nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng; document.getElementById('step-category').style.display='block'; }); };
+        window.selectCategory = (cat) => { nodeData.intent = cat; document.getElementById('step-category').style.display='none'; const vDiv = document.getElementById('vibe-options'); vDiv.innerHTML = ''; templates[cat].vibes.forEach(v => { vDiv.innerHTML += `<button class="option-btn" onclick="selectVibe('${v}')">${v}</button>`; }); document.getElementById('step-vibe').style.display='block'; };
+        window.selectVibe = (vibe) => { nodeData.vibe_tag = vibe; document.getElementById('step-vibe').style.display='none'; const t = templates[nodeData.intent]; document.getElementById('secret-q-text').innerText = t.q; document.getElementById('opt-a').innerText = t.a[0]; document.getElementById('opt-b').innerText = t.a[1]; document.getElementById('step-secret').style.display='block'; };
 
         window.finalizeNode = async (isA) => {
             const t = templates[nodeData.intent];
-            const { data, error } = await _supabase.from('nodes').insert([{
-                lat: nodeData.lat,
-                lng: nodeData.lng,
-                intent: nodeData.intent,
-                vibe_tag: nodeData.vibe_tag,
-                secret_q: t.q,
-                secret_a_adx: isA ? t.a[0] : t.a[1],
-                status: 'active',
-                user_id: 'BAD_CREATOR',
-                type: 'public',
-                expires_at: new Date(Date.now() + 45 * 60000).toISOString()
+            const { data } = await _supabase.from('nodes').insert([{ 
+                lat: nodeData.lat, lng: nodeData.lng, intent: nodeData.intent, vibe_tag: nodeData.vibe_tag, 
+                secret_q: t.q, secret_a_adx: isA ? t.a[0] : t.a[1], status: 'active', user_id: myUserId 
             }]).select();
-            if(data) {
-                myNodeId = data[0].id;
-                new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
-                document.getElementById('step-secret').style.display = 'none';
-                alert("NODE LIVE");
-                setInterval(fetchQueue, 5000);
-            } else if(error) {
-                alert("INSERT ERROR: " + error.message);
-            }
+            if(data) { myNodeId = data[0].id; new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map); document.getElementById('step-secret').style.display='none'; setInterval(fetchQueue, 4000); }
         };
 
-        window.toggleInbox = () => {
-            const p = document.getElementById('inbox-panel');
-            p.style.display = p.style.display === 'flex' ? 'none' : 'flex';
-        };
-
+        window.toggleInbox = () => { const p = document.getElementById('inbox-panel'); p.style.display = p.style.display === 'flex' ? 'none' : 'flex'; };
+        
         async function fetchQueue() {
             if(!myNodeId) return;
             const { data } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
-            const list = document.getElementById('queue-list');
-            list.innerHTML = '';
-            data?.forEach(r => {
-                list.innerHTML += `<div>Match Found <button onclick="approveMatch(${r.id})">APPROVE</button></div>`;
-            });
+            const list = document.getElementById('queue-list'); list.innerHTML = '';
+            data?.forEach(r => { list.innerHTML += `<div style="padding:10px; border:1px solid #030;">Stranger Detected<button class="option-btn" onclick="approveMatch(${r.id}, '${r.requester_id}')">APPROVE</button></div>`; });
         }
 
-        window.approveMatch = async (rid) => {
+        window.approveMatch = async (rid, requester) => {
+            peerId = requester;
             await _supabase.from('nodes').update({ status: 'bridged' }).eq('id', myNodeId);
             await _supabase.from('requests').update({ status: 'approved' }).eq('id', rid);
             document.getElementById('inbox-panel').style.display = 'none';
@@ -268,23 +98,23 @@
         };
 
         function startChatSync() {
-            _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${myNodeId}` }, payload => {
-                if(payload.new.sender !== 'BAD_CREATOR') renderMsg(payload.new);
+            _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${myNodeId}` }, p => {
+                if(p.new.sender !== myUserId) renderMsg(p.new);
             }).subscribe();
         }
 
         window.sendMsg = async () => {
             const input = document.getElementById('chat-in');
-            const val = input.value; if(!val) return;
-            renderMsg({ sender: 'BAD_CREATOR', content: val });
-            await _supabase.from('messages').insert([{ node_id: myNodeId, sender: 'BAD_CREATOR', content: val }]);
+            const val = input.value.trim(); if(!val) return;
+            renderMsg({ sender: myUserId, content: val });
+            await _supabase.from('messages').insert([{ node_id: myNodeId, sender: myUserId, content: val }]);
             input.value = '';
-        }
+        };
 
         function renderMsg(m) {
             const box = document.getElementById('msg-box');
             const div = document.createElement('div');
-            div.className = `msg ${m.sender === 'BAD_CREATOR' ? 'me' : 'them'}`;
+            div.className = `msg ${m.sender === myUserId ? 'me' : 'them'}`;
             div.innerText = m.content;
             box.appendChild(div);
             box.scrollTop = box.scrollHeight;

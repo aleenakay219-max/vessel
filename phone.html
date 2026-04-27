@@ -9,74 +9,60 @@
     <style>
         body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
         #map { height: 100vh; width: 100vw; }
-        .marker { width: 40px; height: 40px; background: #0f0; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; color: #000; font-weight: bold; box-shadow: 0 0 15px #0f0; }
-        
-        /* Chat Interface */
+        .marker { width: 40px; height: 40px; background: #0f0; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; color: #000; font-weight: bold; }
         #chat-ui { display: none; height: 100vh; width: 100vw; flex-direction: column; background: #000; padding: 15px; box-sizing: border-box; }
-        #messages-box { flex-grow: 1; overflow-y: auto; border: 1px solid #0f0; margin-bottom: 10px; padding: 10px; background: rgba(0,20,0,0.1); }
+        #messages-box { flex-grow: 1; overflow-y: auto; border: 1px solid #0f0; margin-bottom: 10px; padding: 10px; }
         input { background: #000; border: 1px solid #0f0; color: #0f0; padding: 15px; width: 100%; box-sizing: border-box; outline: none; font-size: 16px; }
-        .msg { margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
-
     <div id="chat-ui">
-        <h3 style="border-bottom: 1px solid #0f0; padding-bottom: 5px;">> CONNECTION ENCRYPTED</h3>
+        <h3>SECURE CONNECTION</h3>
         <div id="messages-box"></div>
-        <input type="text" id="chat-input" placeholder="Reply..." onkeypress="if(event.key==='Enter') sendMessage()">
+        <input type="text" id="chat-input" placeholder="Message..." onkeypress="if(event.key==='Enter') sendMessage()">
     </div>
 
     <script>
-        const SB_URL = "https://rnroyhkvkmzuichysxnk.supabase.co";
-        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU";
-        const _supabase = supabase.createClient(SB_URL, SB_KEY);
-        
+        const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
 
-        let activeMarkers = [];
-        let connectedNodeId = null;
+        let activeNodeId = null;
+        let markers = [];
 
         async function findNodes() {
-            if (connectedNodeId) return;
+            if (activeNodeId) return;
             const { data: nodes } = await _supabase.from('nodes').select('*').eq('status', 'active');
-            
-            activeMarkers.forEach(m => m.remove());
+            markers.forEach(m => m.remove());
             nodes.forEach(n => {
                 const el = document.createElement('div'); el.className = 'marker'; el.innerText = n.id;
-                el.onclick = () => establishBridge(n.id);
-                activeMarkers.push(new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map));
+                el.onclick = async () => {
+                    activeNodeId = n.id;
+                    await _supabase.from('nodes').update({ status: 'bridged' }).eq('id', n.id);
+                    document.getElementById('map').style.display = 'none';
+                    document.getElementById('chat-ui').style.display = 'flex';
+                    setInterval(fetchMessages, 3000);
+                };
+                markers.push(new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map));
             });
-        }
-
-        async function establishBridge(id) {
-            connectedNodeId = id;
-            await _supabase.from('nodes').update({ status: 'bridged' }).eq('id', id);
-            document.getElementById('map').style.display = 'none';
-            document.getElementById('chat-ui').style.display = 'flex';
-            setInterval(fetchMessages, 2500);
         }
 
         async function sendMessage() {
             const input = document.getElementById('chat-input');
             if (!input.value.trim()) return;
-            await _supabase.from('messages').insert([{ node_id: connectedNodeId, sender: 'SEEKER', content: input.value }]);
+            await _supabase.from('messages').insert([{ node_id: activeNodeId, sender: 'SEEKER', content: input.value }]);
             input.value = '';
             fetchMessages();
         }
 
         async function fetchMessages() {
-            const { data } = await _supabase.from('messages').select('*').eq('node_id', connectedNodeId).order('created_at', { ascending: true });
+            const { data } = await _supabase.from('messages').select('*').eq('node_id', activeNodeId).order('created_at', { ascending: true });
             if (data) {
-                document.getElementById('messages-box').innerHTML = data.map(m => `
-                    <div class="msg"><strong>[${m.sender}]</strong> ${m.content}</div>
-                `).join('');
-                const box = document.getElementById('messages-box');
-                box.scrollTop = box.scrollHeight;
+                document.getElementById('messages-box').innerHTML = data.map(m => `<div><strong>[${m.sender}]</strong> ${m.content}</div>`).join('');
+                document.getElementById('messages-box').scrollTop = document.getElementById('messages-box').scrollHeight;
             }
         }
-
         setInterval(findNodes, 4000);
     </script>
 </body>

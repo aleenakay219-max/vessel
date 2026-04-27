@@ -1,26 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>VESSEL: SEEKER</title>
+    <title>VESSEL | SEEKER</title>
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+        :root { --neon: #0f0; --bg: #000; }
+        body { margin: 0; background: var(--bg); color: var(--neon); font-family: monospace; }
         #map { height: 100vh; width: 100vw; }
-        .marker { width: 40px; height: 40px; background: #0f0; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; color: #000; font-weight: bold; }
-        #chat-ui { display: none; height: 100vh; width: 100vw; flex-direction: column; background: #000; padding: 15px; box-sizing: border-box; }
-        #messages-box { flex-grow: 1; overflow-y: auto; border: 1px solid #0f0; margin-bottom: 10px; padding: 10px; }
-        input { background: #000; border: 1px solid #0f0; color: #0f0; padding: 15px; width: 100%; box-sizing: border-box; outline: none; font-size: 16px; }
+        
+        .marker { padding: 8px; background: #000; border: 1px solid var(--neon); color: var(--neon); font-size: 10px; cursor: pointer; box-shadow: 0 0 10px var(--neon); }
+
+        /* Challenge HUD */
+        #challenge-hud { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 100; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; text-align: center; }
+        .vibe-btn { width: 100%; padding: 15px; margin: 10px 0; background: transparent; color: var(--neon); border: 1px solid var(--neon); font-family: monospace; font-size: 1.1em; }
+        
+        /* Terminal UI */
+        #terminal { display: none; height: 100vh; width: 100vw; flex-direction: column; background: #000; padding: 15px; box-sizing: border-box; }
+        #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid var(--neon); padding: 10px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
+
     <div id="map"></div>
-    <div id="chat-ui">
-        <h3>SECURE CONNECTION</h3>
-        <div id="messages-box"></div>
-        <input type="text" id="chat-input" placeholder="Message..." onkeypress="if(event.key==='Enter') sendMessage()">
+
+    <div id="challenge-hud">
+        <div id="vibe-header" style="font-size: 0.8em; color: #555; margin-bottom: 5px;"></div>
+        <h2 id="question-text"></h2>
+        <button class="vibe-btn" id="ans-a" onclick="submitAnswer(0)"></button>
+        <button class="vibe-btn" id="ans-b" onclick="submitAnswer(1)"></button>
+        <button style="color:red; border:none; background:none; margin-top:20px;" onclick="location.reload()">ABORT</button>
+    </div>
+
+    <div id="terminal">
+        <h3 id="chat-title">[ CONNECTED ]</h3>
+        <div id="msg-box"></div>
+        <input type="text" id="chat-in" style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; width:100%; outline:none;" onkeypress="if(event.key==='Enter') sendMsg()">
     </div>
 
     <script>
@@ -28,42 +45,75 @@
         mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
 
-        let activeNodeId = null;
+        let targetNode = null;
         let markers = [];
 
-        async function findNodes() {
-            if (activeNodeId) return;
+        async function scanNodes() {
             const { data: nodes } = await _supabase.from('nodes').select('*').eq('status', 'active');
             markers.forEach(m => m.remove());
             nodes.forEach(n => {
-                const el = document.createElement('div'); el.className = 'marker'; el.innerText = n.id;
-                el.onclick = async () => {
-                    activeNodeId = n.id;
-                    await _supabase.from('nodes').update({ status: 'bridged' }).eq('id', n.id);
-                    document.getElementById('map').style.display = 'none';
-                    document.getElementById('chat-ui').style.display = 'flex';
-                    setInterval(fetchMessages, 3000);
-                };
+                const el = document.createElement('div'); el.className = 'marker'; el.innerText = n.intent;
+                el.onclick = () => openChallenge(n);
                 markers.push(new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map));
             });
         }
 
-        async function sendMessage() {
-            const input = document.getElementById('chat-input');
-            if (!input.value.trim()) return;
-            await _supabase.from('messages').insert([{ node_id: activeNodeId, sender: 'SEEKER', content: input.value }]);
-            input.value = '';
-            fetchMessages();
+        function openChallenge(node) {
+            targetNode = node;
+            document.getElementById('vibe-header').innerText = node.intent + " • " + node.vibe_tag;
+            document.getElementById('question-text').innerText = node.secret_q;
+            
+            // Note: In our templates, Answer A is 0, Answer B is 1
+            // We need to parse the template logic locally to show the buttons
+            const templates = {
+                '☕ Coffee': ['Quiet café', 'Loud café'],
+                '💬 Chat': ['Deep talks', 'Small talk'],
+                '🚶 Walk': ['No music', 'Full speaker mode'],
+                '✨ Connect': ['Genuine curiosity', 'Flexing']
+            };
+            const opts = templates[node.intent];
+            document.getElementById('ans-a').innerText = opts[0];
+            document.getElementById('ans-b').innerText = opts[1];
+            document.getElementById('challenge-hud').style.display = 'flex';
         }
 
-        async function fetchMessages() {
-            const { data } = await _supabase.from('messages').select('*').eq('node_id', activeNodeId).order('created_at', { ascending: true });
-            if (data) {
-                document.getElementById('messages-box').innerHTML = data.map(m => `<div><strong>[${m.sender}]</strong> ${m.content}</div>`).join('');
-                document.getElementById('messages-box').scrollTop = document.getElementById('messages-box').scrollHeight;
+        async function submitAnswer(index) {
+            const templates = {
+                '☕ Coffee': ['Quiet café', 'Loud café'],
+                '💬 Chat': ['Deep talks', 'Small talk'],
+                '🚶 Walk': ['No music', 'Full speaker mode'],
+                '✨ Connect': ['Genuine curiosity', 'Flexing']
+            };
+            const chosenText = templates[targetNode.intent][index];
+
+            if (chosenText === targetNode.secret_a_adx) {
+                // MATCH: Submit Request
+                await _supabase.from('requests').insert([{
+                    node_id: targetNode.id,
+                    requester_id: 'User_' + Math.floor(Math.random()*1000), // Placeholder for User B ID
+                    answer_given: chosenText,
+                    status: 'pending'
+                }]);
+                document.getElementById('challenge-hud').innerHTML = "<h2>My Vibe ✅</h2><p>Request sent to creator. Wait for approval...</p>";
+                listenForApproval();
+            } else {
+                // FAIL
+                document.getElementById('challenge-hud').innerHTML = "<h2 style='color:red;'>Not my vibe ❌</h2><button onclick='location.reload()' class='vibe-btn'>Return to Map</button>";
             }
         }
-        setInterval(findNodes, 4000);
+
+        function listenForApproval() {
+            const check = setInterval(async () => {
+                const { data } = await _supabase.from('nodes').select('status').eq('id', targetNode.id).single();
+                if (data && data.status === 'bridged') {
+                    clearInterval(check);
+                    document.getElementById('challenge-hud').style.display = 'none';
+                    document.getElementById('terminal').style.display = 'flex';
+                }
+            }, 3000);
+        }
+
+        setInterval(scanNodes, 5000);
     </script>
 </body>
 </html>

@@ -15,7 +15,7 @@
     </style>
 </head>
 <body>
-    <div id="status">SYSTEM READY...</div>
+    <div id="status">READY: DROP NODE</div>
     <div id="map"></div>
     <div id="chat-ui">
         <h2>[ SECURE TERMINAL ]</h2>
@@ -24,19 +24,22 @@
     </div>
 
     <script>
-        const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
-        mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        const SB_URL = "https://rnroyhkvkmzuichysxnk.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU";
+        const _supabase = supabase.createClient(SB_URL, SB_KEY);
         
+        mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
+        
         let myNodeId = null;
 
         map.on('click', async (e) => {
             if (myNodeId) return;
             const { data, error } = await _supabase.from('nodes').insert([{ lat: e.lngLat.lat, lng: e.lngLat.lng, status: 'active' }]).select();
             if (error) { alert("NODE ERROR: " + error.message); return; }
-
+            
             myNodeId = data[0].id;
-            document.getElementById('status').innerText = "LIVE NODE: " + myNodeId;
+            document.getElementById('status').innerText = "NODE LIVE: " + myNodeId;
             new mapboxgl.Marker({color: '#0f0'}).setLngLat(e.lngLat).addTo(map);
 
             setInterval(async () => {
@@ -53,15 +56,15 @@
         async function sendMessage() {
             const input = document.getElementById('chat-input');
             const content = input.value.trim();
-            if (!content) return;
+            if (!content || !myNodeId) return;
 
+            // THIS IS THE CRITICAL PART
             const { error } = await _supabase.from('messages').insert([
                 { node_id: myNodeId, sender: 'CREATOR', content: content }
             ]);
 
             if (error) {
-                console.error("SEND ERROR:", error);
-                alert("SEND ERROR: " + error.message);
+                alert("SEND FAILED: " + error.message);
             } else {
                 input.value = '';
                 fetchMessages();
@@ -70,11 +73,12 @@
 
         async function fetchMessages() {
             if (!myNodeId) return;
-            const { data, error } = await _supabase.from('messages').select('*').eq('node_id', myNodeId).order('created_at', { ascending: true });
-            if (error) { console.log("FETCH ERROR:", error.message); return; }
-            document.getElementById('messages-box').innerHTML = data.map(m => `<div><strong>[${m.sender}]</strong> ${m.content}</div>`).join('');
-            const box = document.getElementById('messages-box');
-            box.scrollTop = box.scrollHeight;
+            const { data } = await _supabase.from('messages').select('*').eq('node_id', myNodeId).order('created_at', { ascending: true });
+            if (data) {
+                document.getElementById('messages-box').innerHTML = data.map(m => `<div><strong>[${m.sender}]</strong> ${m.content}</div>`).join('');
+                const box = document.getElementById('messages-box');
+                box.scrollTop = box.scrollHeight;
+            }
         }
     </script>
 </body>

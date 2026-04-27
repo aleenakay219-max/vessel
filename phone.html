@@ -5,46 +5,122 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; background: #000; color: #0f0; font-family: monospace; overflow: hidden; }
-        #map { height: 100vh; width: 100vw; }
-        .marker { padding: 8px; background: #000; border: 1px solid #0f0; color: #0f0; font-size: 10px; cursor: pointer; }
-        #challenge { display: none; position: absolute; top:0; left:0; width:100vw; height:100vh; background: rgba(0,0,0,0.9); z-index: 100; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; text-align: center; }
-        .vibe-btn { width: 100%; padding: 15px; margin: 10px 0; background: transparent; color: #0f0; border: 1px solid #0f0; font-family: monospace; }
-        #terminal { display: none; height: 100vh; width: 100vw; flex-direction: column; background: #000; padding: 15px; box-sizing: border-box; z-index: 200; position: absolute; top:0; left:0; }
-        #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; }
-        .msg { margin-bottom: 8px; padding: 8px; border: 1px solid #030; max-width: 80%; }
-        .msg.me { align-self: flex-end; border-color: #0f0; }
-        .msg.them { align-self: flex-start; background: #010; }
+        :root { --neon: #0f0; --bg: #000; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: var(--neon); font-family: monospace; overflow: hidden; }
+        
+        #map { height: 100%; width: 100%; }
+        .marker { padding: 8px; background: #000; border: 1px solid var(--neon); color: var(--neon); font-size: 10px; }
+
+        /* UI Overlays */
+        #challenge { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 100; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; text-align: center; }
+        .vibe-btn { width: 100%; padding: 15px; margin: 10px 0; background: transparent; color: var(--neon); border: 1px solid var(--neon); font-family: monospace; font-size: 16px; }
+
+        /* Mobile Terminal Fix */
+        #terminal { 
+            display: none; 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background: #000; 
+            z-index: 200; 
+            flex-direction: column; 
+            box-sizing: border-box;
+        }
+
+        #msg-box { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 15px; 
+            display: flex; 
+            flex-direction: column; 
+            border-bottom: 1px solid #030;
+        }
+
+        .msg { margin-bottom: 10px; padding: 10px; border: 1px solid #030; max-width: 85%; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+        .msg.me { align-self: flex-end; border-color: var(--neon); color: var(--neon); }
+        .msg.them { align-self: flex-start; background: #010; color: #fff; border-color: #050; }
+
+        /* Input Area Fix */
+        .input-area { 
+            display: flex; 
+            padding: 10px; 
+            background: #000; 
+            border-top: 1px solid var(--neon);
+        }
+        #chat-in { 
+            flex: 1; 
+            background: #000; 
+            border: 1px solid #030; 
+            color: var(--neon); 
+            padding: 12px; 
+            outline: none; 
+            font-size: 16px; /* Prevents iOS auto-zoom */
+        }
+        #send-btn { 
+            background: var(--neon); 
+            color: #000; 
+            border: none; 
+            padding: 0 20px; 
+            margin-left: 10px; 
+            font-weight: bold; 
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
+
     <div id="challenge">
         <h2 id="q-text"></h2>
-        <button class="vibe-btn" id="btn-a" onclick="answer(0)"></button>
-        <button class="vibe-btn" id="btn-b" onclick="answer(1)"></button>
+        <div id="options-container" style="width:100%">
+            <button class="vibe-btn" id="btn-a" onclick="answer(0)"></button>
+            <button class="vibe-btn" id="btn-b" onclick="answer(1)"></button>
+        </div>
     </div>
+
     <div id="terminal">
         <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="MESSAGE..." style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; width:100%; outline:none;" onkeypress="if(event.key==='Enter') sendMsg()">
+        <div class="input-area">
+            <input type="text" id="chat-in" placeholder="MESSAGE..." autocomplete="off">
+            <button id="send-btn" onclick="sendMsg()">SEND</button>
+        </div>
     </div>
 
     <script>
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
         
+        const map = new mapboxgl.Map({ 
+            container: 'map', 
+            style: 'mapbox://styles/mapbox/dark-v11', 
+            center: [55.2708, 25.2048], 
+            zoom: 11 
+        });
+
         let currentN = null;
-        const templates = { '☕ Coffee': ['Quiet café', 'Loud café'], '💬 Chat': ['Deep talks', 'Small talk'], '🚶 Walk': ['No music', 'Full speaker mode'], '✨ Connect': ['Genuine curiosity', 'Flexing'] };
+        const templates = { 
+            '☕ Coffee': ['Quiet café', 'Loud café'], 
+            '💬 Chat': ['Deep talks', 'Small talk'], 
+            '🚶 Walk': ['No music', 'Full speaker mode'], 
+            '✨ Connect': ['Genuine curiosity', 'Flexing'] 
+        };
 
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             document.querySelectorAll('.marker').forEach(m => m.remove());
             data?.forEach(n => {
                 const el = document.createElement('div'); el.className = 'marker'; el.innerText = n.intent;
-                el.onclick = () => { currentN = n; document.getElementById('q-text').innerText = n.secret_q; document.getElementById('btn-a').innerText = templates[n.intent][0]; document.getElementById('btn-b').innerText = templates[n.intent][1]; document.getElementById('challenge').style.display = 'flex'; };
+                el.onclick = () => { 
+                    currentN = n; 
+                    document.getElementById('q-text').innerText = n.secret_q; 
+                    document.getElementById('btn-a').innerText = templates[n.intent][0]; 
+                    document.getElementById('btn-b').innerText = templates[n.intent][1]; 
+                    document.getElementById('challenge').style.display = 'flex'; 
+                };
                 new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map);
             });
         }
@@ -52,36 +128,67 @@
         window.answer = async (i) => {
             const choice = templates[currentN.intent][i];
             if(choice === currentN.secret_a_adx) {
-                await _supabase.from('requests').insert([{ node_id: currentN.id, requester_id: 'B', answer_given: choice, status: 'pending' }]);
-                document.getElementById('challenge').innerHTML = "<h2>WAITING FOR APPROVAL...</h2>";
+                await _supabase.from('requests').insert([{ node_id: currentN.id, requester_id: 'SEEKER', answer_given: choice, status: 'pending' }]);
+                document.getElementById('challenge').innerHTML = "<h2>WAITING FOR CREATOR...</h2>";
+                
                 const check = setInterval(async () => {
                     const { data } = await _supabase.from('nodes').select('status').eq('id', currentN.id).single();
-                    if(data.status === 'bridged') { clearInterval(check); document.getElementById('challenge').style.display='none'; document.getElementById('terminal').style.display='flex'; startChatSync(); }
-                }, 3000);
-            } else { document.getElementById('challenge').innerHTML = "<h2 style='color:red;'>FAILED</h2><button onclick='location.reload()'>EXIT</button>"; }
+                    if(data && data.status === 'bridged') { 
+                        clearInterval(check); 
+                        document.getElementById('challenge').style.display='none'; 
+                        document.getElementById('terminal').style.display='flex'; 
+                        startChatSync(); 
+                    }
+                }, 2000);
+            } else { 
+                document.getElementById('challenge').innerHTML = "<h2 style='color:red;'>FAILED</h2><button onclick='location.reload()' class='vibe-btn'>RETRY</button>"; 
+            }
         };
 
         function startChatSync() {
-            _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-                if(payload.new.node_id == currentN.id) renderMsg(payload.new);
+            _supabase.channel('msgs').on('postgres_changes', { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'messages', 
+                filter: `node_id=eq.${currentN.id}` 
+            }, payload => {
+                if(payload.new.sender !== 'SEEKER') renderMsg(payload.new);
             }).subscribe();
         }
 
-        async function sendMsg() {
+        window.sendMsg = async () => {
             const input = document.getElementById('chat-in');
-            await _supabase.from('messages').insert([{ node_id: currentN.id, sender_id: 'B', content: input.value }]);
+            const val = input.value.trim();
+            if(!val) return;
+            
+            renderMsg({ sender: 'SEEKER', content: val });
+            const { error } = await _supabase.from('messages').insert([{ 
+                node_id: currentN.id, 
+                sender: 'SEEKER', 
+                content: val 
+            }]);
+            
+            if(error) console.error("Send Error:", error);
             input.value = '';
+            input.focus();
         }
+
+        // Handle physical enter key on phone keyboard
+        document.getElementById('chat-in')?.addEventListener('keypress', (e) => {
+            if(e.key === 'Enter') sendMsg();
+        });
 
         function renderMsg(m) {
             const box = document.getElementById('msg-box');
             const div = document.createElement('div');
-            div.className = `msg ${m.sender_id === 'B' ? 'me' : 'them'}`;
+            div.className = `msg ${m.sender === 'SEEKER' ? 'me' : 'them'}`;
             div.innerText = m.content;
             box.appendChild(div);
             box.scrollTop = box.scrollHeight;
         }
+
         setInterval(scan, 5000);
+        scan();
     </script>
 </body>
 </html>

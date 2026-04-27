@@ -19,15 +19,10 @@
         
         #inbox-launcher { position: absolute; top: 15px; right: 15px; z-index: 1000; background: var(--bg); border: 1px solid var(--neon); padding: 10px; cursor: pointer; font-size: 12px; }
         #inbox-panel { display: none; position: absolute; top: 70px; right: 15px; width: 350px; height: 500px; background: rgba(0,0,0,0.95); border: 1px solid var(--neon); z-index: 1000; flex-direction: column; }
-        .tabs { display: flex; border-bottom: 1px solid var(--neon); }
-        .tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; font-size: 0.8em; border-right: 1px solid var(--dim); }
-        .tab.active { background: var(--neon); color: var(--bg); }
         #queue-list { flex-grow: 1; overflow-y: auto; padding: 10px; }
-
         .queue-card { border: 1px solid var(--dim); padding: 15px; margin-bottom: 10px; background: rgba(0,20,0,0.2); }
         .approve-btn { background: var(--neon); color: #000; border: none; padding: 8px; width: 100%; cursor: pointer; margin-top: 10px; font-family: monospace; font-weight: bold; }
 
-        /* Terminal Chat UI */
         #terminal { display: none; height: 100vh; width: 100vw; flex-direction: column; background: var(--bg); padding: 20px; box-sizing: border-box; z-index: 3000; position: absolute; top: 0; left: 0; }
         #timer { color: #ff0000; font-size: 1.5em; text-align: right; margin-bottom: 10px; }
         #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid var(--neon); padding: 15px; margin-bottom: 15px; }
@@ -40,10 +35,7 @@
     <div id="inbox-launcher" onclick="toggleInbox()">[ INBOX / QUEUE ]</div>
 
     <div id="inbox-panel">
-        <div class="tabs">
-            <div class="tab active">QUALIFIED</div>
-            <div class="tab">APPROVED</div>
-        </div>
+        <div style="padding:10px; border-bottom:1px solid #0f0; text-align:center;">QUALIFIED QUEUE</div>
         <div id="queue-list"></div>
     </div>
 
@@ -125,19 +117,33 @@
             nodeData.secret_a_adx = isOptionA ? t.a[0] : t.a[1];
             document.getElementById('step-secret').style.display = 'none';
 
+            // ATTEMPT INSERT WITH ERROR LOGGING
             const { data, error } = await _supabase.from('nodes').insert([{ 
-                lat: nodeData.lat, lng: nodeData.lng,
-                intent: nodeData.intent, vibe_tag: nodeData.vibe_tag,
-                secret_q: nodeData.secret_q, secret_a_adx: nodeData.secret_a_adx,
-                status: 'active', type: 'public', user_id: 'BAD_CREATOR',
+                lat: nodeData.lat, 
+                lng: nodeData.lng,
+                intent: nodeData.intent, 
+                vibe_tag: nodeData.vibe_tag,
+                secret_q: nodeData.secret_q, 
+                secret_a_adx: nodeData.secret_a_adx,
+                status: 'active', 
+                type: 'public', 
+                user_id: 'BAD_CREATOR',
                 expires_at: new Date(Date.now() + 45 * 60000).toISOString()
             }]).select();
 
-            if (data) {
-                myNodeId = data[0].id;
+            if (error) {
+                alert("DATABASE ERROR: " + error.message);
+                console.error(error);
+                return;
+            }
+
+            if (data && data.length > 0) {
+                myNodeId = data[0].id; // Confirmed lowercase 'id'
                 new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
-                alert("NODE LIVE.");
+                alert("NODE LIVE. ID: " + myNodeId);
                 setInterval(fetchQueue, 5000);
+            } else {
+                alert("CRITICAL: Node insert returned no data. Check RLS policies.");
             }
         };
 
@@ -149,12 +155,16 @@
 
         async function fetchQueue() {
             if(!myNodeId) return;
-            const { data: requests } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
+            const { data: requests, error } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
             const list = document.getElementById('queue-list');
             list.innerHTML = '';
-            requests?.forEach(req => {
-                list.innerHTML += `<div class="queue-card"><strong>${req.requester_id}</strong><br>Answer: ${req.answer_given}<button class="approve-btn" onclick="approveRequest(${req.id})">APPROVE</button></div>`;
-            });
+            if (requests && requests.length > 0) {
+                requests.forEach(req => {
+                    list.innerHTML += `<div class="queue-card"><strong>${req.requester_id}</strong><br>Answer: ${req.answer_given}<button class="approve-btn" onclick="approveRequest(${req.id})">APPROVE</button></div>`;
+                });
+            } else {
+                list.innerHTML = '<div style="text-align:center; color:#050;">Waiting for matches...</div>';
+            }
         }
 
         window.approveRequest = async function(reqId) {

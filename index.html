@@ -33,7 +33,7 @@
         map.on('click', async (e) => {
             if (myNodeId) return;
             const { data, error } = await _supabase.from('nodes').insert([{ lat: e.lngLat.lat, lng: e.lngLat.lng, status: 'active' }]).select();
-            if (error) { alert("DATABASE ERROR: " + error.message); return; }
+            if (error) { alert("NODE ERROR: " + error.message); return; }
 
             myNodeId = data[0].id;
             document.getElementById('status').innerText = "LIVE NODE: " + myNodeId;
@@ -43,8 +43,8 @@
                 const { data: node } = await _supabase.from('nodes').select('status').eq('id', myNodeId).single();
                 if (node && node.status === 'bridged') {
                     document.getElementById('map').style.display = 'none';
+                    document.getElementById('status').style.display = 'none';
                     document.getElementById('chat-ui').style.display = 'flex';
-                    fetchMessages();
                 }
             }, 2000);
             setInterval(fetchMessages, 3000);
@@ -52,17 +52,29 @@
 
         async function sendMessage() {
             const input = document.getElementById('chat-input');
-            const { error } = await _supabase.from('messages').insert([{ node_id: myNodeId, sender: 'CREATOR', content: input.value }]);
-            if (error) { alert("SEND ERROR: " + error.message); }
-            input.value = '';
-            fetchMessages();
+            const content = input.value.trim();
+            if (!content) return;
+
+            const { error } = await _supabase.from('messages').insert([
+                { node_id: myNodeId, sender: 'CREATOR', content: content }
+            ]);
+
+            if (error) {
+                console.error("SEND ERROR:", error);
+                alert("SEND ERROR: " + error.message);
+            } else {
+                input.value = '';
+                fetchMessages();
+            }
         }
 
         async function fetchMessages() {
             if (!myNodeId) return;
             const { data, error } = await _supabase.from('messages').select('*').eq('node_id', myNodeId).order('created_at', { ascending: true });
             if (error) { console.log("FETCH ERROR:", error.message); return; }
-            document.getElementById('messages-box').innerHTML = data.map(m => `<div>[${m.sender}] ${m.content}</div>`).join('');
+            document.getElementById('messages-box').innerHTML = data.map(m => `<div><strong>[${m.sender}]</strong> ${m.content}</div>`).join('');
+            const box = document.getElementById('messages-box');
+            box.scrollTop = box.scrollHeight;
         }
     </script>
 </body>

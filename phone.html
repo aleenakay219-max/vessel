@@ -7,113 +7,66 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        :root { --neon: #0f0; --bg: #000; }
-        body { margin: 0; background: var(--bg); color: var(--neon); font-family: monospace; }
+        body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
         #map { height: 100vh; width: 100vw; }
-        
-        .marker { padding: 8px; background: #000; border: 1px solid var(--neon); color: var(--neon); font-size: 10px; cursor: pointer; box-shadow: 0 0 10px var(--neon); }
-
-        /* Challenge HUD */
-        #challenge-hud { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.95); z-index: 100; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; text-align: center; }
-        .vibe-btn { width: 100%; padding: 15px; margin: 10px 0; background: transparent; color: var(--neon); border: 1px solid var(--neon); font-family: monospace; font-size: 1.1em; }
-        
-        /* Terminal UI */
+        .marker { padding: 8px; background: #000; border: 1px solid #0f0; color: #0f0; font-size: 10px; cursor: pointer; }
+        #challenge { display: none; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 100; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; text-align: center; }
+        .vibe-btn { width: 100%; padding: 15px; margin: 10px 0; background: transparent; color: #0f0; border: 1px solid #0f0; font-family: monospace; }
         #terminal { display: none; height: 100vh; width: 100vw; flex-direction: column; background: #000; padding: 15px; box-sizing: border-box; }
-        #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid var(--neon); padding: 10px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
-
     <div id="map"></div>
-
-    <div id="challenge-hud">
-        <div id="vibe-header" style="font-size: 0.8em; color: #555; margin-bottom: 5px;"></div>
-        <h2 id="question-text"></h2>
-        <button class="vibe-btn" id="ans-a" onclick="submitAnswer(0)"></button>
-        <button class="vibe-btn" id="ans-b" onclick="submitAnswer(1)"></button>
-        <button style="color:red; border:none; background:none; margin-top:20px;" onclick="location.reload()">ABORT</button>
+    <div id="challenge">
+        <h2 id="q-text"></h2>
+        <button class="vibe-btn" id="btn-a" onclick="answer(0)"></button>
+        <button class="vibe-btn" id="btn-b" onclick="answer(1)"></button>
     </div>
-
-    <div id="terminal">
-        <h3 id="chat-title">[ CONNECTED ]</h3>
-        <div id="msg-box"></div>
-        <input type="text" id="chat-in" style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; width:100%; outline:none;" onkeypress="if(event.key==='Enter') sendMsg()">
-    </div>
+    <div id="terminal"><h3>CONNECTED</h3><div id="chat-box" style="flex-grow:1; border:1px solid #0f0;"></div></div>
 
     <script>
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
 
-        let targetNode = null;
-        let markers = [];
+        let currentN = null;
+        const templates = {
+            '☕ Coffee': ['Quiet café', 'Loud café'],
+            '💬 Chat': ['Deep talks', 'Small talk'],
+            '🚶 Walk': ['No music', 'Full speaker mode'],
+            '✨ Connect': ['Genuine curiosity', 'Flexing']
+        };
 
-        async function scanNodes() {
-            const { data: nodes } = await _supabase.from('nodes').select('*').eq('status', 'active');
-            markers.forEach(m => m.remove());
-            nodes.forEach(n => {
+        async function scan() {
+            const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
+            document.querySelectorAll('.marker').forEach(m => m.remove());
+            data?.forEach(n => {
                 const el = document.createElement('div'); el.className = 'marker'; el.innerText = n.intent;
-                el.onclick = () => openChallenge(n);
-                markers.push(new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map));
+                el.onclick = () => {
+                    currentN = n;
+                    document.getElementById('q-text').innerText = n.secret_q;
+                    document.getElementById('btn-a').innerText = templates[n.intent][0];
+                    document.getElementById('btn-b').innerText = templates[n.intent][1];
+                    document.getElementById('challenge').style.display = 'flex';
+                };
+                new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map);
             });
         }
 
-        function openChallenge(node) {
-            targetNode = node;
-            document.getElementById('vibe-header').innerText = node.intent + " • " + node.vibe_tag;
-            document.getElementById('question-text').innerText = node.secret_q;
-            
-            // Note: In our templates, Answer A is 0, Answer B is 1
-            // We need to parse the template logic locally to show the buttons
-            const templates = {
-                '☕ Coffee': ['Quiet café', 'Loud café'],
-                '💬 Chat': ['Deep talks', 'Small talk'],
-                '🚶 Walk': ['No music', 'Full speaker mode'],
-                '✨ Connect': ['Genuine curiosity', 'Flexing']
-            };
-            const opts = templates[node.intent];
-            document.getElementById('ans-a').innerText = opts[0];
-            document.getElementById('ans-b').innerText = opts[1];
-            document.getElementById('challenge-hud').style.display = 'flex';
-        }
-
-        async function submitAnswer(index) {
-            const templates = {
-                '☕ Coffee': ['Quiet café', 'Loud café'],
-                '💬 Chat': ['Deep talks', 'Small talk'],
-                '🚶 Walk': ['No music', 'Full speaker mode'],
-                '✨ Connect': ['Genuine curiosity', 'Flexing']
-            };
-            const chosenText = templates[targetNode.intent][index];
-
-            if (chosenText === targetNode.secret_a_adx) {
-                // MATCH: Submit Request
-                await _supabase.from('requests').insert([{
-                    node_id: targetNode.id,
-                    requester_id: 'User_' + Math.floor(Math.random()*1000), // Placeholder for User B ID
-                    answer_given: chosenText,
-                    status: 'pending'
-                }]);
-                document.getElementById('challenge-hud').innerHTML = "<h2>My Vibe ✅</h2><p>Request sent to creator. Wait for approval...</p>";
-                listenForApproval();
+        window.answer = async function(i) {
+            const choice = templates[currentN.intent][i];
+            if(choice === currentN.secret_a_adx) {
+                await _supabase.from('requests').insert([{ node_id: currentN.id, requester_id: 'User_'+Math.floor(Math.random()*99), answer_given: choice, status: 'pending' }]);
+                document.getElementById('challenge').innerHTML = "<h2>MY VIBE ✅</h2><p>Waiting for approval...</p>";
+                setInterval(async () => {
+                    const { data } = await _supabase.from('nodes').select('status').eq('id', currentN.id).single();
+                    if(data.status === 'bridged') { document.getElementById('challenge').style.display='none'; document.getElementById('terminal').style.display='flex'; }
+                }, 3000);
             } else {
-                // FAIL
-                document.getElementById('challenge-hud').innerHTML = "<h2 style='color:red;'>Not my vibe ❌</h2><button onclick='location.reload()' class='vibe-btn'>Return to Map</button>";
+                document.getElementById('challenge').innerHTML = "<h2 style='color:red;'>NOT MY VIBE ❌</h2><button onclick='location.reload()' class='vibe-btn'>EXIT</button>";
             }
         }
-
-        function listenForApproval() {
-            const check = setInterval(async () => {
-                const { data } = await _supabase.from('nodes').select('status').eq('id', targetNode.id).single();
-                if (data && data.status === 'bridged') {
-                    clearInterval(check);
-                    document.getElementById('challenge-hud').style.display = 'none';
-                    document.getElementById('terminal').style.display = 'flex';
-                }
-            }, 3000);
-        }
-
-        setInterval(scanNodes, 5000);
+        setInterval(scan, 5000);
     </script>
 </body>
 </html>

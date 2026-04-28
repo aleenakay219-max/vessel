@@ -14,14 +14,17 @@
         .marker { padding: 8px; background: #000; border: 1px solid #0f0; color: #0f0; font-size: 10px; }
         #challenge { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
         .vibe-btn { width: 100%; padding: 15px; margin: 10px 0; background: transparent; color: #0f0; border: 1px solid #0f0; font-size: 16px; font-family: monospace; }
-        #terminal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 200; flex-direction: column; }
-        #msg-box { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; }
-        .msg { margin-bottom: 10px; padding: 10px; border: 1px solid #030; max-width: 85%; word-wrap: break-word; }
-        .msg.me { align-self: flex-end; border-color: #0f0; color: #0f0; }
-        .msg.them { align-self: flex-start; background: #010; color: #fff; border-color: #050; }
-        .input-area { display: flex; padding: 10px; background: #000; border-top: 1px solid #0f0; }
-        #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; font-size: 16px; }
-        #send-btn { background: #0f0; color: #000; border: none; padding: 0 20px; margin-left: 10px; font-weight: bold; }
+        
+        #terminal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 200; flex-direction: column; padding: 15px; box-sizing: border-box; }
+        #msg-box { flex: 1; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; }
+        .msg { margin-bottom: 10px; padding: 10px; border: 1px solid #030; max-width: 85%; }
+        .msg.me { align-self: flex-end; border-color: #0f0; }
+        .msg.them { align-self: flex-start; background: #010; }
+        .input-area { display: flex; background: #000; border-top: 1px solid #0f0; padding-top: 10px; }
+        #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; }
+        
+        #oracle-btn { display: none; width: 100%; padding: 10px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; }
+        #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 10px; background: rgba(0,255,0,0.05); }
     </style>
 </head>
 <body>
@@ -31,11 +34,17 @@
         <button class="vibe-btn" id="btn-a" onclick="answer(0)"></button>
         <button class="vibe-btn" id="btn-b" onclick="answer(1)"></button>
     </div>
+    
     <div id="terminal">
+        <div id="oracle-ballot">
+            <div style="border-bottom:1px solid #0f0; margin-bottom:10px; font-size:12px;">ORACLE SYNC</div>
+            <div id="venue-list">Synchronizing hardware...</div>
+        </div>
+        <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div class="input-area">
             <input type="text" id="chat-in" placeholder="MESSAGE..." autocomplete="off">
-            <button id="send-btn" onclick="sendMsg()">SEND</button>
+            <button id="send-btn" onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px 20px; margin-left:5px;">SEND</button>
         </div>
     </div>
 
@@ -44,8 +53,7 @@
         mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
-
-        let currentN = null;
+        let currentN = null, localMsgCount = 0;
         const templates = { '☕ Coffee': ['Quiet café', 'Loud café'], '💬 Chat': ['Deep talks', 'Small talk'], '🚶 Walk': ['No music', 'Full speaker mode'], '✨ Connect': ['Genuine curiosity', 'Flexing'] };
 
         async function scan() {
@@ -54,8 +62,7 @@
             data?.forEach(n => {
                 const el = document.createElement('div'); el.className = 'marker'; el.innerText = n.intent;
                 el.onclick = () => { 
-                    currentN = n; 
-                    document.getElementById('q-text').innerText = n.secret_q; 
+                    currentN = n; document.getElementById('q-text').innerText = n.secret_q; 
                     document.getElementById('btn-a').innerText = templates[n.intent][0]; 
                     document.getElementById('btn-b').innerText = templates[n.intent][1]; 
                     document.getElementById('challenge').style.display = 'flex'; 
@@ -68,53 +75,33 @@
             const choice = templates[currentN.intent][i];
             if(choice === currentN.secret_a_adx) {
                 await _supabase.from('requests').insert([{ node_id: currentN.id, requester_id: 'SEEKER', answer_given: choice, status: 'pending' }]);
-                document.getElementById('challenge').innerHTML = "<h2>WAITING FOR CREATOR...</h2>";
+                document.getElementById('challenge').innerHTML = "<h2>QUALIFIED. WAITING...</h2>";
                 const check = setInterval(async () => {
                     const { data } = await _supabase.from('nodes').select('status').eq('id', currentN.id).single();
                     if(data && data.status === 'bridged') { 
                         clearInterval(check); 
                         document.getElementById('challenge').style.display='none'; 
                         document.getElementById('terminal').style.display='flex'; 
-                        startChatSync(); 
+                        startChatSync(); startOracleSync();
                     }
                 }, 2000);
-            } else { 
-                document.getElementById('challenge').innerHTML = "<h2 style='color:red;'>FAILED</h2><button onclick='location.reload()' class='vibe-btn'>RETRY</button>"; 
             }
         };
 
         function startChatSync() {
-            _supabase.channel('msgs').on('postgres_changes', { 
-                event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${currentN.id}` 
-            }, payload => {
-                // If it's not from us, it must be from them
+            _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${currentN.id}` }, payload => {
                 if(payload.new.sender !== 'SEEKER') renderMsg(payload.new);
             }).subscribe();
         }
 
         window.sendMsg = async () => {
             const input = document.getElementById('chat-in');
-            const val = input.value.trim();
-            if(!val) return;
-            
-            // Attempt to send to database FIRST
-            const { error } = await _supabase.from('messages').insert([{ 
-                node_id: currentN.id, 
-                sender: 'SEEKER', 
-                content: val 
-            }]);
-            
-            if(error) {
-                alert("SEND ERROR: " + error.message);
-                console.error(error);
-            } else {
-                // Only show on our screen if the database accepted it
-                renderMsg({ sender: 'SEEKER', content: val });
-                input.value = '';
-            }
+            const val = input.value; if(!val) return;
+            renderMsg({ sender: 'SEEKER', content: val });
+            await _supabase.from('messages').insert([{ node_id: currentN.id, sender: 'SEEKER', content: val }]);
+            input.value = '';
         }
 
-        document.getElementById('chat-in').addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMsg(); });
         function renderMsg(m) {
             const box = document.getElementById('msg-box');
             const div = document.createElement('div');
@@ -122,9 +109,30 @@
             div.innerText = m.content;
             box.appendChild(div);
             box.scrollTop = box.scrollHeight;
+            localMsgCount++;
+            if(localMsgCount >= 5) document.getElementById('oracle-btn').style.display = 'block';
         }
-        setInterval(scan, 5000);
-        scan();
+
+        window.initiateOracle = async () => {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                await _supabase.from('oracle_sessions').upsert({ 
+                    bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude, status: 'syncing'
+                });
+                document.getElementById('oracle-ballot').style.display = 'block';
+            });
+        };
+
+        function startOracleSync() {
+            _supabase.channel('oracle-sync').on('postgres_changes', { 
+                event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` 
+            }, payload => {
+                if(payload.new.u1_lat && payload.new.u2_lat) {
+                    document.getElementById('venue-list').innerText = "MIDPOINT FOUND. CALCULATING VENUES...";
+                }
+            }).subscribe();
+        }
+
+        setInterval(scan, 5000); scan();
     </script>
 </body>
 </html>

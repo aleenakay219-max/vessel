@@ -43,7 +43,6 @@
         .msg.me { align-self: flex-end; border-color: #0f0; }
         .msg.them { align-self: flex-start; background: #010; }
 
-        /* ORACLE BOX */
         #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; cursor: pointer; font-weight: bold; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.1); }
         .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; cursor: pointer; font-size: 12px; }
@@ -200,7 +199,6 @@
             if(localMsgCount >= 5) document.getElementById('oracle-btn').style.display = 'block';
         }
 
-        // --- ORACLE SEARCH LOGIC ---
         window.initiateOracle = async () => {
             const btn = document.getElementById('oracle-btn');
             btn.innerText = "CAPTURING GPS...";
@@ -219,16 +217,15 @@
             }, async payload => {
                 const session = payload.new;
                 if(session.u1_lat && session.u2_lat) {
-                    document.getElementById('venue-list').innerText = "SECURED MIDPOINT. ANALYZING MAP...";
                     fetchVenues(session.u1_lat, session.u1_lng, session.u2_lat, session.u2_lng);
                 }
             }).subscribe();
         }
 
         async function fetchVenues(lat1, lng1, lat2, lng2) {
-            const midLat = (lat1 + lat2) / 2;
-            const midLng = (lng1 + lng2) / 2;
-            const category = templates[nodeData.intent].search;
+            const midLat = (parseFloat(lat1) + parseFloat(lat2)) / 2;
+            const midLng = (parseFloat(lng1) + parseFloat(lng2)) / 2;
+            const category = templates[nodeData.intent]?.search || 'cafe';
             
             const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${category}.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`;
             
@@ -238,20 +235,22 @@
                 const list = document.getElementById('venue-list');
                 list.innerHTML = '';
                 
+                if (!data.features || data.features.length === 0) {
+                    list.innerText = "NO VENUES DETECTED.";
+                    return;
+                }
+
                 data.features.forEach(f => {
                     list.innerHTML += `
                         <div class="venue-card" onclick="selectVenue('${f.text}')">
                             [ OPTION ]: ${f.text.toUpperCase()}<br>
-                            [ ADDR ]: ${f.properties.address || 'NEARBY'}
+                            [ ADDR ]: ${f.properties.address || 'LOCAL ZONE'}
                         </div>`;
                 });
-            } catch (e) { console.error("Search Error", e); }
+            } catch (e) { console.error(e); }
         }
 
-        window.selectVenue = (name) => {
-            alert("VOTED FOR: " + name);
-            // Voting logic follows in next step
-        }
+        window.selectVenue = (name) => { alert("VOTED: " + name); }
     </script>
 </body>
 </html>

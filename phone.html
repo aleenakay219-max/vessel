@@ -20,13 +20,13 @@
         #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; }
         #oracle-btn { display: none; width: 100%; padding: 10px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; cursor: pointer; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 10px; background: rgba(0,255,0,0.1); }
-        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; cursor: pointer; }
+        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Ready for Handshake...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">READY FOR SYNC...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div class="input-area"><input type="text" id="chat-in" placeholder="MESSAGE..."><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px 20px; margin-left:5px;">SEND</button></div>
@@ -58,27 +58,23 @@
 
         window.initiateOracle = async () => {
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                // Shared Logic: Update ONLY the u2 slots in the shared row
+                // FORCE UPSERT
                 const { error } = await _supabase.from('oracle_sessions').upsert({ 
                     bridge_id: currentN.id, 
                     u2_lat: pos.coords.latitude, 
                     u2_lng: pos.coords.longitude 
                 }, { onConflict: 'bridge_id' });
+                
+                if(error) alert("SQL ERROR: " + error.message);
                 document.getElementById('oracle-ballot').style.display = 'block';
-                document.getElementById('oracle-btn').innerText = "DATA SHARED. WAITING...";
+                document.getElementById('oracle-btn').innerText = "SYNCING...";
             });
         };
 
         function startOracleSync() {
             _supabase.channel('oracle-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async (p) => {
-                const s = p.new;
-                if (s) {
-                    document.getElementById('oracle-ballot').style.display = 'block';
-                    if (s.u1_lat && s.u2_lat) {
-                        document.getElementById('venue-list').innerText = "SHARED STATE LOCKED. FINDING MIDPOINT...";
-                        fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
-                    }
-                }
+                const s = p.new || p.old;
+                if (s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
             }).subscribe();
         }
 
@@ -88,7 +84,7 @@
             const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => { list.innerHTML += `<div class="venue-card" onclick="alert('Voted')">[ SHARED OPTION ]: ${f.text.toUpperCase()}</div>`; });
+            d.features.forEach(f => { list.innerHTML += `<div class="venue-card">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
         }
         setInterval(scan, 5000); scan();
     </script>

@@ -27,10 +27,10 @@
 </head>
 <body>
     <div id="map"></div>
-    <div id="challenge"><h2 id="q-text"></h2><button class="vibe-btn" id="btn-a" onclick="answer(0)"></button><button class="vibe-btn" id="btn-b" onclick="answer(1)"></button></div>
+    <div id="challenge"><h2 id="q-text"></h2><button class="vibe-btn" onclick="answer()">JOIN BRIDGE</button></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div style="border-bottom:1px solid #0f0; margin-bottom:10px; font-size:12px;">ORACLE RECOMMENDATIONS</div><div id="venue-list">Synchronizing...</div></div>
-        <button id="oracle-btn" disabled>[ ORACLE LOCKED ]</button>
+        <div id="oracle-ballot"><div style="border-bottom:1px solid #0f0; margin-bottom:10px; font-size:12px;">ORACLE RECOMMENDATIONS</div><div id="venue-list">Capturing GPS...</div></div>
+        <button id="oracle-btn" disabled>[ WAITING FOR CREATOR ]</button>
         <div id="msg-box"></div>
         <div class="input-area"><input type="text" id="chat-in" placeholder="MESSAGE..."><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px 20px; margin-left:5px;">SEND</button></div>
     </div>
@@ -44,34 +44,32 @@
 
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
-            document.querySelectorAll('.marker').forEach(m => m.remove());
             data?.forEach(n => {
                 const el = document.createElement('div'); el.className = 'marker'; el.innerText = n.intent;
-                el.onclick = () => { currentN = n; document.getElementById('q-text').innerText = n.secret_q; document.getElementById('btn-a').innerText = 'Option A'; document.getElementById('btn-b').innerText = 'Option B'; document.getElementById('challenge').style.display = 'flex'; };
+                el.onclick = () => { currentN = n; document.getElementById('challenge').style.display = 'flex'; };
                 new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map);
             });
         }
 
-        window.answer = async (i) => {
+        window.answer = async () => {
             await _supabase.from('requests').insert([{ node_id: currentN.id, requester_id: 'SEEKER', status: 'pending' }]);
-            document.getElementById('challenge').innerHTML = "<h2>QUALIFIED...</h2>";
-            const check = setInterval(async () => {
+            setInterval(async () => {
                 const { data } = await _supabase.from('nodes').select('status').eq('id', currentN.id).single();
-                if(data && data.status === 'bridged') { clearInterval(check); document.getElementById('challenge').style.display='none'; document.getElementById('terminal').style.display='flex'; startChatSync(); startOracleSync(); }
+                if(data?.status === 'bridged') { document.getElementById('challenge').style.display='none'; document.getElementById('terminal').style.display='flex'; startChatSync(); startOracleSync(); }
             }, 2000);
         };
 
-        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${currentN.id}` }, payload => { if(payload.new.sender !== 'SEEKER') renderMsg(payload.new); }).subscribe(); }
-        window.sendMsg = async () => { const input = document.getElementById('chat-in'); const val = input.value; if(!val) return; renderMsg({ sender: 'SEEKER', content: val }); await _supabase.from('messages').insert([{ node_id: currentN.id, sender: 'SEEKER', content: val }]); input.value = ''; }
         function renderMsg(m) { const box = document.getElementById('msg-box'); const div = document.createElement('div'); div.className = `msg ${m.sender === 'SEEKER' ? 'me' : 'them'}`; div.innerText = m.content; box.appendChild(div); box.scrollTop = box.scrollHeight; localMsgCount++; if(localMsgCount >= 5) document.getElementById('oracle-btn').style.display = 'block'; }
+        window.sendMsg = async () => { const input = document.getElementById('chat-in'); const val = input.value; if(!val) return; renderMsg({ sender: 'SEEKER', content: val }); await _supabase.from('messages').insert([{ node_id: currentN.id, sender: 'SEEKER', content: val }]); input.value = ''; }
+        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${currentN.id}` }, payload => { if(payload.new.sender !== 'SEEKER') renderMsg(payload.new); }).subscribe(); }
 
         function startOracleSync() {
-            _supabase.channel('oracle-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async (payload) => {
-                const s = payload.new;
+            _supabase.channel('oracle-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async (p) => {
+                const s = p.new;
                 if (s && s.u1_lat && !s.u2_lat) {
                     document.getElementById('oracle-ballot').style.display = 'block';
-                    navigator.geolocation.getCurrentPosition(async (p) => {
-                        await _supabase.from('oracle_sessions').update({ u2_lat: p.coords.latitude, u2_lng: p.coords.longitude }).eq('bridge_id', currentN.id);
+                    navigator.geolocation.getCurrentPosition(async (gps) => {
+                        await _supabase.from('oracle_sessions').update({ u2_lat: gps.coords.latitude, u2_lng: gps.coords.longitude }).eq('bridge_id', currentN.id);
                     });
                 }
                 if (s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
@@ -81,10 +79,10 @@
         async function fetchVenues(lat1, lng1, lat2, lng2) {
             const midLat = (parseFloat(lat1) + parseFloat(lat2)) / 2;
             const midLng = (parseFloat(lng1) + parseFloat(lng2)) / 2;
-            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`;
-            const res = await fetch(url); const d = await res.json();
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`);
+            const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => { list.innerHTML += `<div class="venue-card" onclick="alert('VOTED')">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
+            d.features.forEach(f => { list.innerHTML += `<div class="venue-card">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
         }
         setInterval(scan, 5000); scan();
     </script>

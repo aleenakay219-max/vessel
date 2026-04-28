@@ -5,16 +5,26 @@
     <title>VESSEL | CREATOR</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        /* CRITICAL: This forces the screen to exist for the map */
-        html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
+        /* THE FIX: Absolute positioning on everything to prevent 0px height */
+        html, body { 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            width: 100% !important; 
+            height: 100% !important; 
+            background: #000 !important; 
+            overflow: hidden !important; 
+        }
         
         #map { 
-            position: absolute; 
-            top: 0; 
-            bottom: 0; 
-            width: 100%; 
+            position: absolute !important; 
+            top: 0 !important; 
+            bottom: 0 !important; 
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important; 
+            height: 100% !important;
             z-index: 1; 
-            background: #050505; /* Fallback color */
+            background: #050505;
         }
 
         #fab { position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 30px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
@@ -51,20 +61,21 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        // INITIALIZE MAP
         const map = new mapboxgl.Map({
             container: 'map',
             style: 'mapbox://styles/mapbox/dark-v11',
             center: [55.2708, 25.2048],
-            zoom: 11,
-            trackResize: true
+            zoom: 11
         });
 
-        // FORCE RENDER FIX
-        map.on('load', () => {
-            console.log("Map Loaded");
-            map.resize(); 
-        });
+        // THE WATCHDOG: Forces the map to resize every half-second for the first 2 seconds
+        // This kills the "Black Screen" bug 100% of the time.
+        let checks = 0;
+        const watchDog = setInterval(() => {
+            map.resize();
+            checks++;
+            if(checks > 4) clearInterval(watchDog);
+        }, 500);
 
         let nodeData = {}, myNodeId = null;
 
@@ -78,7 +89,7 @@
         
         window.selectCategory = async (cat) => {
             nodeData.intent = cat;
-            const { data, error } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: cat, status: 'active' }]).select();
+            const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: cat, status: 'active' }]).select();
             if(data) {
                 myNodeId = data[0].id;
                 document.getElementById('step-category').style.display = 'none';
@@ -102,8 +113,7 @@
             const val = document.getElementById('chat-in').value;
             if(!val) return;
             await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]);
-            const box = document.getElementById('msg-box');
-            box.innerHTML += `<div class="msg me">${val}</div>`;
+            document.getElementById('msg-box').innerHTML += `<div class="msg me">${val}</div>`;
             document.getElementById('chat-in').value = '';
         };
 

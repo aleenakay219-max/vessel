@@ -5,36 +5,18 @@
     <title>VESSEL | CREATOR</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        /* THE FIX: Absolute positioning on everything to prevent 0px height */
-        html, body { 
-            margin: 0 !important; 
-            padding: 0 !important; 
-            width: 100% !important; 
-            height: 100% !important; 
-            background: #000 !important; 
-            overflow: hidden !important; 
-        }
-        
-        #map { 
-            position: absolute !important; 
-            top: 0 !important; 
-            bottom: 0 !important; 
-            left: 0 !important;
-            right: 0 !important;
-            width: 100% !important; 
-            height: 100% !important;
-            z-index: 1; 
-            background: #050505;
-        }
-
+        html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; z-index: 1; background: #050505; }
         #fab { position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 30px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
         #terminal { display: none; height: 100%; width: 100%; flex-direction: column; background: #000; padding: 20px; box-sizing: border-box; z-index: 300; position: absolute; top: 0; left: 0; font-family: monospace; }
         #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; color: #0f0; }
         .msg { margin-bottom: 8px; padding: 8px; border: 1px solid #030; }
         .msg.me { align-self: flex-end; border-color: #0f0; }
-        #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; }
-        #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.1); color: #0f0; }
-        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; }
+        #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; z-index: 400; position: relative; }
+        #oracle-ballot { display: none; border: 2px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.05); color: #0f0; z-index: 500; position: relative; }
+        /* THE CLICK FIX: pointer-events auto and high z-index */
+        .venue-card { border: 1px solid #0f0; padding: 12px; margin-top: 10px; font-size: 13px; cursor: pointer !important; pointer-events: auto !important; background: rgba(0,20,0,0.8); }
+        .venue-card:hover { background: #0f0; color: #000; }
         .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 200; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 320px; color: #0f0; }
         .option-btn { display: block; width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #0f0; background: transparent; color: #0f0; cursor: pointer; }
     </style>
@@ -42,13 +24,9 @@
 <body>
     <div id="map"></div>
     <button id="fab" onclick="startCreation()">+</button>
-    
-    <div id="step-category" class="hud-panel">
-        <button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button>
-    </div>
-
+    <div id="step-category" class="hud-panel"><button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Syncing Coordinates...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">CALCULATING PROXIMITY...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; outline:none;">
@@ -61,28 +39,14 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/dark-v11',
-            center: [55.2708, 25.2048],
-            zoom: 11
-        });
-
-        // THE WATCHDOG: Forces the map to resize every half-second for the first 2 seconds
-        // This kills the "Black Screen" bug 100% of the time.
-        let checks = 0;
-        const watchDog = setInterval(() => {
-            map.resize();
-            checks++;
-            if(checks > 4) clearInterval(watchDog);
-        }, 500);
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
+        map.on('load', () => map.resize());
 
         let nodeData = {}, myNodeId = null;
 
         window.startCreation = () => {
             map.once('click', (e) => {
-                nodeData.lat = e.lngLat.lat;
-                nodeData.lng = e.lngLat.lng;
+                nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng;
                 document.getElementById('step-category').style.display = 'block';
             });
         };
@@ -94,14 +58,12 @@
                 myNodeId = data[0].id;
                 document.getElementById('step-category').style.display = 'none';
                 new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
-                setInterval(checkRequests, 3000);
+                setInterval(async () => {
+                    const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
+                    if(reqs?.length > 0) approveMatch();
+                }, 3000);
             }
         };
-
-        async function checkRequests() {
-            const { data } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
-            if(data?.length > 0) approveMatch();
-        }
 
         window.approveMatch = async () => {
             await _supabase.from('nodes').update({ status: 'bridged' }).eq('id', myNodeId);
@@ -119,9 +81,7 @@
 
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => {
-                if(p.new.sender !== 'BAD_CREATOR') {
-                    document.getElementById('msg-box').innerHTML += `<div class="msg them">${p.new.content}</div>`;
-                }
+                if(p.new.sender !== 'BAD_CREATOR') document.getElementById('msg-box').innerHTML += `<div class="msg them">${p.new.content}</div>`;
             }).subscribe();
         }
 
@@ -131,6 +91,7 @@
                     bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude
                 }, { onConflict: 'bridge_id' });
                 document.getElementById('oracle-ballot').style.display = 'block';
+                document.getElementById('oracle-btn').innerText = "SYNCING...";
             });
         };
 
@@ -144,10 +105,17 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${mLn},${mLa}&limit=3&access_token=${MAPBOX_TOKEN}`);
+            // THE SEARCH FIX: Forces location-based search
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/coffee.json?proximity=${mLn},${mLa}&types=poi&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => { list.innerHTML += `<div class="venue-card">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
+            d.features.forEach(f => { 
+                const card = document.createElement('div');
+                card.className = 'venue-card';
+                card.innerText = `[ OPTION ]: ${f.text.toUpperCase()}`;
+                card.onclick = () => alert("VOTED: " + f.text);
+                list.appendChild(card);
+            });
         }
     </script>
 </body>

@@ -15,23 +15,19 @@
         #msg-box { flex: 1; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; }
         .msg { margin-bottom: 10px; padding: 10px; border: 1px solid #030; max-width: 85%; }
         .msg.me { align-self: flex-end; border-color: #0f0; }
-        .msg.them { align-self: flex-start; background: #010; }
-        .input-area { display: flex; background: #000; border-top: 1px solid #0f0; padding-top: 10px; }
-        #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; }
-        #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; }
+        #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.1); }
-        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; cursor: pointer; }
+        .venue-card { border: 1px solid #0f0; padding: 12px; margin-top: 10px; font-size: 13px; cursor: pointer; background: rgba(0,20,0,0.8); }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Waiting for Peer...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">SYNCING...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
-        <div class="input-area"><input type="text" id="chat-in" placeholder="MESSAGE..."><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px 20px; margin-left:5px;">SEND</button></div>
+        <div class="input-area" style="display:flex;"><input type="text" id="chat-in" placeholder="MESSAGE..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px;">SEND</button></div>
     </div>
-
     <script>
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
@@ -51,55 +47,41 @@
                 new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map);
             });
         }
-
         window.sendMsg = async () => {
             const val = document.getElementById('chat-in').value;
             if(!val) return;
-            renderMsg({sender:'SEEKER', content:val});
             await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]);
+            document.getElementById('msg-box').innerHTML += `<div class="msg me">${val}</div>`;
             document.getElementById('chat-in').value = '';
         };
-
-        function renderMsg(m) {
-            const box = document.getElementById('msg-box');
-            const div = document.createElement('div');
-            div.className = `msg ${m.sender === 'SEEKER' ? 'me' : 'them'}`;
-            div.innerText = m.content;
-            box.appendChild(div); box.scrollTop = box.scrollHeight;
-            if(box.children.length >= 5) document.getElementById('oracle-btn').style.display = 'block';
-        }
-
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
-                if(p.new.sender !== 'SEEKER') renderMsg(p.new);
+                if(p.new.sender !== 'SEEKER') document.getElementById('msg-box').innerHTML += `<div class="msg them">${p.new.content}</div>`;
             }).subscribe();
         }
-
         window.initiateOracle = async () => {
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                const { error } = await _supabase.from('oracle_sessions').upsert({
-                    bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude
-                }, { onConflict: 'bridge_id' });
-                if(error) alert("SQL ERROR: " + error.message);
+                await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude }, { onConflict: 'bridge_id' });
                 document.getElementById('oracle-ballot').style.display = 'block';
-                document.getElementById('oracle-btn').innerText = "SYNCING...";
             });
         };
-
         function startOracleSync() {
-            _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, async (p) => {
+            _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, p => {
                 const s = p.new || p.old;
-                if (s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
+                if(s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
             }).subscribe();
         }
-
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${mLn},${mLa}&limit=3&access_token=${MAPBOX_TOKEN}`);
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/coffee.json?proximity=${mLn},${mLa}&types=poi&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => { list.innerHTML += `<div class="venue-card" onclick="alert('VOTED')">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
+            d.features.forEach(f => { 
+                const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = `[ OPTION ]: ${f.text.toUpperCase()}`;
+                card.onclick = () => alert("VOTED: " + f.text);
+                list.appendChild(card);
+            });
         }
         setInterval(scan, 5000); scan();
     </script>

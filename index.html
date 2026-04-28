@@ -5,125 +5,50 @@
     <title>VESSEL | CREATOR</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        /* FORCE VISIBILITY */
         html, body {
-            margin: 0;
-            padding: 0;
-            width: 100vw;
-            height: 100vh;
+            margin: 0; padding: 0; width: 100vw; height: 100vh;
             background-color: #050505 !important;
-            color: #0f0;
-            font-family: 'Courier New', monospace;
-            overflow: hidden;
+            color: #0f0; font-family: 'Courier New', monospace; overflow: hidden;
         }
-
-        #map {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            display: block !important;
-        }
-
+        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: block !important; }
+        
         /* UI ELEMENTS */
         #fab {
-            position: absolute;
-            bottom: 30px;
-            right: 30px;
-            width: 60px;
-            height: 60px;
-            background: #000;
-            border: 2px solid #0f0;
-            border-radius: 50%;
-            color: #0f0;
-            font-size: 30px;
-            cursor: pointer;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 0 15px #0f0;
+            position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px;
+            background: #000; border: 2px solid #0f0; border-radius: 50%;
+            color: #0f0; font-size: 30px; cursor: pointer; z-index: 100;
+            display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0;
         }
-
         .hud-panel {
-            display: none;
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 200;
-            background: rgba(0,0,0,0.95);
-            border: 1px solid #0f0;
-            padding: 25px;
-            width: 320px;
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 200; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 320px;
         }
-
         .option-btn {
-            display: block;
-            width: 100%;
-            padding: 12px;
-            margin: 8px 0;
-            background: transparent;
-            color: #0f0;
-            border: 1px solid #0f0;
-            cursor: pointer;
-            font-family: monospace;
+            display: block; width: 100%; padding: 12px; margin: 8px 0;
+            background: transparent; color: #0f0; border: 1px solid #0f0; cursor: pointer; font-family: monospace;
         }
-
         #inbox-launcher {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            z-index: 100;
-            background: #000;
-            border: 1px solid #0f0;
-            padding: 10px;
-            cursor: pointer;
-            font-size: 12px;
+            position: absolute; top: 15px; right: 15px; z-index: 100;
+            background: #000; border: 1px solid #0f0; padding: 10px; cursor: pointer; font-size: 12px;
         }
-
         #inbox-panel {
-            display: none;
-            position: absolute;
-            top: 70px;
-            right: 15px;
-            width: 300px;
-            height: 400px;
-            background: rgba(0,0,0,0.95);
-            border: 1px solid #0f0;
-            z-index: 100;
-            flex-direction: column;
+            display: none; position: absolute; top: 70px; right: 15px; width: 300px; height: 400px;
+            background: rgba(0,0,0,0.95); border: 1px solid #0f0; z-index: 100; flex-direction: column;
         }
-
+        
+        /* TERMINAL & ORACLE */
         #terminal {
-            display: none;
-            height: 100%;
-            width: 100%;
-            flex-direction: column;
-            background: #000;
-            padding: 20px;
-            box-sizing: border-box;
-            z-index: 300;
-            position: absolute;
-            top: 0;
-            left: 0;
+            display: none; height: 100%; width: 100%; flex-direction: column;
+            background: #000; padding: 20px; box-sizing: border-box; z-index: 300;
+            position: absolute; top: 0; left: 0;
         }
-
-        #msg-box {
-            flex-grow: 1;
-            overflow-y: auto;
-            border: 1px solid #0f0;
-            padding: 15px;
-            margin-bottom: 15px;
-            display: flex;
-            flex-direction: column;
-        }
-
+        #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; }
         .msg { margin-bottom: 8px; padding: 8px; border: 1px solid #030; }
         .msg.me { align-self: flex-end; border-color: #0f0; }
         .msg.them { align-self: flex-start; background: #010; }
+
+        #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; cursor: pointer; font-weight: bold; }
+        #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.05); }
     </style>
 </head>
 <body>
@@ -153,7 +78,15 @@
     </div>
 
     <div id="terminal">
-        <div style="color:red; text-align:right;">45:00</div>
+        <div style="color:red; text-align:right;">PROTOCOL ACTIVE</div>
+        
+        <div id="oracle-ballot">
+            <div style="border-bottom:1px solid #0f0; margin-bottom:10px; font-size:12px;">ORACLE SYNC</div>
+            <div id="venue-list">Waiting for peer GPS...</div>
+        </div>
+
+        <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
+
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; outline:none;" onkeypress="if(event.key==='Enter') sendMsg()">
     </div>
@@ -162,26 +95,10 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
     <script>
-        console.log("CRITICAL: APP STARTING");
-
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
 
-        let map;
-        try {
-            map = new mapboxgl.Map({
-                container: 'map',
-                style: 'mapbox://styles/mapbox/dark-v11',
-                center: [55.2708, 25.2048],
-                zoom: 11
-            });
-            console.log("MAP INITIALIZED");
-        } catch (e) {
-            console.error("MAP ERROR:", e);
-            alert("Mapbox failed to load. Check console.");
-        }
-
-        let nodeData = {}, myNodeId = null;
+        let map, nodeData = {}, myNodeId = null, localMsgCount = 0;
         const templates = {
             '☕ Coffee': { vibes: ['Quick chat', 'Deep convo'], q: 'Quiet café or loud café?', a: ['Quiet café', 'Loud café'] },
             '💬 Chat': { vibes: ['Deep talk', 'Funny banter'], q: 'Deep talks or small talk?', a: ['Deep talks', 'Small talk'] },
@@ -189,11 +106,11 @@
             '✨ Connect': { vibes: ['Genuine curiosity'], q: 'Best first energy?', a: ['Genuine curiosity', 'Flexing'] }
         };
 
+        map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
+
         window.startCreation = () => {
-            alert("Step 1: Click map location.");
             map.once('click', (e) => {
-                nodeData.lat = e.lngLat.lat;
-                nodeData.lng = e.lngLat.lng;
+                nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng;
                 document.getElementById('step-category').style.display = 'block';
             });
         };
@@ -222,25 +139,15 @@
         window.finalizeNode = async (isA) => {
             const t = templates[nodeData.intent];
             const { data, error } = await _supabase.from('nodes').insert([{
-                lat: nodeData.lat,
-                lng: nodeData.lng,
-                intent: nodeData.intent,
-                vibe_tag: nodeData.vibe_tag,
-                secret_q: t.q,
-                secret_a_adx: isA ? t.a[0] : t.a[1],
-                status: 'active',
-                user_id: 'BAD_CREATOR',
-                type: 'public',
-                expires_at: new Date(Date.now() + 45 * 60000).toISOString()
+                lat: nodeData.lat, lng: nodeData.lng, intent: nodeData.intent, vibe_tag: nodeData.vibe_tag,
+                secret_q: t.q, secret_a_adx: isA ? t.a[0] : t.a[1], status: 'active', user_id: 'BAD_CREATOR',
+                type: 'public', expires_at: new Date(Date.now() + 45 * 60000).toISOString()
             }]).select();
             if(data) {
                 myNodeId = data[0].id;
                 new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
                 document.getElementById('step-secret').style.display = 'none';
-                alert("NODE LIVE");
                 setInterval(fetchQueue, 5000);
-            } else if(error) {
-                alert("INSERT ERROR: " + error.message);
             }
         };
 
@@ -265,6 +172,7 @@
             document.getElementById('inbox-panel').style.display = 'none';
             document.getElementById('terminal').style.display = 'flex';
             startChatSync();
+            startOracleSync();
         };
 
         function startChatSync() {
@@ -288,6 +196,30 @@
             div.innerText = m.content;
             box.appendChild(div);
             box.scrollTop = box.scrollHeight;
+            localMsgCount++;
+            if(localMsgCount >= 5) document.getElementById('oracle-btn').style.display = 'block';
+        }
+
+        window.initiateOracle = async () => {
+            const btn = document.getElementById('oracle-btn');
+            btn.innerText = "CAPTURING GPS...";
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                await _supabase.from('oracle_sessions').upsert({ 
+                    bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude, status: 'syncing'
+                });
+                btn.innerText = "WAITING FOR PEER...";
+                document.getElementById('oracle-ballot').style.display = 'block';
+            });
+        };
+
+        function startOracleSync() {
+            _supabase.channel('oracle-sync').on('postgres_changes', { 
+                event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${myNodeId}` 
+            }, payload => {
+                if(payload.new.u1_lat && payload.new.u2_lat) {
+                    document.getElementById('venue-list').innerText = "MIDPOINT SECURED. SEARCHING CAFES...";
+                }
+            }).subscribe();
         }
     </script>
 </body>

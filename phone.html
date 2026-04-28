@@ -1,61 +1,130 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>OBELISK 1.0 | SEEKER</title>
-    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
-    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <title>VESSEL | SEEKER</title>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; padding: 0; background: #000; font-family: 'Courier New', monospace; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .ui-overlay { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 1; width: 90%; text-align: center; }
-        .scan-btn { background: #00ff00; color: #000; border: none; padding: 15px; width: 100%; font-weight: bold; cursor: pointer; letter-spacing: 2px; text-transform: uppercase; }
+        :root { --neon: #0f0; --bg: #000; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #0f0; font-family: monospace; overflow: hidden; }
+        #map { height: 100%; width: 100%; }
+        .marker { padding: 8px; background: #000; border: 1px solid #0f0; color: #0f0; font-size: 10px; }
+        #challenge { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 100; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; }
+        .vibe-btn { width: 100%; padding: 15px; margin: 10px 0; background: transparent; color: #0f0; border: 1px solid #0f0; font-size: 16px; font-family: monospace; }
+        #terminal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 200; flex-direction: column; }
+        #msg-box { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; }
+        .msg { margin-bottom: 10px; padding: 10px; border: 1px solid #030; max-width: 85%; word-wrap: break-word; }
+        .msg.me { align-self: flex-end; border-color: #0f0; color: #0f0; }
+        .msg.them { align-self: flex-start; background: #010; color: #fff; border-color: #050; }
+        .input-area { display: flex; padding: 10px; background: #000; border-top: 1px solid #0f0; }
+        #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; font-size: 16px; }
+        #send-btn { background: #0f0; color: #000; border: none; padding: 0 20px; margin-left: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
+    <div id="map"></div>
+    <div id="challenge">
+        <h2 id="q-text"></h2>
+        <button class="vibe-btn" id="btn-a" onclick="answer(0)"></button>
+        <button class="vibe-btn" id="btn-b" onclick="answer(1)"></button>
+    </div>
+    <div id="terminal">
+        <div id="msg-box"></div>
+        <div class="input-area">
+            <input type="text" id="chat-in" placeholder="MESSAGE..." autocomplete="off">
+            <button id="send-btn" onclick="sendMsg()">SEND</button>
+        </div>
+    </div>
 
-<div id="map"></div>
+    <script>
+        const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
+        mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
 
-<div class="ui-overlay">
-    <button class="scan-btn" onclick="scanForVessels()">[ SCAN FOR VESSELS ]</button>
-</div>
+        let currentN = null;
+        const templates = { '☕ Coffee': ['Quiet café', 'Loud café'], '💬 Chat': ['Deep talks', 'Small talk'], '🚶 Walk': ['No music', 'Full speaker mode'], '✨ Connect': ['Genuine curiosity', 'Flexing'] };
 
-<script>
-    const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
-    const SUPABASE_URL = 'https://rnroyhkvkmzuichysxnk.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
-
-    mapboxgl.accessToken = MAPBOX_TOKEN;
-    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    const map = new mapboxgl.Map({
-        container: 'map',
-        style: 'mapbox://styles/mapbox/dark-v10',
-        center: [55.3, 25.3],
-        zoom: 12
-    });
-
-    async function scanForVessels() {
-        const { data, error } = await _supabase
-            .from('nodes')
-            .select('*')
-            .eq('status', 'active');
-
-        if (data) {
-            data.forEach(node => {
-                const marker = new mapboxgl.Marker({ color: '#00ff00' })
-                    .setLngLat([node.lng, node.lat])
-                    .addTo(map);
-                
-                marker.getElement().addEventListener('click', () => {
-                    alert("VESSEL DETECTED\nID: " + node.id + "\nInitiating secure handshake...");
-                });
+        async function scan() {
+            const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
+            document.querySelectorAll('.marker').forEach(m => m.remove());
+            data?.forEach(n => {
+                const el = document.createElement('div'); el.className = 'marker'; el.innerText = n.intent;
+                el.onclick = () => { 
+                    currentN = n; 
+                    document.getElementById('q-text').innerText = n.secret_q; 
+                    document.getElementById('btn-a').innerText = templates[n.intent][0]; 
+                    document.getElementById('btn-b').innerText = templates[n.intent][1]; 
+                    document.getElementById('challenge').style.display = 'flex'; 
+                };
+                new mapboxgl.Marker(el).setLngLat([n.lng, n.lat]).addTo(map);
             });
-        } else if (error) {
-            console.error("Scan Error:", error);
         }
-    }
-</script>
+
+        window.answer = async (i) => {
+            const choice = templates[currentN.intent][i];
+            if(choice === currentN.secret_a_adx) {
+                await _supabase.from('requests').insert([{ node_id: currentN.id, requester_id: 'SEEKER', answer_given: choice, status: 'pending' }]);
+                document.getElementById('challenge').innerHTML = "<h2>WAITING FOR CREATOR...</h2>";
+                const check = setInterval(async () => {
+                    const { data } = await _supabase.from('nodes').select('status').eq('id', currentN.id).single();
+                    if(data && data.status === 'bridged') { 
+                        clearInterval(check); 
+                        document.getElementById('challenge').style.display='none'; 
+                        document.getElementById('terminal').style.display='flex'; 
+                        startChatSync(); 
+                    }
+                }, 2000);
+            } else { 
+                document.getElementById('challenge').innerHTML = "<h2 style='color:red;'>FAILED</h2><button onclick='location.reload()' class='vibe-btn'>RETRY</button>"; 
+            }
+        };
+
+        function startChatSync() {
+            _supabase.channel('msgs').on('postgres_changes', { 
+                event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${currentN.id}` 
+            }, payload => {
+                // If it's not from us, it must be from them
+                if(payload.new.sender !== 'SEEKER') renderMsg(payload.new);
+            }).subscribe();
+        }
+
+        window.sendMsg = async () => {
+            const input = document.getElementById('chat-in');
+            const val = input.value.trim();
+            if(!val) return;
+            
+            // Attempt to send to database FIRST
+            const { error } = await _supabase.from('messages').insert([{ 
+                node_id: currentN.id, 
+                sender: 'SEEKER', 
+                content: val 
+            }]);
+            
+            if(error) {
+                alert("SEND ERROR: " + error.message);
+                console.error(error);
+            } else {
+                // Only show on our screen if the database accepted it
+                renderMsg({ sender: 'SEEKER', content: val });
+                input.value = '';
+            }
+        }
+
+        document.getElementById('chat-in').addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMsg(); });
+        function renderMsg(m) {
+            const box = document.getElementById('msg-box');
+            const div = document.createElement('div');
+            div.className = `msg ${m.sender === 'SEEKER' ? 'me' : 'them'}`;
+            div.innerText = m.content;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
+        }
+        setInterval(scan, 5000);
+        scan();
+    </script>
 </body>
 </html>

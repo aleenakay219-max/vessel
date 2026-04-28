@@ -19,7 +19,7 @@
         .input-area { display: flex; background: #000; border-top: 1px solid #0f0; padding-top: 10px; }
         #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 10px; background: rgba(0,255,0,0.1); }
-        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; }
+        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -54,7 +54,7 @@
         window.sendMsg = async () => { const val = document.getElementById('chat-in').value; if(!val) return; renderMsg({sender:'SEEKER', content:val}); await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]); document.getElementById('chat-in').value=''; }
         function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => { if(p.new.sender !== 'SEEKER') renderMsg(p.new); }).subscribe(); }
 
-        async function startOracleSync() {
+        function startOracleSync() {
             _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, async (p) => {
                 const s = p.new;
                 if (s && s.u1_lat && !s.u2_lat) {
@@ -70,10 +70,11 @@
         async function fetchVenues(lat1, lng1, lat2, lng2) {
             const midLat = (parseFloat(lat1) + parseFloat(lat2)) / 2;
             const midLng = (parseFloat(lng1) + parseFloat(lng2)) / 2;
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`);
+            const searchTag = currentN.intent.includes('Coffee') ? 'cafe' : currentN.intent.includes('Walk') ? 'park' : 'lounge';
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${searchTag}.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => { list.innerHTML += `<div class="venue-card">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
+            d.features.forEach(f => { list.innerHTML += `<div class="venue-card" onclick="alert('VOTED')">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
         }
         setInterval(scan, 5000); scan();
     </script>

@@ -18,7 +18,7 @@
         .msg.them { align-self: flex-start; background: #010; }
         .input-area { display: flex; background: #000; border-top: 1px solid #0f0; padding-top: 10px; }
         #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; }
-        #oracle-btn { display: none; width: 100%; padding: 10px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; cursor: pointer; }
+        #oracle-btn { display: none; width: 100%; padding: 10px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 10px; background: rgba(0,255,0,0.1); }
         .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; }
     </style>
@@ -26,7 +26,7 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">READY FOR SYNC...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">READY FOR HANDSHAKE...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div class="input-area"><input type="text" id="chat-in" placeholder="MESSAGE..."><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px 20px; margin-left:5px;">SEND</button></div>
@@ -52,39 +52,51 @@
             });
         }
 
-        function renderMsg(m) { const box = document.getElementById('msg-box'); const div = document.createElement('div'); div.className = `msg ${m.sender === 'SEEKER' ? 'me' : 'them'}`; div.innerText = m.content; box.appendChild(div); box.scrollTop = box.scrollHeight; if(box.children.length >= 5) document.getElementById('oracle-btn').style.display = 'block'; }
-        window.sendMsg = async () => { const val = document.getElementById('chat-in').value; if(!val) return; renderMsg({sender:'SEEKER', content:val}); await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]); document.getElementById('chat-in').value=''; }
+        function renderMsg(m) { 
+            const box = document.getElementById('msg-box'); 
+            const div = document.createElement('div'); 
+            div.className = `msg ${m.sender === 'SEEKER' ? 'me' : 'them'}`; 
+            div.innerText = m.content; 
+            box.appendChild(div); box.scrollTop = box.scrollHeight; 
+            if(box.children.length >= 5) document.getElementById('oracle-btn').style.display = 'block'; 
+        }
+
+        window.sendMsg = async () => { 
+            const val = document.getElementById('chat-in').value; 
+            if(!val) return; 
+            renderMsg({sender:'SEEKER', content:val}); 
+            await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]); 
+            document.getElementById('chat-in').value=''; 
+        }
+
         function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => { if(p.new.sender !== 'SEEKER') renderMsg(p.new); }).subscribe(); }
 
         window.initiateOracle = async () => {
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                // FORCE UPSERT
                 const { error } = await _supabase.from('oracle_sessions').upsert({ 
-                    bridge_id: currentN.id, 
-                    u2_lat: pos.coords.latitude, 
-                    u2_lng: pos.coords.longitude 
+                    bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude 
                 }, { onConflict: 'bridge_id' });
                 
-                if(error) alert("SQL ERROR: " + error.message);
-                document.getElementById('oracle-ballot').style.display = 'block';
-                document.getElementById('oracle-btn').innerText = "SYNCING...";
+                if(!error) {
+                    document.getElementById('oracle-ballot').style.display = 'block';
+                    document.getElementById('oracle-btn').innerText = "SYNCING...";
+                }
             });
         };
 
         function startOracleSync() {
             _supabase.channel('oracle-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async (p) => {
                 const s = p.new || p.old;
-                if (s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
+                if (s && s.u1_lat && s.u2_lat) {
+                    const catTag = currentN.intent.includes('Coffee') ? 'cafe' : 'park';
+                    const midLat = (parseFloat(s.u1_lat) + parseFloat(s.u2_lat)) / 2;
+                    const midLng = (parseFloat(s.u1_lng) + parseFloat(s.u2_lng)) / 2;
+                    const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${catTag}.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`);
+                    const d = await res.json();
+                    const list = document.getElementById('venue-list'); list.innerHTML = '';
+                    d.features.forEach(f => { list.innerHTML += `<div class="venue-card">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
+                }
             }).subscribe();
-        }
-
-        async function fetchVenues(lat1, lng1, lat2, lng2) {
-            const midLat = (parseFloat(lat1) + parseFloat(lat2)) / 2;
-            const midLng = (parseFloat(lng1) + parseFloat(lng2)) / 2;
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`);
-            const d = await res.json();
-            const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => { list.innerHTML += `<div class="venue-card">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
         }
         setInterval(scan, 5000); scan();
     </script>

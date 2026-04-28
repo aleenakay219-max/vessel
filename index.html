@@ -15,7 +15,7 @@
         .msg.them { align-self: flex-start; background: #010; }
         #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; cursor: pointer; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.1); }
-        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; cursor: pointer; font-size: 12px; }
+        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; }
         .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 200; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 320px; }
         .option-btn { display: block; width: 100%; padding: 12px; margin: 8px 0; background: transparent; color: #0f0; border: 1px solid #0f0; cursor: pointer; font-family: monospace; }
     </style>
@@ -25,7 +25,7 @@
     <button id="fab" onclick="startCreation()">+</button>
     <div id="step-category" class="hud-panel"><button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Waiting for Seeker GPS...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Waiting for peer...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; outline:none;" onkeypress="if(event.key==='Enter') sendMsg()">
@@ -43,35 +43,37 @@
 
         window.startCreation = () => { map.once('click', (e) => { nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng; document.getElementById('step-category').style.display = 'block'; }); };
         window.selectCategory = async (cat) => {
-            const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: cat, status: 'active', user_id: 'BAD_CREATOR' }]).select();
+            const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: cat, status: 'active' }]).select();
             myNodeId = data[0].id; document.getElementById('step-category').style.display = 'none';
             setInterval(async () => {
                 const { data } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
-                if(data?.length > 0) approveMatch(data[0].id);
+                if(data?.length > 0) approveMatch();
             }, 3000);
         };
 
-        window.approveMatch = async (rid) => {
+        window.approveMatch = async () => {
             await _supabase.from('nodes').update({ status: 'bridged' }).eq('id', myNodeId);
             document.getElementById('terminal').style.display = 'flex';
             startChatSync(); startOracleSync();
         };
 
-        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${myNodeId}` }, payload => { if(payload.new.sender !== 'BAD_CREATOR') renderMsg(payload.new); }).subscribe(); }
-        window.sendMsg = async () => { const input = document.getElementById('chat-in'); const val = input.value; if(!val) return; renderMsg({ sender: 'BAD_CREATOR', content: val }); await _supabase.from('messages').insert([{ node_id: myNodeId, sender: 'BAD_CREATOR', content: val }]); input.value = ''; }
         function renderMsg(m) { const box = document.getElementById('msg-box'); const div = document.createElement('div'); div.className = `msg ${m.sender === 'BAD_CREATOR' ? 'me' : 'them'}`; div.innerText = m.content; box.appendChild(div); box.scrollTop = box.scrollHeight; localMsgCount++; if(localMsgCount >= 5) document.getElementById('oracle-btn').style.display = 'block'; }
+        window.sendMsg = async () => { const val = document.getElementById('chat-in').value; if(!val) return; renderMsg({sender:'BAD_CREATOR', content:val}); await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]); document.getElementById('chat-in').value=''; }
+        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => { if(p.new.sender !== 'BAD_CREATOR') renderMsg(p.new); }).subscribe(); }
 
         window.initiateOracle = async () => {
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude }, { onConflict: 'bridge_id' });
-                document.getElementById('oracle-btn').innerText = "SYNCING...";
+                await _supabase.from('oracle_sessions').delete().eq('bridge_id', myNodeId); // CLEAR OLD DATA
+                const { error } = await _supabase.from('oracle_sessions').insert([{ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude }]);
+                if(error) console.log("Creator Error:", error.message);
                 document.getElementById('oracle-ballot').style.display = 'block';
+                document.getElementById('oracle-btn').innerText = "SYNCING...";
             });
         };
 
         function startOracleSync() {
-            _supabase.channel('oracle-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${myNodeId}` }, payload => {
-                const s = payload.new; if(s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
+            _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${myNodeId}` }, p => {
+                const s = p.new; if(s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
             }).subscribe();
         }
 

@@ -7,7 +7,7 @@
     <style>
         html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #050505; color: #0f0; font-family: 'Courier New', monospace; overflow: hidden; }
         #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        #fab { position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 30px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; }
+        #fab { position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 30px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
         #terminal { display: none; height: 100%; width: 100%; flex-direction: column; background: #000; padding: 20px; box-sizing: border-box; z-index: 300; position: absolute; top: 0; left: 0; }
         #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; }
         .msg { margin-bottom: 8px; padding: 8px; border: 1px solid #030; }
@@ -15,7 +15,7 @@
         .msg.them { align-self: flex-start; background: #010; }
         #oracle-btn { display: none; width: 100%; padding: 15px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; font-family: monospace; font-weight: bold; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.1); }
-        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; }
+        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; background: rgba(0,255,0,0.05); }
         .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 200; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 320px; }
         .option-btn { display: block; width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #0f0; background: transparent; color: #0f0; cursor: pointer; }
     </style>
@@ -26,7 +26,7 @@
     <div id="step-category" class="hud-panel"><button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button></div>
     
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Ready for Handshake...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Waiting for Handshake...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; outline:none;">
@@ -39,7 +39,7 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        let map, nodeData = {}, myNodeId = null, localMsgCount = 0;
+        let map, nodeData = {}, myNodeId = null, msgCount = 0;
         map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
 
         window.startCreation = () => { map.once('click', (e) => { nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng; document.getElementById('step-category').style.display = 'block'; }); };
@@ -77,8 +77,8 @@
             div.className = `msg ${m.sender === 'BAD_CREATOR' ? 'me' : 'them'}`;
             div.innerText = m.content;
             box.appendChild(div); box.scrollTop = box.scrollHeight;
-            localMsgCount++;
-            if(localMsgCount >= 5) document.getElementById('oracle-btn').style.display = 'block';
+            msgCount++;
+            if(msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block';
         }
 
         function startChatSync() {
@@ -88,12 +88,13 @@
         }
 
         window.initiateOracle = async () => {
-            console.log("Initiating for Bridge:", myNodeId);
+            if(!myNodeId) return alert("Error: No Node ID");
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 const { error } = await _supabase.from('oracle_sessions').upsert({
                     bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude
                 }, { onConflict: 'bridge_id' });
-                if(error) alert("SQL Error: " + error.message);
+                
+                if(error) alert("SQL ERROR: " + error.message);
                 document.getElementById('oracle-ballot').style.display = 'block';
                 document.getElementById('oracle-btn').innerText = "SYNCING...";
             });

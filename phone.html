@@ -23,9 +23,10 @@
         .input-area { display: flex; background: #000; border-top: 1px solid #0f0; padding-top: 10px; }
         #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; }
         
-        /* ORACLE UI ELEMENTS */
-        #oracle-btn { display: none; width: 100%; padding: 10px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; cursor: pointer; }
-        #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 10px; background: rgba(0,255,0,0.05); }
+        #oracle-btn { display: none; width: 100%; padding: 10px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; }
+        #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 10px; background: rgba(0,255,0,0.1); }
+        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; cursor: pointer; font-size: 12px; }
+        .venue-card:hover { background: #0f0; color: #000; }
     </style>
 </head>
 <body>
@@ -38,7 +39,7 @@
     
     <div id="terminal">
         <div id="oracle-ballot">
-            <div style="border-bottom:1px solid #0f0; margin-bottom:10px; font-size:12px;">ORACLE SYNC</div>
+            <div style="border-bottom:1px solid #0f0; margin-bottom:10px; font-size:12px;">ORACLE RECOMMENDATIONS</div>
             <div id="venue-list">Synchronizing hardware...</div>
         </div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
@@ -50,15 +51,15 @@
     </div>
 
     <script>
-        // --- DATABASE & MAP CONFIG ---
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
-        mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        mapboxgl.accessToken = MAPBOX_TOKEN;
         
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
         let currentN = null, localMsgCount = 0;
         const templates = { '☕ Coffee': ['Quiet café', 'Loud café'], '💬 Chat': ['Deep talks', 'Small talk'], '🚶 Walk': ['No music', 'Full speaker mode'], '✨ Connect': ['Genuine curiosity', 'Flexing'] };
+        const searchTerms = { '☕ Coffee': 'cafe', '💬 Chat': 'lounge', '🚶 Walk': 'park', '✨ Connect': 'restaurant' };
 
-        // --- SCAN LOGIC (OBELISK 1.0) ---
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             document.querySelectorAll('.marker').forEach(m => m.remove());
@@ -74,7 +75,6 @@
             });
         }
 
-        // --- CHALLENGE LOGIC (OBELISK 1.0) ---
         window.answer = async (i) => {
             const choice = templates[currentN.intent][i];
             if(choice === currentN.secret_a_adx) {
@@ -92,7 +92,6 @@
             }
         };
 
-        // --- CHAT LOGIC ---
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${currentN.id}` }, payload => {
                 if(payload.new.sender !== 'SEEKER') renderMsg(payload.new);
@@ -118,7 +117,6 @@
             if(localMsgCount >= 5) document.getElementById('oracle-btn').style.display = 'block';
         }
 
-        // --- ORACLE SYNC (OBELISK 2.0 - PEER AUTO-SYNC) ---
         window.initiateOracle = async () => {
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 await _supabase.from('oracle_sessions').upsert({ 
@@ -132,27 +130,37 @@
             _supabase.channel('oracle-sync').on('postgres_changes', { 
                 event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` 
             }, async (payload) => {
-                const session = payload.new || payload.old; // Catch any update
-                
-                // AUTO-TRIGGER: If Peer (Creator) started it, we respond
+                const session = payload.new || payload.old;
                 if (session.u1_lat && !session.u2_lat) {
                     document.getElementById('oracle-ballot').style.display = 'block';
-                    document.getElementById('venue-list').innerText = "PEER INITIATED ORACLE. CAPTURING GPS...";
-                    
                     navigator.geolocation.getCurrentPosition(async (pos) => {
-                        await _supabase.from('oracle_sessions').update({ 
-                            u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude 
-                        }).eq('bridge_id', currentN.id);
+                        await _supabase.from('oracle_sessions').update({ u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude }).eq('bridge_id', currentN.id);
                     });
                 }
-
-                // SUCCESS: Both coordinates acquired
                 if (session.u1_lat && session.u2_lat) {
                     document.getElementById('oracle-ballot').style.display = 'block';
-                    document.getElementById('venue-list').innerText = "MIDPOINT SECURED. SEARCHING VENUES...";
+                    fetchVenues(session.u1_lat, session.u1_lng, session.u2_lat, session.u2_lng);
                 }
             }).subscribe();
         }
+
+        async function fetchVenues(lat1, lng1, lat2, lng2) {
+            const midLat = (lat1 + lat2) / 2;
+            const midLng = (lng1 + lng2) / 2;
+            const category = searchTerms[currentN.intent];
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${category}.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                const list = document.getElementById('venue-list');
+                list.innerHTML = '';
+                data.features.forEach(f => {
+                    list.innerHTML += `<div class="venue-card" onclick="selectVenue('${f.text}')">[ OPTION ]: ${f.text.toUpperCase()}</div>`;
+                });
+            } catch (e) { console.log(e); }
+        }
+
+        window.selectVenue = (name) => { alert("VOTED: " + name); }
 
         setInterval(scan, 5000); scan();
     </script>

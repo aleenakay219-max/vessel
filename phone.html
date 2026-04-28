@@ -18,15 +18,15 @@
         .msg.them { align-self: flex-start; background: #010; }
         .input-area { display: flex; background: #000; border-top: 1px solid #0f0; padding-top: 10px; }
         #chat-in { flex: 1; background: #000; border: 1px solid #030; color: #0f0; padding: 12px; outline: none; }
-        #oracle-btn { display: none; width: 100%; padding: 15px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; }
+        #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.1); }
-        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; }
+        .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Waiting for Handshake...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Waiting for Peer...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div class="input-area"><input type="text" id="chat-in" placeholder="MESSAGE..."><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px 20px; margin-left:5px;">SEND</button></div>
@@ -76,7 +76,6 @@
         }
 
         window.initiateOracle = async () => {
-            if(!currentN) return alert("Error: No Node ID");
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 const { error } = await _supabase.from('oracle_sessions').upsert({
                     bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude
@@ -100,7 +99,7 @@
             const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${mLn},${mLa}&limit=3&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => { list.innerHTML += `<div class="venue-card">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
+            d.features.forEach(f => { list.innerHTML += `<div class="venue-card" onclick="alert('VOTED')">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
         }
         setInterval(scan, 5000); scan();
     </script>

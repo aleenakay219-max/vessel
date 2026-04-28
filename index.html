@@ -2,195 +2,86 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>VESSEL | CREATOR</title>
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBELISK 1.0 | CREATOR</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --neon: #0f0; --bg: #000; }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body, html { width: 100%; height: 100%; background: #000; overflow: hidden; color: var(--neon); font-family: monospace; }
+        :root { --neon: #00ff00; --bg: #000; }
+        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; }
+        #terminal { height: 80vh; overflow-y: auto; padding: 20px; border-bottom: 1px solid var(--neon); }
+        #input-area { height: 20vh; display: flex; padding: 10px; background: #111; }
+        input { flex: 1; background: transparent; border: 1px solid var(--neon); color: var(--neon); padding: 10px; outline: none; }
+        button { background: var(--neon); color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
         
-        #map { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
-        
-        /* UI Layer - Transparent wrapper that only catches button clicks */
-        .ui-layer { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            z-index: 10; 
-            pointer-events: none; 
-        }
-
-        #fab { 
-            position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; 
-            background: #000; border: 2px solid var(--neon); border-radius: 50%; 
-            color: var(--neon); font-size: 30px; cursor: pointer; 
-            display: flex; align-items: center; justify-content: center; 
-            box-shadow: 0 0 15px var(--neon); 
-            pointer-events: auto; /* Re-enable for the button */
-        }
-
-        .hud-panel { 
-            display: none; position: absolute; top: 50%; left: 50%; 
-            transform: translate(-50%, -50%); background: rgba(0,0,0,0.95); 
-            border: 1px solid var(--neon); padding: 25px; width: 320px; 
-            pointer-events: auto; 
-        }
-
-        .option-btn { display: block; width: 100%; padding: 12px; margin: 8px 0; background: transparent; color: var(--neon); border: 1px solid var(--neon); cursor: pointer; font-family: monospace; text-align: left; }
-        .option-btn:hover { background: var(--neon); color: #000; }
-
-        #inbox-launcher { position: absolute; top: 15px; right: 15px; background: #000; border: 1px solid var(--neon); padding: 10px; cursor: pointer; font-size: 12px; pointer-events: auto; }
-        #inbox-panel { display: none; position: absolute; top: 70px; right: 15px; width: 300px; height: 400px; background: rgba(0,0,0,0.95); border: 1px solid var(--neon); flex-direction: column; pointer-events: auto; }
-        #queue-list { flex-grow: 1; overflow-y: auto; padding: 10px; }
-
-        #terminal { display: none; height: 100vh; width: 100vw; flex-direction: column; background: #000; padding: 20px; box-sizing: border-box; position: absolute; top: 0; left: 0; z-index: 1000; pointer-events: auto; }
-        #msg-box { flex-grow: 1; overflow-y: auto; border: 1px solid var(--neon); padding: 15px; margin-bottom: 15px; display: flex; flex-direction: column; }
-        .msg { margin-bottom: 8px; max-width: 80%; padding: 8px; border: 1px solid #030; }
-        .msg.me { align-self: flex-end; border-color: var(--neon); }
-        .msg.them { align-self: flex-start; background: #010; }
+        /* ORACLE UI */
+        #oracle-container { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 90%; text-align: center; }
+        .oracle-btn { display: none; background: rgba(0,0,0,0.9); color: var(--neon); border: 1px solid var(--neon); padding: 15px; width: 100%; cursor: pointer; letter-spacing: 2px; }
+        #oracle-ballot { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; background: #000; border: 1px solid var(--neon); padding: 20px; z-index: 2001; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
+<div id="terminal">
+    <div id="messages">--- OBELISK PROTOCOL ONLINE ---</div>
+</div>
 
-    <div class="ui-layer">
-        <button id="fab" onclick="startCreation(event)">+</button>
-        <div id="inbox-launcher" onclick="toggleInbox(event)">[ INBOX ]</div>
-        
-        <div id="inbox-panel">
-            <div style="padding:10px; border-bottom:1px solid #0f0; text-align:center;">ACTIVE REQUESTS</div>
-            <div id="queue-list"></div>
-        </div>
+<div id="oracle-container">
+    <button id="oracle-btn" class="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
+</div>
 
-        <div id="step-category" class="hud-panel">
-            <div style="margin-bottom:10px; font-size:12px; opacity:0.7;">SELECT INTENT:</div>
-            <button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button>
-            <button class="option-btn" onclick="selectCategory('💬 Chat')">💬 Chat</button>
-            <button class="option-btn" onclick="selectCategory('🚶 Walk')">🚶 Walk</button>
-            <button class="option-btn" onclick="selectCategory('✨ Connect')">✨ Connect</button>
-        </div>
+<div id="oracle-ballot">
+    <h3 style="border-bottom: 1px solid var(--neon)">ORACLE SYNC</h3>
+    <div id="venue-list">Synchronizing with peer hardware...</div>
+</div>
 
-        <div id="step-vibe" class="hud-panel"><div id="vibe-options"></div></div>
+<div id="input-area">
+    <input type="text" id="msgInput" placeholder="TYPE MESSAGE..." onkeypress="if(event.key==='Enter') sendMessage()">
+    <button onclick="sendMessage()">SEND</button>
+</div>
 
-        <div id="step-secret" class="hud-panel">
-            <div id="secret-q-text" style="margin-bottom:15px;"></div>
-            <button class="option-btn" id="opt-a" onclick="finalizeNode(true)"></button>
-            <button class="option-btn" id="opt-b" onclick="finalizeNode(false)"></button>
-        </div>
-    </div>
+<script>
+    // --- DATABASE CONFIG ---
+    const _supabase = supabase.createClient('YOUR_SUPABASE_URL', 'YOUR_SUPABASE_KEY');
+    let currentBridgeId = null; // Set this when bridge is established
 
-    <div id="terminal">
-        <div style="color:red; text-align:right; font-size:18px; margin-bottom:10px;">BRIDGE ACTIVE</div>
-        <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="TYPE..." style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; width:100%; outline:none; font-family:monospace;" onkeypress="if(event.key==='Enter') sendMsg()">
-    </div>
+    // --- MESSAGE LOGIC ---
+    async function sendMessage() {
+        const text = document.getElementById('msgInput').value;
+        if(!text || !currentBridgeId) return;
 
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script>
-        const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
-        mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
-        
-        const myUserId = "CREATOR_" + Math.random().toString(36).substr(2, 5);
-        let nodeData = {}, myNodeId = null;
+        await _supabase.from('messages').insert([{ node_id: currentBridgeId, content: text, sender: 'creator' }]);
+        document.getElementById('msgInput').value = '';
+    }
 
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
+    // --- ORACLE ENGINE ---
+    const monitorOracle = (bridgeId) => {
+        _supabase.channel('oracle-check').on('postgres_changes', { 
+            event: 'UPDATE', schema: 'public', table: 'nodes', filter: `id=eq.${bridgeId}` 
+        }, payload => {
+            if (payload.new.msg_count >= 5) document.getElementById('oracle-btn').style.display = 'block';
+        }).subscribe();
+    };
 
-        const templates = {
-            '☕ Coffee': { vibes: ['Quick chat', 'Deep convo'], q: 'Quiet café or loud café?', a: ['Quiet café', 'Loud café'] },
-            '💬 Chat': { vibes: ['Deep talk', 'Funny banter'], q: 'Deep talks or small talk?', a: ['Deep talks', 'Small talk'] },
-            '🚶 Walk': { vibes: ['Sunset stroll', 'Talk & walk'], q: 'Walk with music?', a: ['No music', 'Full speaker mode'] },
-            '✨ Connect': { vibes: ['Genuine curiosity'], q: 'Best first energy?', a: ['Genuine curiosity', 'Flexing'] }
-        };
+    async function initiateOracle() {
+        const btn = document.getElementById('oracle-btn');
+        btn.innerText = "CAPTURING GPS...";
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            await _supabase.from('oracle_sessions').upsert({ 
+                bridge_id: currentBridgeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude, status: 'waiting'
+            });
+            document.getElementById('oracle-ballot').style.display = 'block';
+            btn.innerText = "WAITING FOR PEER...";
+        });
+    }
 
-        window.startCreation = (e) => { 
-            if(e) e.stopPropagation(); // STOP THE BUBBLE
-            alert("PROTOCOL ENGAGED. Select coordinates on Map.");
-            map.once('click', (mapEvent) => { 
-                nodeData.lat = mapEvent.lngLat.lat; 
-                nodeData.lng = mapEvent.lngLat.lng; 
-                document.getElementById('step-category').style.display='block'; 
-            }); 
-        };
-
-        window.selectCategory = (cat) => { 
-            nodeData.intent = cat; 
-            document.getElementById('step-category').style.display='none'; 
-            const vDiv = document.getElementById('vibe-options'); vDiv.innerHTML = '<div style="margin-bottom:10px; font-size:12px; opacity:0.7;">SELECT VIBE:</div>'; 
-            templates[cat].vibes.forEach(v => { vDiv.innerHTML += `<button class="option-btn" onclick="selectVibe('${v}')">${v}</button>`; }); 
-            document.getElementById('step-vibe').style.display='block'; 
-        };
-
-        window.selectVibe = (vibe) => { 
-            nodeData.vibe_tag = vibe; 
-            document.getElementById('step-vibe').style.display='none'; 
-            const t = templates[nodeData.intent]; 
-            document.getElementById('secret-q-text').innerText = t.q; 
-            document.getElementById('opt-a').innerText = t.a[0]; 
-            document.getElementById('opt-b').innerText = t.a[1]; 
-            document.getElementById('step-secret').style.display='block'; 
-        };
-
-        window.finalizeNode = async (isA) => {
-            const t = templates[nodeData.intent];
-            const { data } = await _supabase.from('nodes').insert([{ 
-                lat: nodeData.lat, lng: nodeData.lng, intent: nodeData.intent, vibe_tag: nodeData.vibe_tag, 
-                secret_q: t.q, secret_a_adx: isA ? t.a[0] : t.a[1], status: 'active', user_id: myUserId 
-            }]).select();
-            if(data) { 
-                myNodeId = data[0].id; 
-                new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map); 
-                document.getElementById('step-secret').style.display='none'; 
-                setInterval(fetchQueue, 4000); 
-            }
-        };
-
-        window.toggleInbox = (e) => { 
-            if(e) e.stopPropagation();
-            const p = document.getElementById('inbox-panel'); 
-            p.style.display = p.style.display === 'flex' ? 'none' : 'flex'; 
-        };
-
-        async function fetchQueue() {
-            if(!myNodeId) return;
-            const { data } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
-            const list = document.getElementById('queue-list'); list.innerHTML = '';
-            data?.forEach(r => { list.innerHTML += `<div style="padding:10px; border:1px solid #030; margin-bottom:5px;">STRANGER MATCH<button class="option-btn" onclick="approveMatch(${r.id})">APPROVE</button></div>`; });
-        }
-
-        window.approveMatch = async (rid) => {
-            await _supabase.from('nodes').update({ status: 'bridged' }).eq('id', myNodeId);
-            await _supabase.from('requests').update({ status: 'approved' }).eq('id', rid);
-            document.getElementById('inbox-panel').style.display = 'none';
-            document.getElementById('terminal').style.display = 'flex';
-            startChatSync();
-        };
-
-        function startChatSync() {
-            _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${myNodeId}` }, p => {
-                if(p.new.sender !== myUserId) renderMsg(p.new);
-            }).subscribe();
-        }
-
-        window.sendMsg = async () => {
-            const input = document.getElementById('chat-in');
-            const val = input.value.trim(); if(!val) return;
-            renderMsg({ sender: myUserId, content: val });
-            await _supabase.from('messages').insert([{ node_id: myNodeId, sender: myUserId, content: val }]);
-            input.value = '';
-        };
-
-        function renderMsg(m) {
-            const box = document.getElementById('msg-box');
-            const div = document.createElement('div');
-            div.className = `msg ${m.sender === myUserId ? 'me' : 'them'}`;
-            div.innerText = m.content;
-            box.appendChild(div);
-            box.scrollTop = box.scrollHeight;
-        }
-    </script>
+    const listenForPeer = (bridgeId) => {
+        _supabase.channel('peer-sync').on('postgres_changes', { 
+            event: 'INSERT', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${bridgeId}` 
+        }, () => {
+            document.getElementById('oracle-ballot').style.display = 'block';
+        }).subscribe();
+    };
+</script>
 </body>
 </html>

@@ -138,22 +138,25 @@
                     });
                 }
                 if (session.u1_lat && session.u2_lat) {
-                    document.getElementById('oracle-ballot').style.display = 'block';
                     fetchVenues(session.u1_lat, session.u1_lng, session.u2_lat, session.u2_lng);
                 }
             }).subscribe();
         }
 
         async function fetchVenues(lat1, lng1, lat2, lng2) {
-            const midLat = (lat1 + lat2) / 2;
-            const midLng = (lng1 + lng2) / 2;
-            const category = searchTerms[currentN.intent];
+            const midLat = (parseFloat(lat1) + parseFloat(lat2)) / 2;
+            const midLng = (parseFloat(lng1) + parseFloat(lng2)) / 2;
+            const category = searchTerms[currentN.intent] || 'cafe';
             const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${category}.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`;
             try {
                 const response = await fetch(url);
                 const data = await response.json();
                 const list = document.getElementById('venue-list');
                 list.innerHTML = '';
+                if (!data.features || data.features.length === 0) {
+                    list.innerText = "NO VENUES DETECTED.";
+                    return;
+                }
                 data.features.forEach(f => {
                     list.innerHTML += `<div class="venue-card" onclick="selectVenue('${f.text}')">[ OPTION ]: ${f.text.toUpperCase()}</div>`;
                 });

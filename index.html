@@ -13,7 +13,7 @@
         .msg { margin-bottom: 8px; padding: 8px; border: 1px solid #030; }
         .msg.me { align-self: flex-end; border-color: #0f0; }
         .msg.them { align-self: flex-start; background: #010; }
-        #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; cursor: pointer; font-weight: bold; }
+        #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; font-family: monospace; cursor: pointer; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 15px; margin-bottom: 15px; background: rgba(0,255,0,0.1); }
         .venue-card { border: 1px solid #0f0; padding: 10px; margin-top: 10px; font-size: 12px; cursor: pointer; }
         .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 200; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 320px; }
@@ -25,7 +25,7 @@
     <button id="fab" onclick="startCreation()">+</button>
     <div id="step-category" class="hud-panel"><button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button><button class="option-btn" onclick="selectCategory('🚶 Walk')">🚶 Walk</button></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Waiting for peer GPS...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Ready for Handshake...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:15px; outline:none;">
@@ -46,6 +46,7 @@
             nodeData.intent = cat;
             const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: cat, status: 'active' }]).select();
             myNodeId = data[0].id; document.getElementById('step-category').style.display = 'none';
+            new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
             setInterval(async () => {
                 const { data } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
                 if(data?.length > 0) approveMatch();
@@ -64,26 +65,34 @@
 
         window.initiateOracle = async () => {
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude, status: 'WAITING' }, { onConflict: 'bridge_id' });
+                // Shared Logic: Update ONLY the u1 slots in the shared row
+                const { error } = await _supabase.from('oracle_sessions').upsert({ 
+                    bridge_id: myNodeId, 
+                    u1_lat: pos.coords.latitude, 
+                    u1_lng: pos.coords.longitude 
+                }, { onConflict: 'bridge_id' });
                 document.getElementById('oracle-ballot').style.display = 'block';
-                document.getElementById('oracle-btn').innerText = "SYNCING...";
+                document.getElementById('oracle-btn').innerText = "DATA SHARED. WAITING...";
             });
         };
 
         function startOracleSync() {
             _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${myNodeId}` }, p => {
-                const s = p.new; if(s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
+                const s = p.new;
+                if(s && s.u1_lat && s.u2_lat) {
+                    document.getElementById('venue-list').innerText = "SHARED STATE LOCKED. FINDING MIDPOINT...";
+                    fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
+                }
             }).subscribe();
         }
 
         async function fetchVenues(lat1, lng1, lat2, lng2) {
             const midLat = (parseFloat(lat1) + parseFloat(lat2)) / 2;
             const midLng = (parseFloat(lng1) + parseFloat(lng2)) / 2;
-            const cat = nodeData.intent?.includes('Coffee') ? 'cafe' : 'park';
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${cat}.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`);
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?proximity=${midLng},${midLat}&limit=3&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => { list.innerHTML += `<div class="venue-card" onclick="alert('Selected: ${f.text}')">[ OPTION ]: ${f.text.toUpperCase()}</div>`; });
+            d.features.forEach(f => { list.innerHTML += `<div class="venue-card" onclick="alert('Voted')">[ SHARED OPTION ]: ${f.text.toUpperCase()}</div>`; });
         }
     </script>
 </body>

@@ -1,87 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OBELISK 1.0 | CREATOR</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --neon: #00ff00; --bg: #000; }
-        body { background: var(--bg); color: var(--neon); font-family: 'Courier New', monospace; margin: 0; overflow: hidden; }
-        #terminal { height: 80vh; overflow-y: auto; padding: 20px; border-bottom: 1px solid var(--neon); }
-        #input-area { height: 20vh; display: flex; padding: 10px; background: #111; }
-        input { flex: 1; background: transparent; border: 1px solid var(--neon); color: var(--neon); padding: 10px; outline: none; }
-        button { background: var(--neon); color: #000; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; }
-        
-        /* ORACLE UI */
-        #oracle-container { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 90%; text-align: center; }
-        .oracle-btn { display: none; background: rgba(0,0,0,0.9); color: var(--neon); border: 1px solid var(--neon); padding: 15px; width: 100%; cursor: pointer; letter-spacing: 2px; }
-        #oracle-ballot { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 85%; background: #000; border: 1px solid var(--neon); padding: 20px; z-index: 2001; }
-        .hidden { display: none; }
+        body { margin: 0; padding: 0; background: #000; font-family: 'Courier New', monospace; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .ui-overlay { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1; width: 90%; text-align: center; }
+        .terminal-btn { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 15px; cursor: pointer; text-transform: uppercase; letter-spacing: 2px; box-shadow: 0 0 10px #00ff00; width: 100%; max-width: 300px; }
+        .status-bar { background: rgba(0,0,0,0.8); color: #00ff00; padding: 10px; margin-top: 10px; border: 1px solid #00ff00; font-size: 12px; display: inline-block; }
     </style>
 </head>
 <body>
 
-<div id="terminal">
-    <div id="messages">--- OBELISK PROTOCOL ONLINE ---</div>
+<div class="ui-overlay">
+    <button class="terminal-btn" onclick="dropVessel()">[ DROP VESSEL ]</button><br>
+    <div id="status" class="status-bar">SYSTEM READY: WAITING FOR COORDINATES</div>
 </div>
 
-<div id="oracle-container">
-    <button id="oracle-btn" class="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
-</div>
-
-<div id="oracle-ballot">
-    <h3 style="border-bottom: 1px solid var(--neon)">ORACLE SYNC</h3>
-    <div id="venue-list">Synchronizing with peer hardware...</div>
-</div>
-
-<div id="input-area">
-    <input type="text" id="msgInput" placeholder="TYPE MESSAGE..." onkeypress="if(event.key==='Enter') sendMessage()">
-    <button onclick="sendMessage()">SEND</button>
-</div>
+<div id="map"></div>
 
 <script>
-    // --- DATABASE CONFIG ---
-    const _supabase = supabase.createClient('YOUR_SUPABASE_URL', 'YOUR_SUPABASE_KEY');
-    let currentBridgeId = null; // Set this when bridge is established
+    const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+    const SUPABASE_URL = 'https://rnroyhkvkmzuichysxnk.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
 
-    // --- MESSAGE LOGIC ---
-    async function sendMessage() {
-        const text = document.getElementById('msgInput').value;
-        if(!text || !currentBridgeId) return;
+    mapboxgl.accessToken = MAPBOX_TOKEN;
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        await _supabase.from('messages').insert([{ node_id: currentBridgeId, content: text, sender: 'creator' }]);
-        document.getElementById('msgInput').value = '';
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/dark-v10',
+        center: [55.3, 25.3], // Defaulting near Sharjah area
+        zoom: 12
+    });
+
+    // Center map on user
+    navigator.geolocation.getCurrentPosition(pos => {
+        map.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 14 });
+    }, err => console.log("Geolocation blocked or unavailable."));
+
+    async function dropVessel() {
+        const center = map.getCenter();
+        const statusEl = document.getElementById('status');
+        
+        statusEl.innerText = "UPLOADING COORDINATES...";
+
+        const { data, error } = await _supabase
+            .from('nodes')
+            .insert([{ 
+                lat: center.lat, 
+                lng: center.lng, 
+                status: 'active',
+                msg_count: 0 
+            }])
+            .select();
+
+        if (error) {
+            statusEl.innerText = "UPLOAD FAILED: " + error.message;
+        } else {
+            statusEl.innerText = "VESSEL DROPPED. WAITING FOR SEEKER...";
+            new mapboxgl.Marker({ color: '#00ff00' }).setLngLat(center).addTo(map);
+        }
     }
-
-    // --- ORACLE ENGINE ---
-    const monitorOracle = (bridgeId) => {
-        _supabase.channel('oracle-check').on('postgres_changes', { 
-            event: 'UPDATE', schema: 'public', table: 'nodes', filter: `id=eq.${bridgeId}` 
-        }, payload => {
-            if (payload.new.msg_count >= 5) document.getElementById('oracle-btn').style.display = 'block';
-        }).subscribe();
-    };
-
-    async function initiateOracle() {
-        const btn = document.getElementById('oracle-btn');
-        btn.innerText = "CAPTURING GPS...";
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            await _supabase.from('oracle_sessions').upsert({ 
-                bridge_id: currentBridgeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude, status: 'waiting'
-            });
-            document.getElementById('oracle-ballot').style.display = 'block';
-            btn.innerText = "WAITING FOR PEER...";
-        });
-    }
-
-    const listenForPeer = (bridgeId) => {
-        _supabase.channel('peer-sync').on('postgres_changes', { 
-            event: 'INSERT', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${bridgeId}` 
-        }, () => {
-            document.getElementById('oracle-ballot').style.display = 'block';
-        }).subscribe();
-    };
 </script>
 </body>
 </html>

@@ -25,7 +25,7 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Initializing Oracle...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Capturing GPS...</div></div>
         <div id="msg-box"></div>
         <div class="input-area"><input type="text" id="chat-in" placeholder="MESSAGE..."><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px 20px; margin-left:5px;">SEND</button></div>
     </div>
@@ -51,27 +51,20 @@
         }
 
         function renderMsg(m) { const box = document.getElementById('msg-box'); const div = document.createElement('div'); div.className = `msg ${m.sender === 'SEEKER' ? 'me' : 'them'}`; div.innerText = m.content; box.appendChild(div); box.scrollTop = box.scrollHeight; }
-        window.sendMsg = async () => { const input = document.getElementById('chat-in'); const val = input.value; if(!val) return; renderMsg({ sender: 'SEEKER', content: val }); await _supabase.from('messages').insert([{ node_id: currentN.id, sender: 'SEEKER', content: val }]); input.value = ''; }
-        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `node_id=eq.${currentN.id}` }, payload => { if(payload.new.sender !== 'SEEKER') renderMsg(payload.new); }).subscribe(); }
+        window.sendMsg = async () => { const val = document.getElementById('chat-in').value; if(!val) return; renderMsg({sender:'SEEKER', content:val}); await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]); document.getElementById('chat-in').value=''; }
+        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => { if(p.new.sender !== 'SEEKER') renderMsg(p.new); }).subscribe(); }
 
         async function startOracleSync() {
-            // FORCE CHECK: Look for the session immediately instead of waiting for a change
-            const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', currentN.id).single();
-            if(data && data.u1_lat && !data.u2_lat) captureAndUploadGPS();
-
-            // Realtime listener for the rest of the sync
-            _supabase.channel('oracle-sync').on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async (p) => {
+            _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, async (p) => {
                 const s = p.new;
-                if (s && s.u1_lat && !s.u2_lat) captureAndUploadGPS();
+                if (s && s.u1_lat && !s.u2_lat) {
+                    document.getElementById('oracle-ballot').style.display = 'block';
+                    navigator.geolocation.getCurrentPosition(async (gps) => {
+                        await _supabase.from('oracle_sessions').update({ u2_lat: gps.coords.latitude, u2_lng: gps.coords.longitude }).eq('bridge_id', currentN.id);
+                    });
+                }
                 if (s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
             }).subscribe();
-        }
-
-        function captureAndUploadGPS() {
-            document.getElementById('oracle-ballot').style.display = 'block';
-            navigator.geolocation.getCurrentPosition(async (gps) => {
-                await _supabase.from('oracle_sessions').update({ u2_lat: gps.coords.latitude, u2_lng: gps.coords.longitude }).eq('bridge_id', currentN.id);
-            });
         }
 
         async function fetchVenues(lat1, lng1, lat2, lng2) {

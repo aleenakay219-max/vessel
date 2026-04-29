@@ -8,9 +8,9 @@
         html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; }
         #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
-        #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
+        #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
-        .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 11px; }
+        .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; font-size: 11px; }
         #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
         .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
         .msg.me { text-align: right; color: #0f0; }
@@ -28,7 +28,7 @@
         <button class="option-btn" onclick="selectCategory('🚶 Walk')">🚶 Walk</button>
     </div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Querying Foursquare...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Ready...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none; font-family:monospace;">
@@ -64,31 +64,54 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
+            
             const box = document.getElementById('msg-box');
             box.innerHTML += `<div class="msg" style="color:#0f0; border:1px solid #0f0; padding:5px;">[ORACLE] Midpoint: ${mLn.toFixed(4)}, ${mLa.toFixed(4)}</div>`;
-            box.scrollTop = box.scrollHeight;
 
-            // Foursquare V3 API: ll is Lat, Lng
-            const url = `https://api.foursquare.com/v3/places/search?query=coffee%20cafe&ll=${mLa},${mLn}&radius=5000&limit=10`;
+            // Foursquare V3 API: ll order is LAT, LNG. Radius is METERS (5000 = 5km)
+            const url = `https://api.foursquare.com/v3/places/search?query=coffee&ll=${mLa},${mLn}&radius=5000&limit=10&fields=name,location,categories`;
             
             try {
                 const res = await fetch(url, {
-                    headers: { 'Authorization': FS_KEY, 'Accept': 'application/json' }
+                    method: 'GET',
+                    headers: { 
+                        'Authorization': FS_KEY,
+                        'Accept': 'application/json'
+                    }
                 });
+                
                 const d = await res.json();
-                const list = document.getElementById('venue-list'); list.innerHTML = '';
+                const list = document.getElementById('venue-list'); 
+                list.innerHTML = '';
                 
                 if (!d.results || d.results.length === 0) {
-                    list.innerHTML = "NO RESULTS IN 5KM.";
+                    list.innerHTML = "NO POIs IN 5KM. TESTING BROAD SEARCH...";
+                    // Broad fallback
+                    fetchFallback(mLa, mLn);
                 } else {
                     d.results.forEach(v => {
                         const card = document.createElement('div'); card.className = 'venue-card';
-                        card.innerHTML = `<strong>${v.name.toUpperCase()}</strong><br><small>${v.location.formatted_address || "Nearby"}</small>`;
+                        card.innerHTML = `<strong>${v.name.toUpperCase()}</strong><br><small>${v.location.formatted_address || "Sharjah"}</small>`;
                         list.appendChild(card);
                     });
                 }
-            } catch (e) { console.error("FS_ERROR:", e); }
+            } catch (e) { 
+                console.error("FS_ERROR:", e);
+                box.innerHTML += `<div style="color:red">ERROR: ${e.message}</div>`;
+            }
             document.getElementById('oracle-ballot').style.display = 'block';
+        }
+
+        async function fetchFallback(lat, lng) {
+            const url = `https://api.foursquare.com/v3/places/search?ll=${lat},${lng}&radius=10000&limit=5`;
+            const res = await fetch(url, { headers: { 'Authorization': FS_KEY, 'Accept': 'application/json' } });
+            const d = await res.json();
+            const list = document.getElementById('venue-list');
+            d.results?.forEach(v => {
+                const card = document.createElement('div'); card.className = 'venue-card';
+                card.innerHTML = `<strong>${v.name.toUpperCase()}</strong><br><small>NEARBY LANDMARK</small>`;
+                list.appendChild(card);
+            });
         }
     </script>
 </body>

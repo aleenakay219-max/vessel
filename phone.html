@@ -57,7 +57,7 @@
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
             if (!d.features || d.features.length === 0) {
-                list.innerHTML = "SEARCHING LOCAL AREA...";
+                list.innerHTML = "SEARCHING AREA...";
             } else {
                 d.features.forEach(s => {
                     const card = document.createElement('div'); card.className = 'venue-card';

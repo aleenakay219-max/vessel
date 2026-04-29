@@ -20,7 +20,7 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Analyzing...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Awaiting Midpoint...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
@@ -47,15 +47,16 @@
             });
         }
         window.sendMsg = async () => { const val = document.getElementById('chat-in').value; await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]); document.getElementById('chat-in').value = ''; };
-        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => { const box = document.getElementById('msg-box'); const isMe = p.new.sender === 'SEEKER'; box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${p.new.content}</div>`; box.scrollTop = box.scrollHeight; msgCount++; if(msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block'; }).subscribe(); }
+        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => { const box = document.getElementById('msg-box'); box.innerHTML += `<div class="msg ${p.new.sender === 'SEEKER' ? 'me' : 'them'}">${p.new.content}</div>`; box.scrollTop = box.scrollHeight; msgCount++; if(msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block'; }).subscribe(); }
         window.initiateOracle = () => { navigator.geolocation.getCurrentPosition(async (pos) => { await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude }, { onConflict: 'bridge_id' }); }); };
         function startOracleSync() { _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, p => { const s = p.new || p.old; if(s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng); }).subscribe(); }
 
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            const url = `https://api.foursquare.com/v3/places/search?query=coffee&ll=${mLa},${mLn}&radius=5000&limit=10`;
-            const res = await fetch(url, { headers: { 'Authorization': FS_KEY, 'Accept': 'application/json' } });
+            const target = `https://api.foursquare.com/v3/places/search?query=coffee&ll=${mLa},${mLn}&radius=5000&limit=10`;
+            const proxyUrl = `https://cors-anywhere.herokuapp.com/${target}`;
+            const res = await fetch(proxyUrl, { headers: { 'Authorization': FS_KEY, 'Accept': 'application/json' } });
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
             d.results?.forEach(v => {

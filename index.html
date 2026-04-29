@@ -8,21 +8,36 @@
         html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; }
         #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         
-        /* Fixed FAB: Larger hit area, higher z-index */
-        #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; outline: none; }
+        /* FAB FIX: Massive hit area and forced z-index */
+        #fab { 
+            position: absolute; 
+            bottom: 40px; 
+            right: 40px; 
+            width: 80px; 
+            height: 80px; 
+            background: #000; 
+            border: 3px solid #0f0; 
+            border-radius: 50%; 
+            color: #0f0; 
+            font-size: 40px; 
+            cursor: pointer; 
+            z-index: 9999 !important; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            box-shadow: 0 0 20px #0f0;
+            -webkit-tap-highlight-color: transparent;
+        }
         
         #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
         .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 12px; }
-        
         #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
         .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #020; }
         .msg.me { color: #0f0; text-align: right; }
         .msg.them { color: #0a0; text-align: left; }
-        
         #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; cursor: pointer; margin-bottom: 10px; }
-        
-        .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 3000; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 300px; text-align: center; color: #0f0; }
+        .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 8000; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 300px; text-align: center; color: #0f0; }
         .option-btn { display: block; width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #0f0; background: transparent; color: #0f0; cursor: pointer; }
     </style>
 </head>
@@ -51,15 +66,29 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
-        navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
+        // MAP FIX: Starts at default Dubai coords, but immediately hunts for GPS
+        const map = new mapboxgl.Map({ 
+            container: 'map', 
+            style: 'mapbox://styles/mapbox/dark-v11', 
+            center: [55.27, 25.20], 
+            zoom: 12 
+        });
+
+        function centerMap() {
+            navigator.geolocation.getCurrentPosition(p => {
+                map.flyTo({ center: [p.coords.longitude, p.coords.latitude], zoom: 14 });
+            }, () => { console.log("GPS Blocked"); });
+        }
+        centerMap();
 
         let nodeData = {}, myNodeId = null;
 
-        window.startCreation = () => {
-            console.log("Creation mode active.");
-            map.once('click', (e) => {
-                nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng;
+        window.startCreation = (e) => {
+            // Stopping propagation prevents click-through to map
+            if(e) e.stopPropagation();
+            console.log("FAB Triggered");
+            map.once('click', (ev) => {
+                nodeData.lat = ev.lngLat.lat; nodeData.lng = ev.lngLat.lng;
                 document.getElementById('step-category').style.display = 'block';
             });
         };
@@ -106,7 +135,7 @@
             navigator.geolocation.getCurrentPosition(
                 async (pos) => { pushOracle(pos.coords.latitude, pos.coords.longitude); },
                 () => { 
-                    const man = prompt("GPS Blocked. Manual enter (Lat, Lng) to find cafes near you:", "25.34, 55.39");
+                    const man = prompt("GPS Blocked. Manual enter (Lat, Lng):", "25.2, 55.2");
                     if(man) { const pts = man.split(','); pushOracle(pts[0].trim(), pts[1].trim()); }
                 }
             );
@@ -128,10 +157,11 @@
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
             const term = nodeData.intent?.includes('Coffee') ? 'cafe' : 'park';
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${term}.json?proximity=${mLn},${mLa}&access_token=${MAPBOX_TOKEN}`);
+            // PROXIMITY FIX: Force Mapbox to look strictly at the coordinates
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${term}.json?proximity=${mLn},${mLa}&limit=3&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.slice(0, 3).forEach(f => {
+            d.features.forEach(f => {
                 const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = f.text.toUpperCase();
                 list.appendChild(card);
             });

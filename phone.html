@@ -20,16 +20,17 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Loading midpoint...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Calculating...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
-        <div style="display:flex;"><input type="text" id="chat-in" placeholder="MESSAGE..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
+        <div style="display:flex;"><input type="text" id="chat-in" placeholder="..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
     </div>
     <script>
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.27, 25.20], zoom: 12 });
+        navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
 
         let currentN = null;
         async function scan() {
@@ -56,14 +57,14 @@
         }
         window.initiateOracle = () => {
             navigator.geolocation.getCurrentPosition(
-                async (pos) => { syncCoords(pos.coords.latitude, pos.coords.longitude); },
+                async (pos) => { pushOracle(pos.coords.latitude, pos.coords.longitude); },
                 () => { 
-                    const man = prompt("GPS BLOCKED. Enter Lat, Lng manually:");
-                    if(man) { const pts = man.split(','); syncCoords(pts[0], pts[1]); }
+                    const man = prompt("GPS Blocked. Enter Lat, Lng:");
+                    if(man) { const pts = man.split(','); pushOracle(pts[0].trim(), pts[1].trim()); }
                 }
             );
         };
-        async function syncCoords(lat, lng) {
+        async function pushOracle(lat, lng) {
             await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: lat, u2_lng: lng }, { onConflict: 'bridge_id' });
         }
         function startOracleSync() {

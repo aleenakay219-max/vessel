@@ -29,7 +29,7 @@
         <button class="option-btn" onclick="selectCategory('🚶 Walk')">🚶 Walk</button>
     </div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Syncing local common ground...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Searching area...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box;">
@@ -42,7 +42,6 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        // Default to Sharjah [Lng, Lat]
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
 
         let nodeData = {}, myNodeId = null, msgCount = 0;
@@ -106,16 +105,24 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            const bbox = `${mLn - 0.045},${mLa - 0.045},${mLn + 0.045},${mLa + 0.045}`;
-            // STRICT ORDER: Lng, Lat
-            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/coffee shop.json?proximity=${mLn},${mLa}&bbox=${bbox}&country=AE&limit=5&types=poi&access_token=${MAPBOX_TOKEN}`;
+            // Radius check: 0.05 degrees is roughly 5.5km
+            const bbox = `${mLn - 0.05},${mLa - 0.05},${mLn + 0.05},${mLa + 0.05}`;
+            
+            // Query: Broader terms to ensure hits
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/cafe coffee shop.json?proximity=${mLn},${mLa}&bbox=${bbox}&country=AE&limit=5&types=poi&access_token=${MAPBOX_TOKEN}`;
+            
             const res = await fetch(url);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => {
-                const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = f.text.toUpperCase();
-                list.appendChild(card);
-            });
+            
+            if (d.features.length === 0) {
+                list.innerHTML = "No nearby cafes found.";
+            } else {
+                d.features.forEach(f => {
+                    const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = f.text.toUpperCase();
+                    list.appendChild(card);
+                });
+            }
             document.getElementById('oracle-ballot').style.display = 'block';
         }
     </script>

@@ -14,29 +14,31 @@
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
         .venue-card { background: #000; border: 1px solid #0f0; color: #0f0; padding: 14px; margin-top: 8px; font-size: 13px; }
         #msg-box { height: 150px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
+        .msg { margin-bottom: 8px; font-size: 12px; }
+        .msg.me { text-align: right; color: #0f0; }
         #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Calculating...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Determining Midpoint...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
-        <div style="display:flex;"><input type="text" id="chat-in" placeholder="..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
+        <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
     </div>
     <script>
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.27, 25.20], zoom: 12 });
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
         navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
 
         let currentN = null;
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             data?.forEach(n => {
-                const el = document.createElement('div'); el.style.color="#0f0"; el.innerText = "[ NODE ]";
+                const el = document.createElement('div'); el.style.color="#0f0"; el.innerText = "[ NODE: "+n.intent+" ]"; el.style.cursor="pointer";
                 el.onclick = async () => { 
                     currentN = n; await _supabase.from('requests').insert([{ node_id: n.id, requester_id: 'SEEKER' }]);
                     document.getElementById('terminal').style.display = 'flex';
@@ -48,24 +50,27 @@
         window.sendMsg = async () => {
             const val = document.getElementById('chat-in').value;
             await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]);
-            document.getElementById('msg-box').innerHTML += `<div style="color:#0f0; text-align:right;">>> ${val}</div>`;
+            document.getElementById('chat-in').value = '';
         };
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
-                if(p.new.sender !== 'SEEKER') document.getElementById('msg-box').innerHTML += `<div style="color:#0a0;"><< ${p.new.content}</div>`;
+                const box = document.getElementById('msg-box');
+                const isMe = p.new.sender === 'SEEKER';
+                box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${isMe ? '>> ' : '<< '}${p.new.content}</div>`;
+                box.scrollTop = box.scrollHeight;
             }).subscribe();
         }
         window.initiateOracle = () => {
             navigator.geolocation.getCurrentPosition(
                 async (pos) => { pushOracle(pos.coords.latitude, pos.coords.longitude); },
                 () => { 
-                    const man = prompt("GPS Blocked. Enter Lat, Lng:");
+                    const man = prompt("GPS Blocked. Manual enter Lat, Lng:", "25.34, 55.39");
                     if(man) { const pts = man.split(','); pushOracle(pts[0].trim(), pts[1].trim()); }
                 }
             );
         };
-        async function pushOracle(lat, lng) {
-            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: lat, u2_lng: lng }, { onConflict: 'bridge_id' });
+        async function pushOracle(la, ln) {
+            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: la, u2_lng: ln }, { onConflict: 'bridge_id' });
         }
         function startOracleSync() {
             _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, p => {

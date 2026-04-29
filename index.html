@@ -1,85 +1,36 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>VESSEL | CREATOR</title>
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
-    <style>
-        html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; }
-        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
-        #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
-        #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
-        .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 11px; }
-        #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
-        .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
-        .msg.me { text-align: right; color: #0f0; }
-        .msg.them { text-align: left; color: #0a0; }
-        #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; cursor: pointer; margin-bottom: 10px; }
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    <button id="fab" onclick="startCreation()">+</button>
-    <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Ready...</div></div>
-        <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
-        <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none; font-family:monospace;">
-    </div>
+async function fetchVenues(la1, ln1, la2, ln2) {
+    // Calculate Midpoint
+    const mLat = (parseFloat(la1) + parseFloat(la2)) / 2;
+    const mLng = (parseFloat(ln1) + parseFloat(ln2)) / 2;
+    
+    const list = document.getElementById('venue-list');
+    list.innerHTML = "Consulting the Oracle...";
 
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script>
-        const SB_URL = "https://rnroyhkvkmzuichysxnk.supabase.co";
-        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU";
-        const _supabase = supabase.createClient(SB_URL, SB_KEY);
-        const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+    try {
+        // Invoke the Supabase Edge Function
+        const { data, error } = await _supabase.functions.invoke('oracle-search', {
+            body: { lat: mLat, lng: mLng }
+        });
 
-        mapboxgl.accessToken = MAPBOX_TOKEN;
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
+        if (error) throw error;
 
-        let nodeData = {}, myNodeId = null, msgCount = 0;
+        list.innerHTML = ''; // Clear loading text
 
-        window.startCreation = () => { map.once('click', (e) => { nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng; approveNode(); }); };
-        async function approveNode() {
-            const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: '☕ Coffee', status: 'active' }]).select();
-            myNodeId = data[0].id;
-            new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
-            setInterval(async () => {
-                const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
-                if(reqs?.length > 0) openChat();
-            }, 3000);
+        if (data.results && data.results.length > 0) {
+            data.results.forEach(v => {
+                const card = document.createElement('div');
+                card.className = 'venue-card';
+                // Display Name and Formatted Address
+                card.innerHTML = `<strong>${v.name.toUpperCase()}</strong><br><small>${v.location.formatted_address || "Sharjah Sector"}</small>`;
+                list.appendChild(card);
+            });
+        } else {
+            list.innerHTML = "[ ORACLE SILENT ]: NO POIs RECORDED IN THIS SECTOR.";
         }
-        function openChat() { document.getElementById('terminal').style.display = 'flex'; startChatSync(); startOracleSync(); }
-        window.sendMsg = async () => { 
-            const val = document.getElementById('chat-in').value;
-            await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]);
-            document.getElementById('chat-in').value = '';
-        };
-        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => { const box = document.getElementById('msg-box'); box.innerHTML += `<div class="msg ${p.new.sender === 'BAD_CREATOR' ? 'me' : 'them'}">${p.new.content}</div>`; box.scrollTop = box.scrollHeight; msgCount++; if(msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block'; }).subscribe(); }
-        window.initiateOracle = () => { navigator.geolocation.getCurrentPosition(async (pos) => { await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude }, { onConflict: 'bridge_id' }); }); };
-        function startOracleSync() { _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${myNodeId}` }, p => { const s = p.new || p.old; if(s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng); }).subscribe(); }
-
-        async function fetchVenues(la1, ln1, la2, ln2) {
-            const mLat = (parseFloat(la1) + parseFloat(la2)) / 2;
-            const mLng = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            try {
-                const { data, error } = await _supabase.functions.invoke('oracle-search', {
-                    body: { lat: mLat, lng: mLng }
-                });
-                if (error) throw error;
-                const list = document.getElementById('venue-list'); list.innerHTML = '';
-                if (data.results?.length > 0) {
-                    data.results.forEach(v => {
-                        const card = document.createElement('div'); card.className = 'venue-card';
-                        card.innerHTML = `<strong>${v.name.toUpperCase()}</strong><br><small>${v.location.formatted_address || "Sharjah"}</small>`;
-                        list.appendChild(card);
-                    });
-                } else { list.innerHTML = "NO RESULTS IN SECTOR."; }
-            } catch (e) { document.getElementById('venue-list').innerHTML = "EDGE ERROR: " + e.message; }
-            document.getElementById('oracle-ballot').style.display = 'block';
-        }
-    </script>
-</body>
-</html>
+    } catch (e) {
+        console.error("ORACLE_SYNC_ERROR:", e);
+        list.innerHTML = `<span style="color:red">CONNECTION FAILED: ${e.message}</span>`;
+    }
+    
+    document.getElementById('oracle-ballot').style.display = 'block';
+}

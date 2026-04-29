@@ -10,7 +10,7 @@
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
         #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
-        .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 12px; }
+        .venue-card { background: rgba(0, 0, 0, 0.9); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 12px; }
         #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
         .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
         .msg.me { text-align: right; color: #0f0; }
@@ -24,19 +24,15 @@
     <div id="map"></div>
     <div id="toast">CHOOSE LOCATION ON MAP</div>
     <button id="fab" onclick="startCreation()">+</button>
-    
     <div id="step-category" class="hud-panel">
-        <div style="margin-bottom:15px;">SELECT INTENT</div>
         <button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button>
         <button class="option-btn" onclick="selectCategory('🚶 Walk')">🚶 Walk</button>
-        <button class="option-btn" onclick="selectCategory('✨ Connect')">✨ Connect</button>
     </div>
-
     <div id="terminal">
         <div id="oracle-ballot"><div id="venue-list">Syncing local common ground...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; outline:none; font-family:monospace; width:100%; box-sizing:border-box;">
+        <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box;">
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
@@ -46,8 +42,8 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
+        // Default to Sharjah [Lng, Lat]
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
-        navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
 
         let nodeData = {}, myNodeId = null, msgCount = 0;
 
@@ -62,15 +58,13 @@
 
         window.selectCategory = async (cat) => {
             const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: cat, status: 'active' }]).select();
-            if(data) {
-                myNodeId = data[0].id;
-                document.getElementById('step-category').style.display = 'none';
-                new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
-                setInterval(async () => {
-                    const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
-                    if(reqs?.length > 0) approveMatch();
-                }, 3000);
-            }
+            myNodeId = data[0].id;
+            document.getElementById('step-category').style.display = 'none';
+            new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
+            setInterval(async () => {
+                const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
+                if(reqs?.length > 0) approveMatch();
+            }, 3000);
         };
 
         window.approveMatch = async () => {
@@ -81,7 +75,6 @@
 
         window.sendMsg = async () => {
             const val = document.getElementById('chat-in').value;
-            if(!val) return;
             await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]);
             document.getElementById('chat-in').value = '';
         };
@@ -90,7 +83,7 @@
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => {
                 const box = document.getElementById('msg-box');
                 const isMe = p.new.sender === 'BAD_CREATOR';
-                box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${isMe ? '>> ' : '<< '}${p.new.content}</div>`;
+                box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${p.new.content}</div>`;
                 box.scrollTop = box.scrollHeight;
                 msgCount++;
                 if(msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block';
@@ -113,13 +106,9 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            
-            // 5KM BOUNDING BOX: Approximately 0.045 degrees
             const bbox = `${mLn - 0.045},${mLa - 0.045},${mLn + 0.045},${mLa + 0.045}`;
-            
-            // THE CALIBRATED SEARCH: Lng, Lat order + Country Filter + BBox
+            // STRICT ORDER: Lng, Lat
             const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/coffee shop.json?proximity=${mLn},${mLa}&bbox=${bbox}&country=AE&limit=5&types=poi&access_token=${MAPBOX_TOKEN}`;
-            
             const res = await fetch(url);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';

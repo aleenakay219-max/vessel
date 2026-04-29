@@ -14,6 +14,7 @@
         #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
         .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
         .msg.me { text-align: right; color: #0f0; }
+        .msg.them { text-align: left; color: #0a0; }
         #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; cursor: pointer; margin-bottom: 10px; }
     </style>
 </head>
@@ -39,7 +40,11 @@
 
         let nodeData = {}, myNodeId = null, msgCount = 0;
 
-        window.startCreation = () => { map.once('click', (e) => { nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng; approveNode(); }); };
+        window.startCreation = () => { map.once('click', (e) => { 
+            nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng; 
+            approveNode(); 
+        }); };
+
         async function approveNode() {
             const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: '☕ Coffee', status: 'active' }]).select();
             myNodeId = data[0].id;
@@ -49,21 +54,43 @@
                 if(reqs?.length > 0) openChat();
             }, 3000);
         }
+
         function openChat() { document.getElementById('terminal').style.display = 'flex'; startChatSync(); startOracleSync(); }
+
         window.sendMsg = async () => { 
             const val = document.getElementById('chat-in').value;
             await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]);
             document.getElementById('chat-in').value = '';
         };
-        function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => { const box = document.getElementById('msg-box'); box.innerHTML += `<div class="msg ${p.new.sender === 'BAD_CREATOR' ? 'me' : 'them'}">${p.new.content}</div>`; box.scrollTop = box.scrollHeight; msgCount++; if(msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block'; }).subscribe(); }
-        window.initiateOracle = () => { navigator.geolocation.getCurrentPosition(async (pos) => { await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude }, { onConflict: 'bridge_id' }); }); };
-        function startOracleSync() { _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${myNodeId}` }, p => { if(p.new.u1_lat && p.new.u2_lat) fetchVenues(p.new.u1_lat, p.new.u1_lng, p.new.u2_lat, p.new.u2_lng); }).subscribe(); }
+
+        function startChatSync() { 
+            _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => { 
+                const box = document.getElementById('msg-box'); 
+                box.innerHTML += `<div class="msg ${p.new.sender === 'BAD_CREATOR' ? 'me' : 'them'}">${p.new.content}</div>`; 
+                box.scrollTop = box.scrollHeight; msgCount++; 
+                if(msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block'; 
+            }).subscribe(); 
+        }
+
+        window.initiateOracle = () => { 
+            navigator.geolocation.getCurrentPosition(async (pos) => { 
+                await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude }, { onConflict: 'bridge_id' }); 
+            }); 
+        };
+
+        function startOracleSync() { 
+            _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${myNodeId}` }, p => { 
+                const s = p.new || p.old;
+                if(s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng); 
+            }).subscribe(); 
+        }
 
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            
-            // USING A PROXY TO BYPASS CORS
+            const box = document.getElementById('msg-box');
+            box.innerHTML += `<div class="msg" style="color:#0f0; border:1px solid #0f0; padding:5px;">[ORACLE] Midpoint: ${mLn.toFixed(4)}, ${mLa.toFixed(4)}</div>`;
+
             const target = `https://api.foursquare.com/v3/places/search?query=coffee&ll=${mLa},${mLn}&radius=5000&limit=10`;
             const proxyUrl = `https://cors-anywhere.herokuapp.com/${target}`;
 
@@ -72,20 +99,28 @@
                     headers: { 'Authorization': FS_KEY, 'Accept': 'application/json' }
                 });
                 
-                // If the proxy requires a temporary access click:
                 if (res.status === 403) {
-                    document.getElementById('venue-list').innerHTML = "CLICK HERE TO ACTIVATE PROXY: <a href='https://cors-anywhere.herokuapp.com/corsdemo' target='_blank'>cors-anywhere.herokuapp.com/corsdemo</a>";
+                    document.getElementById('venue-list').innerHTML = "PROXY LOCKED. Visit <a href='https://cors-anywhere.herokuapp.com/corsdemo' target='_blank' style='color:#0f0'>THIS LINK</a> and click 'Request Access'.";
                     return;
                 }
 
                 const d = await res.json();
+                console.log("FOURSQUARE_DATA:", d);
                 const list = document.getElementById('venue-list'); list.innerHTML = '';
-                d.results?.forEach(v => {
-                    const card = document.createElement('div'); card.className = 'venue-card';
-                    card.innerHTML = `<strong>${v.name.toUpperCase()}</strong><br><small>${v.location.formatted_address || "Nearby"}</small>`;
-                    list.appendChild(card);
-                });
-            } catch (e) { document.getElementById('venue-list').innerHTML = "ERROR: " + e.message; }
+                
+                if (!d.results || d.results.length === 0) {
+                    list.innerHTML = "NO POIs IN 5KM. (Check Console for Raw Data)";
+                } else {
+                    d.results.forEach(v => {
+                        const card = document.createElement('div'); card.className = 'venue-card';
+                        card.innerHTML = `<strong>${v.name.toUpperCase()}</strong><br><small>${v.location.formatted_address || "Sharjah"}</small>`;
+                        list.appendChild(card);
+                    });
+                }
+            } catch (e) { 
+                console.error("ORACLE_FAIL:", e); 
+                document.getElementById('venue-list').innerHTML = "CONNECTION BLOCKED. Try Proxy Link.";
+            }
             document.getElementById('oracle-ballot').style.display = 'block';
         }
     </script>

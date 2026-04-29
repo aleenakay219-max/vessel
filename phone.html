@@ -10,7 +10,7 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; }
-        #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
+        #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
         .venue-card { background: #000; border: 1px solid #0f0; color: #0f0; padding: 14px; margin-top: 8px; font-size: 11px; }
         #msg-box { height: 150px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
@@ -54,18 +54,15 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            const url = `https://api.foursquare.com/v3/places/search?query=coffee%20cafe&ll=${mLa},${mLn}&radius=5000&limit=10`;
+            const url = `https://api.foursquare.com/v3/places/search?query=coffee&ll=${mLa},${mLn}&radius=5000&limit=10`;
             const res = await fetch(url, { headers: { 'Authorization': FS_KEY, 'Accept': 'application/json' } });
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            if (!d.results || d.results.length === 0) {
-                list.innerHTML = "NO RESULTS IN 5KM.";
-            } else {
-                d.results.forEach(s => {
-                    const card = document.createElement('div'); card.className = 'venue-card'; card.innerHTML = `<strong>${s.name.toUpperCase()}</strong>`;
-                    list.appendChild(card);
-                });
-            }
+            d.results?.forEach(v => {
+                const card = document.createElement('div'); card.className = 'venue-card';
+                card.innerHTML = `<strong>${v.name.toUpperCase()}</strong>`;
+                list.appendChild(card);
+            });
             document.getElementById('oracle-ballot').style.display = 'block';
         }
         setInterval(scan, 5000); scan();

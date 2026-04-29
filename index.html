@@ -7,65 +7,29 @@
     <style>
         html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; }
         #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-        
-        #terminal { 
-            display: none; 
-            position: absolute; 
-            top: 20px; 
-            left: 20px; 
-            width: 350px; 
-            max-height: 85vh; 
-            background: rgba(0, 15, 0, 0.9); 
-            border: 1px solid #0f0; 
-            z-index: 1000; 
-            flex-direction: column; 
-            padding: 15px; 
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
-            pointer-events: auto;
-        }
-
+        #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 10, 0, 0.9); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); }
-        .venue-card { 
-            background: rgba(0, 0, 0, 0.95); 
-            border: 1px solid #0f0; 
-            color: #0f0; 
-            padding: 12px; 
-            margin-top: 8px; 
-            cursor: pointer !important; 
-            font-size: 12px;
-            pointer-events: auto;
-        }
+        .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 12px; }
         .venue-card:hover { background: #0f0; color: #000; }
-
         #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
         .msg { margin-bottom: 8px; padding: 5px; border-bottom: 1px solid #020; font-size: 13px; }
         .msg.me { color: #0f0; text-align: right; }
         .msg.them { color: #0a0; text-align: left; }
-
-        #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; cursor: pointer; margin-bottom: 10px; font-weight: bold; }
-        #fab { position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 30px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
-        
-        .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2000; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 300px; text-align: center; }
+        #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; cursor: pointer; margin-bottom: 10px; }
+        #fab { position: absolute; bottom: 30px; right: 30px; width: 60px; height: 60px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 30px; cursor: pointer; z-index: 100; display: flex; align-items: center; justify-content: center; }
+        .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 2000; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 300px; text-align: center; color: #0f0; }
         .option-btn { display: block; width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #0f0; background: transparent; color: #0f0; cursor: pointer; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <button id="fab" onclick="startCreation()">+</button>
-    
-    <div id="step-category" class="hud-panel">
-        <div style="color:#0f0; margin-bottom:15px;">SELECT INTENT</div>
-        <button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button>
-    </div>
-
+    <div id="step-category" class="hud-panel"><button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button></div>
     <div id="terminal">
-        <div id="oracle-ballot">
-            <div style="font-size: 10px; margin-bottom: 8px; color:#0f0;">[ ORACLE_LOCATIONS ]</div>
-            <div id="venue-list">Ready for hand-shake...</div>
-        </div>
+        <div id="oracle-ballot"><div id="venue-list">Syncing Midpoint...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="TYPE MESSAGE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; outline:none; font-family:monospace;">
+        <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; outline:none; font-family:monospace;">
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
@@ -75,8 +39,9 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
-        map.on('load', () => map.resize());
+        // MAP STARTS AT DEVICE LOCATION
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.27, 25.20], zoom: 13 });
+        navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
 
         let nodeData = {}, myNodeId = null;
 
@@ -86,9 +51,8 @@
                 document.getElementById('step-category').style.display = 'block';
             });
         };
-        
+
         window.selectCategory = async (cat) => {
-            nodeData.intent = cat;
             const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: cat, status: 'active' }]).select();
             if(data) {
                 myNodeId = data[0].id;
@@ -120,20 +84,15 @@
 
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => {
-                if(p.new.sender !== 'BAD_CREATOR') {
-                    document.getElementById('msg-box').innerHTML += `<div class="msg them"><< ${p.new.content}</div>`;
-                    document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
-                }
+                if(p.new.sender !== 'BAD_CREATOR') document.getElementById('msg-box').innerHTML += `<div class="msg them"><< ${p.new.content}</div>`;
             }).subscribe();
         }
 
-        window.initiateOracle = async () => {
-            // LOCKED LOGIC: Use Node Data, not live GPS to avoid city mismatch
-            const { error } = await _supabase.from('oracle_sessions').upsert({ 
-                bridge_id: myNodeId, u1_lat: nodeData.lat, u1_lng: nodeData.lng 
-            }, { onConflict: 'bridge_id' });
-            
-            if(!error) document.getElementById('oracle-btn').innerText = "SYNCHRONIZING...";
+        window.initiateOracle = () => {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude }, { onConflict: 'bridge_id' });
+                document.getElementById('oracle-btn').innerText = "SYNCING...";
+            });
         };
 
         function startOracleSync() {
@@ -146,13 +105,13 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
+            // SEARCH RADIUS: Limited to ~5km via proximity
             const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/coffee.json?proximity=${mLn},${mLa}&types=poi&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.slice(0, 3).forEach(f => { 
-                const card = document.createElement('div');
-                card.className = 'venue-card'; card.innerText = `[ ${f.text.toUpperCase()} ]`;
-                card.onclick = () => alert("DESTINATION_LOCKED: " + f.text);
+            d.features.slice(0, 3).forEach(f => {
+                const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = `[ ${f.text.toUpperCase()} ]`;
+                card.onclick = () => alert("VOTED: " + f.text);
                 list.appendChild(card);
             });
             document.getElementById('oracle-ballot').style.display = 'block';

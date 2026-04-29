@@ -24,7 +24,7 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Awaiting coordinate sync...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Calculating common ground...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex;"><input type="text" id="chat-in" placeholder="REPLY..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:12px; outline:none; font-family:monospace;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:12px; margin-left:5px;">SEND</button></div>
@@ -34,9 +34,13 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
         
-        // MAP STARTS AT DEVICE LOCATION
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.27, 25.20], zoom: 13 });
-        navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.27, 25.20], zoom: 14 });
+        
+        navigator.geolocation.getCurrentPosition(
+            (p) => { map.flyTo({ center: [p.coords.longitude, p.coords.latitude], zoom: 14 }); },
+            null,
+            { enableHighAccuracy: true }
+        );
 
         let currentN = null;
         async function scan() {
@@ -57,17 +61,21 @@
             await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]);
             document.getElementById('msg-box').innerHTML += `<div class="msg me">>> ${val}</div>`;
             document.getElementById('chat-in').value = '';
+            document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
         };
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
-                if(p.new.sender !== 'SEEKER') document.getElementById('msg-box').innerHTML += `<div class="msg them"><< ${p.new.content}</div>`;
+                if(p.new.sender !== 'SEEKER') {
+                    document.getElementById('msg-box').innerHTML += `<div class="msg them"><< ${p.new.content}</div>`;
+                    document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
+                }
             }).subscribe();
         }
         window.initiateOracle = () => {
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude }, { onConflict: 'bridge_id' });
-                document.getElementById('oracle-btn').innerText = "SYNCING...";
-            });
+                document.getElementById('oracle-btn').innerText = "SYNCHRONIZING...";
+            }, null, { enableHighAccuracy: true });
         };
         function startOracleSync() {
             _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, p => {
@@ -78,12 +86,13 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/coffee.json?proximity=${mLn},${mLa}&types=poi&access_token=${MAPBOX_TOKEN}`);
+            const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/coffee.json?proximity=${mLn},${mLa}&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
+            if(!d.features || d.features.length === 0) list.innerHTML = "No cafes found at midpoint.";
             d.features.slice(0, 3).forEach(f => { 
                 const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = `[ ${f.text.toUpperCase()} ]`;
-                card.onclick = () => alert("VOTED: " + f.text);
+                card.onclick = () => alert("DESTINATION_LOCKED");
                 list.appendChild(card);
             });
             document.getElementById('oracle-ballot').style.display = 'block';

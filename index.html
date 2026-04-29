@@ -28,7 +28,7 @@
         <button class="option-btn" onclick="selectCategory('🚶 Walk')">🚶 Walk</button>
     </div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Analyzing...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Scanning POIs...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none;">
@@ -54,6 +54,7 @@
         };
         window.approveMatch = async () => { await _supabase.from('nodes').update({ status: 'bridged' }).eq('id', myNodeId); document.getElementById('terminal').style.display = 'flex'; startChatSync(); startOracleSync(); };
         window.sendMsg = async () => { const val = document.getElementById('chat-in').value; await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]); document.getElementById('chat-in').value = ''; };
+        
         function startChatSync() { _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => { const box = document.getElementById('msg-box'); const isMe = p.new.sender === 'BAD_CREATOR'; box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${p.new.content}</div>`; box.scrollTop = box.scrollHeight; msgCount++; if(msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block'; }).subscribe(); }
         window.initiateOracle = () => { navigator.geolocation.getCurrentPosition(async (pos) => { await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude }, { onConflict: 'bridge_id' }); }); };
         function startOracleSync() { _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${myNodeId}` }, p => { const s = p.new || p.old; if(s && s.u1_lat && s.u2_lat) fetchVenues(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng); }).subscribe(); }
@@ -64,22 +65,16 @@
             const box = document.getElementById('msg-box');
             box.innerHTML += `<div class="msg" style="color:#0f0; border:1px solid #0f0; padding:5px;">[ORACLE] Midpoint: ${mLn.toFixed(4)}, ${mLa.toFixed(4)}</div>`;
 
-            // BROAD QUERY: Simplest version as requested
-            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=cafe&proximity=${mLn},${mLa}&country=AE&limit=10&access_token=${MAPBOX_TOKEN}`;
+            // THE FINAL REFINED POI SEARCH
+            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=coffee cafe tea&proximity=${mLn},${mLa}&country=AE&types=poi&limit=10&access_token=${MAPBOX_TOKEN}`;
             
             try {
                 const res = await fetch(url);
-                
-                // LOGGING DIAGNOSTICS
-                console.log("CREATOR_STATUS:", res.status);
-                const rawText = await res.text();
-                console.log("CREATOR_RAW_TEXT:", rawText);
-                
-                const d = JSON.parse(rawText);
+                const d = await res.json();
                 const list = document.getElementById('venue-list'); list.innerHTML = '';
                 
                 if (!d.features || d.features.length === 0) {
-                    list.innerHTML = `NO FEATURES FOUND. STATUS: ${res.status}`;
+                    list.innerHTML = "NO POIs FOUND. EXPANDING RADIUS...";
                 } else {
                     d.features.forEach(f => {
                         const card = document.createElement('div'); card.className = 'venue-card';
@@ -87,10 +82,7 @@
                         list.appendChild(card);
                     });
                 }
-            } catch (e) { 
-                console.error("FETCH_ERROR:", e);
-                box.innerHTML += `<div style="color:red">ERROR: ${e.message}</div>`;
-            }
+            } catch (e) { console.error("ORACLE_FAIL:", e); }
             document.getElementById('oracle-ballot').style.display = 'block';
         }
     </script>

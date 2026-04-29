@@ -8,7 +8,7 @@
         html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; }
         #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
-        #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
+        #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
         .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 11px; }
         #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
@@ -28,7 +28,7 @@
         <button class="option-btn" onclick="selectCategory('🚶 Walk')">🚶 Walk</button>
     </div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Searching local nodes...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Querying Foursquare...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none; font-family:monospace;">
@@ -39,9 +39,11 @@
     <script>
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
-        mapboxgl.accessToken = MAPBOX_TOKEN;
+        const FS_KEY = 'D1UZ3VZWNX1UJIB5GOFDMAS05FNPVFVHMBT4ZSBRNAF2P0B0';
 
+        mapboxgl.accessToken = MAPBOX_TOKEN;
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
+        navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
 
         let nodeData = {}, myNodeId = null, msgCount = 0;
 
@@ -64,26 +66,28 @@
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
             const box = document.getElementById('msg-box');
             box.innerHTML += `<div class="msg" style="color:#0f0; border:1px solid #0f0; padding:5px;">[ORACLE] Midpoint: ${mLn.toFixed(4)}, ${mLa.toFixed(4)}</div>`;
+            box.scrollTop = box.scrollHeight;
 
-            // WIDE BBOX: minLng, minLat, maxLng, maxLat (Covers Sharjah & Dubai only)
-            const bbox = `54.8,24.8,55.8,25.8`;
-            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=cafe%20coffee%20restaurant&proximity=${mLn},${mLa}&bbox=${bbox}&country=AE&types=poi&limit=10&access_token=${MAPBOX_TOKEN}`;
+            // Foursquare V3 API: ll is Lat, Lng
+            const url = `https://api.foursquare.com/v3/places/search?query=coffee%20cafe&ll=${mLa},${mLn}&radius=5000&limit=10`;
             
             try {
-                const res = await fetch(url);
+                const res = await fetch(url, {
+                    headers: { 'Authorization': FS_KEY, 'Accept': 'application/json' }
+                });
                 const d = await res.json();
                 const list = document.getElementById('venue-list'); list.innerHTML = '';
                 
-                if (!d.features || d.features.length === 0) {
-                    list.innerHTML = "NO POIs IN RANGE.";
+                if (!d.results || d.results.length === 0) {
+                    list.innerHTML = "NO RESULTS IN 5KM.";
                 } else {
-                    d.features.forEach(f => {
+                    d.results.forEach(v => {
                         const card = document.createElement('div'); card.className = 'venue-card';
-                        card.innerHTML = `<strong>${f.properties.name.toUpperCase()}</strong><br><small>${f.properties.full_address || ""}</small>`;
+                        card.innerHTML = `<strong>${v.name.toUpperCase()}</strong><br><small>${v.location.formatted_address || "Nearby"}</small>`;
                         list.appendChild(card);
                     });
                 }
-            } catch (e) { console.error("ORACLE_FAIL:", e); }
+            } catch (e) { console.error("FS_ERROR:", e); }
             document.getElementById('oracle-ballot').style.display = 'block';
         }
     </script>

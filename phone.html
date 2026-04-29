@@ -20,7 +20,7 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Syncing...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Analyzing terrain...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
@@ -52,26 +52,18 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            
-            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=cafe&proximity=${mLn},${mLa}&country=AE&limit=10&access_token=${MAPBOX_TOKEN}`;
-            
-            try {
-                const res = await fetch(url);
-                console.log("SEEKER_STATUS:", res.status);
-                const rawText = await res.text();
-                const d = JSON.parse(rawText);
-
-                const list = document.getElementById('venue-list'); list.innerHTML = '';
-                if (!d.features || d.features.length === 0) {
-                    list.innerHTML = `NO FEATURES FOUND. STATUS: ${res.status}`;
-                } else {
-                    d.features.forEach(s => {
-                        const card = document.createElement('div'); card.className = 'venue-card';
-                        card.innerHTML = `<strong>${s.properties.name.toUpperCase()}</strong>`;
-                        list.appendChild(card);
-                    });
-                }
-            } catch (e) { console.error("SEEKER_ERROR:", e); }
+            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=coffee cafe tea&proximity=${mLn},${mLa}&country=AE&types=poi&limit=10&access_token=${MAPBOX_TOKEN}`;
+            const res = await fetch(url);
+            const d = await res.json();
+            const list = document.getElementById('venue-list'); list.innerHTML = '';
+            if (!d.features || d.features.length === 0) {
+                list.innerHTML = "NO POIs FOUND.";
+            } else {
+                d.features.forEach(s => {
+                    const card = document.createElement('div'); card.className = 'venue-card'; card.innerHTML = `<strong>${s.properties.name.toUpperCase()}</strong>`;
+                    list.appendChild(card);
+                });
+            }
             document.getElementById('oracle-ballot').style.display = 'block';
         }
         setInterval(scan, 5000); scan();

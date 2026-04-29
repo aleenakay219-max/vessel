@@ -18,12 +18,10 @@
         #oracle-btn { display: none; width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; cursor: pointer; margin-bottom: 10px; }
         .hud-panel { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 3000; background: rgba(0,0,0,0.95); border: 1px solid #0f0; padding: 25px; width: 300px; text-align: center; color: #0f0; }
         .option-btn { display: block; width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #0f0; background: transparent; color: #0f0; cursor: pointer; }
-        #toast { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: #000; border: 1px solid #0f0; color: #0f0; padding: 10px 20px; z-index: 4000; display: none; }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    <div id="toast">CHOOSE LOCATION ON MAP</div>
     <button id="fab" onclick="startCreation()">+</button>
     <div id="step-category" class="hud-panel">
         <button class="option-btn" onclick="selectCategory('☕ Coffee')">☕ Coffee</button>
@@ -48,19 +46,10 @@
 
         let nodeData = {}, myNodeId = null, msgCount = 0;
 
-        window.startCreation = () => {
-            document.getElementById('toast').style.display = 'block';
-            map.once('click', (e) => {
-                document.getElementById('toast').style.display = 'none';
-                nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng;
-                document.getElementById('step-category').style.display = 'block';
-            });
-        };
-
+        window.startCreation = () => { map.once('click', (e) => { nodeData.lat = e.lngLat.lat; nodeData.lng = e.lngLat.lng; document.getElementById('step-category').style.display = 'block'; }); };
         window.selectCategory = async (cat) => {
             const { data } = await _supabase.from('nodes').insert([{ lat: nodeData.lat, lng: nodeData.lng, intent: cat, status: 'active' }]).select();
-            myNodeId = data[0].id;
-            document.getElementById('step-category').style.display = 'none';
+            myNodeId = data[0].id; document.getElementById('step-category').style.display = 'none';
             new mapboxgl.Marker({color: '#0f0'}).setLngLat([nodeData.lng, nodeData.lat]).addTo(map);
             setInterval(async () => {
                 const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', myNodeId).eq('status', 'pending');
@@ -107,13 +96,11 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            
             const box = document.getElementById('msg-box');
             box.innerHTML += `<div class="msg" style="color:#0f0; border:1px solid #0f0; padding:5px;">[ORACLE] Midpoint: ${mLn.toFixed(4)}, ${mLa.toFixed(4)}</div>`;
-            box.scrollTop = box.scrollHeight;
 
-            // V6 Forward - Broadened Query - Lng/Lat Order Correct
-            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=coffee%20cafe%20tea%20restaurant&proximity=${mLn},${mLa}&country=AE&limit=10&access_token=${MAPBOX_TOKEN}`;
+            // V6 Forward - Broad Query - Lng/Lat Order Correct
+            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=cafe%20coffee%20restaurant&proximity=${mLn},${mLa}&country=AE&limit=10&access_token=${MAPBOX_TOKEN}`;
             
             try {
                 const res = await fetch(url);
@@ -121,9 +108,10 @@
                 const list = document.getElementById('venue-list'); list.innerHTML = '';
                 
                 if (!d.features || d.features.length === 0) {
-                    list.innerHTML = "NO RESULTS FOUND. SEARCHING WIDER...";
-                    // Fallback to general Sharjah search
-                    const fRes = await fetch(`https://api.mapbox.com/search/geocode/v6/forward?q=Sharjah%20cafe&proximity=${mLn},${mLa}&country=AE&limit=5&access_token=${MAPBOX_TOKEN}`);
+                    list.innerHTML = "NO FEATURES FOUND. SEARCHING LOCALLY...";
+                    // Fallback to broader Sharjah search if specific coords fail
+                    const fallbackUrl = `https://api.mapbox.com/search/geocode/v6/forward?q=Sharjah%20cafe&country=AE&limit=5&access_token=${MAPBOX_TOKEN}`;
+                    const fRes = await fetch(fallbackUrl);
                     const fData = await fRes.json();
                     fData.features.forEach(f => {
                         const card = document.createElement('div'); card.className = 'venue-card';

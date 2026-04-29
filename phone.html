@@ -20,7 +20,7 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Loading midpoint...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Finding midpoint...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
@@ -73,15 +73,19 @@
         async function fetchVenues(la1, ln1, la2, ln2) {
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
-            const bbox = `${mLn - 0.045},${mLa - 0.045},${mLn + 0.045},${mLa + 0.045}`;
-            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/coffee shop.json?proximity=${mLn},${mLa}&bbox=${bbox}&country=AE&limit=5&types=poi&access_token=${MAPBOX_TOKEN}`;
+            const bbox = `${mLn - 0.05},${mLa - 0.05},${mLn + 0.05},${mLa + 0.05}`;
+            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/cafe coffee shop.json?proximity=${mLn},${mLa}&bbox=${bbox}&country=AE&limit=5&types=poi&access_token=${MAPBOX_TOKEN}`;
             const res = await fetch(url);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => {
-                const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = f.text.toUpperCase();
-                list.appendChild(card);
-            });
+            if (d.features.length === 0) {
+                list.innerHTML = "No nearby cafes found.";
+            } else {
+                d.features.forEach(f => {
+                    const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = f.text.toUpperCase();
+                    list.appendChild(card);
+                });
+            }
             document.getElementById('oracle-ballot').style.display = 'block';
         }
         setInterval(scan, 5000); scan();

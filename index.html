@@ -108,26 +108,26 @@
             const mLa = (parseFloat(la1) + parseFloat(la2)) / 2;
             const mLn = (parseFloat(ln1) + parseFloat(ln2)) / 2;
             
-            // TERMINAL LOG
             const box = document.getElementById('msg-box');
             box.innerHTML += `<div class="msg" style="color:#0f0; border:1px solid #0f0; padding:5px;">[ORACLE] Midpoint: ${mLn.toFixed(4)}, ${mLa.toFixed(4)}</div>`;
             box.scrollTop = box.scrollHeight;
 
-            // 20km BBOX (Lng first)
             const bbox = `${mLn - 0.18},${mLa - 0.18},${mLn + 0.18},${mLa + 0.18}`;
             
-            const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=coffee&proximity=${mLn},${mLa}&bbox=${bbox}&types=poi&poi_category=coffee_shop,cafe,restaurant,tea_house&country=AE&limit=10&access_token=${MAPBOX_TOKEN}`;
+            // THE USER SPECIFIED URL FIX: v6 Forward with strict parameters
+            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=coffee cafe restaurant&proximity=${mLn},${mLa}&bbox=${bbox}&country=AE&types=poi&limit=10&access_token=${MAPBOX_TOKEN}`;
             
             const res = await fetch(url);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
             
-            if (!d.suggestions || d.suggestions.length === 0) {
+            // THE USER SPECIFIED FEATURE LOGIC
+            if (!d.features || d.features.length === 0) {
                 list.innerHTML = "NO POIs FOUND IN 20KM.";
             } else {
-                d.suggestions.forEach(s => {
+                d.features.forEach(s => {
                     const card = document.createElement('div'); card.className = 'venue-card';
-                    card.innerHTML = `<strong>${s.name.toUpperCase()}</strong><br><small>${s.place_formatted || ""}</small>`;
+                    card.innerHTML = `<strong>${s.properties.name.toUpperCase()}</strong><br><small>${s.properties.full_address || ""}</small>`;
                     list.appendChild(card);
                 });
             }

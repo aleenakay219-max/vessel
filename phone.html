@@ -10,31 +10,15 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; z-index: 1; }
-        .marker { padding: 10px; background: #000; border: 1px solid #0f0; color: #0f0; font-size: 11px; box-shadow: 0 0 10px #0f0; }
-        
-        #terminal { 
-            display: none; 
-            position: fixed; 
-            bottom: 10px; 
-            left: 5%; 
-            width: 90%; 
-            background: rgba(0, 15, 0, 0.95); 
-            border: 1px solid #0f0; 
-            z-index: 2000; 
-            flex-direction: column; 
-            padding: 15px; 
-            box-sizing: border-box; 
-        }
-
+        .marker { padding: 10px; background: #000; border: 1px solid #0f0; color: #0f0; font-size: 11px; }
+        #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
         .venue-card { background: #000; border: 1px solid #0f0; color: #0f0; padding: 14px; margin-top: 8px; font-size: 13px; }
-        
         #msg-box { height: 150px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
-        .msg { margin-bottom: 8px; font-size: 12px; border-bottom: 1px solid #010; padding-bottom: 4px; }
+        .msg { margin-bottom: 8px; font-size: 12px; }
         .msg.me { color: #0f0; text-align: right; }
         .msg.them { color: #0a0; text-align: left; }
-        
-        #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; cursor: pointer; }
+        #oracle-btn { width: 100%; padding: 12px; background: transparent; border: 1px solid #0f0; color: #0f0; margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -43,15 +27,18 @@
         <div id="oracle-ballot"><div id="venue-list">Awaiting coordinate sync...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
-        <div style="display:flex;"><input type="text" id="chat-in" placeholder="REPLY..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:12px; outline:none; font-family:monospace;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:12px; font-weight:bold; margin-left:5px;">SEND</button></div>
+        <div style="display:flex;"><input type="text" id="chat-in" placeholder="REPLY..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:12px; outline:none; font-family:monospace;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:12px; margin-left:5px;">SEND</button></div>
     </div>
     <script>
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.2708, 25.2048], zoom: 11 });
-        let currentN = null;
+        
+        // MAP STARTS AT DEVICE LOCATION
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.27, 25.20], zoom: 13 });
+        navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
 
+        let currentN = null;
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             data?.forEach(n => {
@@ -70,23 +57,17 @@
             await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]);
             document.getElementById('msg-box').innerHTML += `<div class="msg me">>> ${val}</div>`;
             document.getElementById('chat-in').value = '';
-            document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
         };
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
-                if(p.new.sender !== 'SEEKER') {
-                    document.getElementById('msg-box').innerHTML += `<div class="msg them"><< ${p.new.content}</div>`;
-                    document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
-                }
+                if(p.new.sender !== 'SEEKER') document.getElementById('msg-box').innerHTML += `<div class="msg them"><< ${p.new.content}</div>`;
             }).subscribe();
         }
-        window.initiateOracle = async () => {
-            // LOCKED LOGIC: Using currentN (Marker) to lock location to the meeting point
-            const { error } = await _supabase.from('oracle_sessions').upsert({ 
-                bridge_id: currentN.id, u2_lat: currentN.lat, u2_lng: currentN.lng 
-            }, { onConflict: 'bridge_id' });
-            
-            if(!error) document.getElementById('oracle-btn').innerText = "SYNCHRONIZING...";
+        window.initiateOracle = () => {
+            navigator.geolocation.getCurrentPosition(async (pos) => {
+                await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude }, { onConflict: 'bridge_id' });
+                document.getElementById('oracle-btn').innerText = "SYNCING...";
+            });
         };
         function startOracleSync() {
             _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, p => {
@@ -102,7 +83,7 @@
             const list = document.getElementById('venue-list'); list.innerHTML = '';
             d.features.slice(0, 3).forEach(f => { 
                 const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = `[ ${f.text.toUpperCase()} ]`;
-                card.onclick = () => alert("DESTINATION_LOCKED");
+                card.onclick = () => alert("VOTED: " + f.text);
                 list.appendChild(card);
             });
             document.getElementById('oracle-ballot').style.display = 'block';

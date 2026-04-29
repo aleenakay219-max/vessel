@@ -6,7 +6,7 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; }
@@ -22,7 +22,7 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Determining Midpoint...</div></div>
+        <div id="oracle-ballot"><div id="venue-list">Waiting...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
@@ -31,7 +31,8 @@
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.27, 25.20], zoom: 12 });
+        
         navigator.geolocation.getCurrentPosition(p => map.setCenter([p.coords.longitude, p.coords.latitude]));
 
         let currentN = null;
@@ -56,7 +57,7 @@
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
                 const box = document.getElementById('msg-box');
                 const isMe = p.new.sender === 'SEEKER';
-                box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${isMe ? '>> ' : '<< '}${p.new.content}</div>`;
+                box.innerHTML += `<div class="msg ${isMe ? 'me' : 'them'}">${p.new.content}</div>`;
                 box.scrollTop = box.scrollHeight;
             }).subscribe();
         }
@@ -64,7 +65,7 @@
             navigator.geolocation.getCurrentPosition(
                 async (pos) => { pushOracle(pos.coords.latitude, pos.coords.longitude); },
                 () => { 
-                    const man = prompt("GPS Blocked. Manual enter Lat, Lng:", "25.34, 55.39");
+                    const man = prompt("GPS Blocked. Enter Lat, Lng:", "25.2, 55.2");
                     if(man) { const pts = man.split(','); pushOracle(pts[0].trim(), pts[1].trim()); }
                 }
             );
@@ -84,7 +85,7 @@
             const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/coffee.json?proximity=${mLn},${mLa}&access_token=${MAPBOX_TOKEN}`);
             const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.slice(0, 3).forEach(f => {
+            d.features.forEach(f => {
                 const card = document.createElement('div'); card.className = 'venue-card'; card.innerText = f.text.toUpperCase();
                 list.appendChild(card);
             });

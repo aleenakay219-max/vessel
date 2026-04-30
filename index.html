@@ -55,6 +55,7 @@
         });};
 
         function listenForRequests() {
+            // FIX: Ensure terminal opens immediately on laptop when request hits
             _supabase.channel('reqs').on('postgres_changes', { event:'INSERT', schema:'public', table:'requests', filter:`node_id=eq.${myNodeId}` }, () => {
                 document.getElementById('terminal').style.display = 'flex';
                 startChatSync(); startOracleLive();

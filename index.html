@@ -43,7 +43,6 @@
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
         let myNodeId = null, myLoc = null, peerLoc = null;
 
-        // Step 5: Pre-fetch coordinates
         navigator.geolocation.watchPosition(p => { 
             myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; 
         }, null, {enableHighAccuracy: true});
@@ -67,6 +66,7 @@
             if(!val) return;
             await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]);
             document.getElementById('chat-in').value = '';
+            document.getElementById('oracle-btn').style.display = 'block';
         };
 
         function startChatSync() {
@@ -78,7 +78,6 @@
             }).subscribe();
         }
 
-        // Step 2 & 3: Proper Realtime + Specific Writes
         window.initiateOracle = async () => {
             document.getElementById('oracle-btn').innerText = "[ SIGNAL SENT ]";
             await _supabase.from('oracle_sessions').upsert({ 
@@ -90,7 +89,6 @@
             _supabase.channel('oracle-live')
             .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${myNodeId}` }, async payload => {
                 const s = payload.new;
-                // Step 4: Generate once
                 if (s.u1_lat && s.u2_lat && !s.options_generated) {
                     await fetchVenues(s);
                     await _supabase.from('oracle_sessions').update({ options_generated: true }).eq('bridge_id', myNodeId);

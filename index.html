@@ -82,9 +82,7 @@
                 document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
                 document.getElementById('oracle-ballot').style.display = 'block';
 
-                const hasValidGPS = (s.u1_lat !== 0 && s.u1_lng !== 0 && s.u2_lat !== 0 && s.u2_lng !== 0);
-
-                if (hasValidGPS && s.status === 'pending') {
+                if (s.u1_lat && s.u2_lat && s.status === 'pending') {
                     await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id);
                 }
                 if (s.status === 'ready' && !s.options_generated) {
@@ -98,10 +96,9 @@
             oracleProcessed = true;
             const mLa = (s.u1_lat + s.u2_lat) / 2; const mLn = (s.u1_lng + s.u2_lng) / 2;
             
-            // TIGHTER LEASH: 20km Bounding Box centered on Sharjah area
-            const uaeBBox = "55.20,25.20,55.60,25.50"; 
+            // Reverting to established Brands + UAE Country filter ONLY
             const brands = "Starbucks,KFC,Pizza Hut,Mall";
-            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${brands}&proximity=${s.u1_lng},${s.u1_lat}&bbox=${uaeBBox}&country=ae&limit=1&access_token=${MAPBOX_TOKEN}`;
+            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${brands}&proximity=${s.u1_lng},${s.u1_lat}&country=ae&limit=1&access_token=${MAPBOX_TOKEN}`;
             
             const res = await fetch(url);
             const d = await res.json();
@@ -122,16 +119,13 @@
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
             
-            // Add Marker for meeting point
+            // Add Visual Target Marker
             new mapboxgl.Marker({color: '#fff'}).setLngLat([s.selected_lng, s.selected_lat]).addTo(map);
 
             drawRoute('routeA', s.u1_lng, s.u1_lat, s.selected_lng, s.selected_lat, '#0f0');
             drawRoute('routeB', s.u2_lng, s.u2_lat, s.selected_lng, s.selected_lat, '#00ffaa');
             
-            const bounds = new mapboxgl.LngLatBounds()
-                .extend([s.u1_lng, s.u1_lat])
-                .extend([s.u2_lng, s.u2_lat])
-                .extend([s.selected_lng, s.selected_lat]);
+            const bounds = new mapboxgl.LngLatBounds().extend([s.u1_lng, s.u1_lat]).extend([s.u2_lng, s.u2_lat]).extend([s.selected_lng, s.selected_lat]);
             map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
         }
 

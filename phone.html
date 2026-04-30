@@ -17,7 +17,6 @@
 </head>
 <body>
     <div id="map"></div>
-    
     <div id="terminal">
         <div id="oracle-ballot">AWAITING ORACLE MATCH...</div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ INITIATE ORACLE ]</button>
@@ -27,12 +26,7 @@
             <button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px; cursor:pointer; font-weight:bold;">SEND</button>
         </div>
     </div>
-
-    <div id="nav-hud">
-        <h3 id="target-name" style="margin:0; text-transform:uppercase;">LOCATION SYNCED</h3>
-        <div id="eta-display" style="font-size:11px; margin-top:5px;">TRAILS ACTIVE</div>
-        <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
-    </div>
+    <div id="nav-hud"><h3 id="target-name" style="margin:0; text-transform:uppercase;">LOCATION SYNCED</h3><button class="hud-btn" onclick="location.reload()">TERMINATE</button></div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
@@ -85,37 +79,26 @@
         }
 
         window.initiateOracle = async () => {
-            if (!myLoc) { alert("Location not ready. Wait 2–3 seconds."); return; }
-            document.getElementById('oracle-btn').innerText = "[ SENDING LOCATION... ]";
+            if (!myLoc) { alert("Location not ready."); return; }
+            document.getElementById('oracle-btn').innerText = "[ SENDING... ]";
             await _supabase.from('oracle_sessions').upsert({
                 bridge_id: currentN.id, u2_lat: myLoc.lat, u2_lng: myLoc.lng
             }, { onConflict: 'bridge_id' });
-            document.getElementById('oracle-btn').innerText = "[ WAITING FOR MATCH... ]";
+            document.getElementById('oracle-btn').innerText = "[ WAITING... ]";
         };
 
         function startOracleLive() {
-            let handled = false;
-
-            // 1. CATCH-UP CHECK
+            // 1. CATCH-UP CHECK (Checks if match already exists)
             const checkInstantMatch = async () => {
                 const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', currentN.id).single();
                 if (data && data.status === 'matched') triggerSync(data);
             };
             checkInstantMatch();
 
-            // 2. REALTIME LISTENER
+            // 2. STABLE LISTENER
             _supabase.channel('oracle-live-' + currentN.id)
-            .on('postgres_changes', {
-                event: '*', 
-                schema: 'public', 
-                table: 'oracle_sessions', 
-                filter: `bridge_id=eq.${currentN.id}`
-            }, payload => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, payload => {
                 const s = payload.new || payload.old;
-                if (s.u1_lat && s.u2_lat && !handled) {
-                    handled = true;
-                    document.getElementById('oracle-ballot').style.display = 'block';
-                }
                 if (s.status === 'matched') triggerSync(s);
             })
             .subscribe();
@@ -126,14 +109,9 @@
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `PROCEED TO ${s.selected_venue_name.toUpperCase()}`;
-            
             drawRoute('routeA', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat);
             drawRoute('routeB', myLoc.lng, myLoc.lat, s.selected_lng, s.selected_lat);
-            
-            const bounds = new mapboxgl.LngLatBounds()
-                .extend([myLoc.lng, myLoc.lat])
-                .extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)])
-                .extend([s.selected_lng, s.selected_lat]);
+            const bounds = new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)]).extend([s.selected_lng, s.selected_lat]);
             map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2000 });
         }
 

@@ -128,40 +128,37 @@
             new mapboxgl.Marker({color:'#f00'}).setLngLat(vLoc).addTo(map);
             
             const getRoute = async (start) => {
-                const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${start.lng},${start.lat};${vLoc[0]},${vLoc[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`);
-                const res = await r.json();
-                if(!res.routes || res.routes.length === 0) throw new Error("No route found");
-                return res;
+                const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${start.lng},${start.lat};${vLoc[0]},${vLoc[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
+                const r = await fetch(url);
+                return await r.json();
             };
 
-            try {
-                const routeMe = await getRoute(myLoc); 
-                const routePeer = await getRoute(peerLoc);
-                
-                renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
-                renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
-                
-                document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
-                
-                const bounds = new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc);
-                map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
-            } catch (e) {
-                console.error("TRAIL_ERROR:", e);
-            }
+            const routeMe = await getRoute(myLoc); 
+            const routePeer = await getRoute(peerLoc);
+            
+            if(routeMe.routes && routeMe.routes[0]) renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
+            if(routePeer.routes && routePeer.routes[0]) renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
+            
+            document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
+            
+            const bounds = new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc);
+            map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
         }
 
         function renderLayer(id, geo, color) {
+            const layerData = { type: 'Feature', geometry: geo };
             if (map.getSource(id)) {
-                map.removeLayer(id);
-                map.removeSource(id);
+                map.getSource(id).setData(layerData);
+            } else {
+                map.addSource(id, { type: 'geojson', data: layerData });
+                map.addLayer({ 
+                    id, 
+                    type: 'line', 
+                    source: id, 
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: { 'line-color': color, 'line-width': 8, 'line-opacity': 0.9 } 
+                });
             }
-            map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: geo } });
-            map.addLayer({ 
-                id, 
-                type: 'line', 
-                source: id, 
-                paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.8 } 
-            });
         }
         setInterval(scan, 5000); scan();
     </script>

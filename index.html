@@ -5,13 +5,19 @@
     <title>VESSEL | CREATOR</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; }
+        html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; transition: background 0.3s; }
         #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        /* FAB RESTORED */
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; outline: none; }
+        
+        /* TERMINAL RESTORED */
         #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
+        #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
+        
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
         .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 11px; text-transform: uppercase; }
-        #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
+        
         #nav-hud { display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; }
         .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 15px 30px; margin: 5px; cursor: pointer; font-family: monospace; }
     </style>
@@ -19,12 +25,16 @@
 <body>
     <div id="map"></div>
     <button id="fab" onclick="startCreation()">+</button>
+    
     <div id="terminal">
         <div id="oracle-ballot"><div id="venue-list">Consulting Oracle...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; cursor:pointer; margin-bottom:10px;">[ INITIATE ORACLE ]</button>
+        
+        <!-- CHAT RESTORED -->
         <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box;">
+        <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none;">
     </div>
+
     <div id="nav-hud">
         <h2 id="target-name">LOCATION SYNCED</h2>
         <div id="eta-display">TRAILS ACTIVE</div>
@@ -44,6 +54,7 @@
         navigator.geolocation.watchPosition(p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; });
 
         window.startCreation = () => { map.once('click', async (e) => {
+            // INTENT NODES RESTORED
             const { data } = await _supabase.from('nodes').insert([{ lat: e.lngLat.lat, lng: e.lngLat.lng, intent: '☕ Coffee', status: 'active' }]).select();
             myNodeId = data[0].id;
             new mapboxgl.Marker({color: '#0f0'}).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
@@ -68,6 +79,7 @@
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => {
                 const box = document.getElementById('msg-box');
                 box.innerHTML += `<div style="color:#0f0; margin-bottom:5px;">> ${p.new.content}</div>`;
+                box.scrollTop = box.scrollHeight;
                 document.getElementById('oracle-btn').style.display = 'block';
             }).subscribe();
         }
@@ -85,6 +97,7 @@
         }
 
         async function checkSyncManual() {
+            if(!myNodeId) return;
             const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', myNodeId).single();
             if(data) {
                 if(data.status === 'matched') triggerSync(data);

@@ -27,7 +27,7 @@
     </div>
     <div id="nav-hud">
         <h3 id="target-name" style="margin:0;">LOCATION SYNCED</h3>
-        <p id="eta-display" style="font-size:11px;"></p>
+        <p id="eta-display" style="font-size:12px;"></p>
         <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
@@ -44,18 +44,28 @@
         navigator.geolocation.watchPosition(p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; });
 
         async function scan() {
-            // Fix: Clean old nodes before drawing new ones
-            document.querySelectorAll('.mapboxgl-marker').forEach(m => m.remove());
+            // Re-introducing the stable node render logic
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
+            document.querySelectorAll('.mapboxgl-marker').forEach(m => m.remove());
+            
             data?.forEach(n => {
-                const el = document.createElement('div'); el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px; cursor:pointer;"; el.innerText = "[ NODE ]";
+                const el = document.createElement('div'); 
+                el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px; cursor:pointer;"; 
+                el.innerText = "[ NODE ]";
+                
                 el.onclick = async () => { 
-                    currentN = n; await _supabase.from('requests').insert([{ node_id: n.id, requester_id: 'SEEKER' }]);
+                    currentN = n; 
+                    await _supabase.from('requests').insert([{ node_id: n.id, requester_id: 'SEEKER' }]);
                     document.getElementById('terminal').style.display = 'flex';
                     startChatSync(); startOracleSync();
                 };
-                // Fix: Force numeric coordinates
-                new mapboxgl.Marker(el).setLngLat([parseFloat(n.lng), parseFloat(n.lat)]).addTo(map);
+                
+                // Strict parse check
+                const lat = parseFloat(n.lat);
+                const lng = parseFloat(n.lng);
+                if(!isNaN(lat) && !isNaN(lng)) {
+                   new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
+                }
             });
         }
 

@@ -36,9 +36,11 @@
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
-        let currentN = null, myLoc = null, activeMarkers = [];
+        let currentN = null, myLoc = {lat: 0, lng: 0}, activeMarkers = [];
 
-        navigator.geolocation.watchPosition(p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; }, null, {enableHighAccuracy: true});
+        navigator.geolocation.watchPosition(p => { 
+            myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; 
+        }, null, {enableHighAccuracy: true});
 
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
@@ -74,8 +76,12 @@
         }
 
         window.initiateOracle = async () => {
-            if (!myLoc) return;
-            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: myLoc.lat, u2_lng: myLoc.lng }, { onConflict: 'bridge_id' });
+            if (!myLoc || myLoc.lat === 0) return;
+            await _supabase.from('oracle_sessions').upsert({ 
+                bridge_id: currentN.id, 
+                u2_lat: myLoc.lat, 
+                u2_lng: myLoc.lng 
+            }, { onConflict: 'bridge_id' });
         };
 
         function startOracleLive() {
@@ -92,10 +98,17 @@
         function triggerSync(s) {
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
-            document.getElementById('target-name').innerText = `WALK TO ${s.selected_venue_name.toUpperCase()}`;
+            document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
+            
+            // Draw trails from the specific database coordinates
             drawRoute('routeA', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat, '#0f0');
-            drawRoute('routeB', myLoc.lng, myLoc.lat, s.selected_lng, s.selected_lat, '#00ffaa');
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)]).extend([myLoc.lng, myLoc.lat]).extend([s.selected_lng, s.selected_lat]), { padding: 50 });
+            drawRoute('routeB', parseFloat(s.u2_lng), parseFloat(s.u2_lat), s.selected_lng, s.selected_lat, '#00ffaa');
+            
+            const bounds = new mapboxgl.LngLatBounds()
+                .extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)])
+                .extend([parseFloat(s.u2_lng), parseFloat(s.u2_lat)])
+                .extend([s.selected_lng, s.selected_lat]);
+            map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
         }
 
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
@@ -103,7 +116,7 @@
             const res = await fetch(url); const d = await res.json();
             if (map.getSource(id)) { map.removeLayer(id); map.removeSource(id); }
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: d.routes[0].geometry } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6 } });
+            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.8 } });
         }
     </script>
 </body>

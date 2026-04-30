@@ -72,11 +72,7 @@
 
         window.initiateOracle = async () => {
             if (!myLoc || myLoc.lat === 0) return;
-            await _supabase.from('oracle_sessions').upsert({ 
-                bridge_id: currentN.id, 
-                u1_lat: myLoc.lat, 
-                u1_lng: myLoc.lng 
-            }, { onConflict: 'bridge_id' });
+            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' });
         };
 
         function startOracleLive() {
@@ -86,7 +82,6 @@
                 document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
                 document.getElementById('oracle-ballot').style.display = 'block';
 
-                // BRAZIL SHIELD: Only move to ready if coordinates are valid (not 0,0)
                 const hasValidGPS = (s.u1_lat !== 0 && s.u1_lng !== 0 && s.u2_lat !== 0 && s.u2_lng !== 0);
 
                 if (hasValidGPS && s.status === 'pending') {
@@ -103,9 +98,12 @@
             oracleProcessed = true;
             const mLa = (s.u1_lat + s.u2_lat) / 2; const mLn = (s.u1_lng + s.u2_lng) / 2;
             
-            // BRAND-DENSE QUERY + PROXIMITY LEASH
+            // THE LEASH: UAE Bounding Box + Country AE filter
+            const uaeBBox = "51.5,22.5,56.5,26.0"; 
             const brands = "Starbucks,KFC,Pizza Hut,Mall";
-            const res = await fetch(`https://api.mapbox.com/search/geocode/v6/forward?q=${brands}&proximity=${s.u1_lng},${s.u1_lat}&limit=1&access_token=${MAPBOX_TOKEN}`);
+            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${brands}&proximity=${s.u1_lng},${s.u1_lat}&bbox=${uaeBBox}&country=ae&limit=1&access_token=${MAPBOX_TOKEN}`;
+            
+            const res = await fetch(url);
             const d = await res.json();
             
             if (d.features && d.features.length > 0) {
@@ -115,7 +113,7 @@
                     selected_lat: v.geometry.coordinates[1], selected_lng: v.geometry.coordinates[0] 
                 }).eq('bridge_id', currentN.id);
             } else {
-                oracleProcessed = false; // Reset lock to allow retry if Mapbox fails
+                oracleProcessed = false;
             }
         }
 
@@ -126,10 +124,7 @@
             drawRoute('routeA', s.u1_lng, s.u1_lat, s.selected_lng, s.selected_lat, '#0f0');
             drawRoute('routeB', s.u2_lng, s.u2_lat, s.selected_lng, s.selected_lat, '#00ffaa');
             
-            const bounds = new mapboxgl.LngLatBounds()
-                .extend([s.u1_lng, s.u1_lat])
-                .extend([s.u2_lng, s.u2_lat])
-                .extend([s.selected_lng, s.selected_lat]);
+            const bounds = new mapboxgl.LngLatBounds().extend([s.u1_lng, s.u1_lat]).extend([s.u2_lng, s.u2_lat]).extend([s.selected_lng, s.selected_lat]);
             map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
         }
 

@@ -13,11 +13,8 @@
         .venue-card { background: #000; border: 1px solid #0f0; color: #0f0; padding: 10px; margin-top: 5px; font-size: 11px; text-transform: uppercase; }
         #msg-box { height: 150px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
         .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
-        
-        /* FINAL FLOW HUD */
         #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; box-sizing: border-box; text-align: center; color: #0f0; }
-        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; text-transform: uppercase; }
-        .hud-btn.active { background: #0f0; color: #000; }
+        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; }
     </style>
 </head>
 <body>
@@ -28,21 +25,16 @@
         <div id="msg-box"></div>
         <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
     </div>
-
-    <!-- ACTION PANEL -->
     <div id="nav-hud">
-        <h3 id="target-name" style="margin:0; letter-spacing: 2px;">LOCATION SYNCED</h3>
-        <p id="eta-display" style="font-size:11px;"></p>
-        <button class="hud-btn active" id="heading-btn" onclick="this.innerText='ON MY WAY'; this.classList.add('active')">I'm heading there</button>
-        <button class="hud-btn" style="border-color:#f00; color:#f00;" onclick="location.reload()">Cancel</button>
+        <h3 id="target-name" style="margin:0;">SYNCED</h3>
+        <p id="eta-display" style="font-size:12px;"></p>
+        <button class="hud-btn" onclick="location.reload()">TERMINATE VORTEX</button>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        const SB_URL = "https://rnroyhkvkmzuichysxnk.supabase.co";
-        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU";
-        const _supabase = supabase.createClient(SB_URL, SB_KEY);
+        const _supabase = supabase.createClient("https://rnroyhkvkvzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
@@ -55,7 +47,7 @@
             document.querySelectorAll('.mapboxgl-marker').forEach(m => m.remove());
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             data?.forEach(n => {
-                const el = document.createElement('div'); el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px; cursor:pointer;"; el.innerText = "[ NODE ]";
+                const el = document.createElement('div'); el.style.color="#0f0"; el.innerText = "[ NODE ]";
                 el.onclick = async () => { 
                     currentN = n; await _supabase.from('requests').insert([{ node_id: n.id, requester_id: 'SEEKER' }]);
                     document.getElementById('terminal').style.display = 'flex';
@@ -84,8 +76,7 @@
             document.getElementById('oracle-btn').innerText = "[ SIGNAL SENT... ]";
             navigator.geolocation.getCurrentPosition(async (pos) => {
                 await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: pos.coords.latitude, u2_lng: pos.coords.longitude }, { onConflict: 'bridge_id' });
-                const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', currentN.id).single();
-                if(data && data.u1_lat && data.u2_lat) fetchVenues(data);
+                checkSyncManual();
             });
         };
 
@@ -95,6 +86,16 @@
                 if(s.status === 'matched') triggerSync(s);
                 else if(s.u1_lat && s.u2_lat) fetchVenues(s);
             }).subscribe();
+            setInterval(checkSyncManual, 3000); // Fail-safe polling
+        }
+
+        async function checkSyncManual() {
+            if(!currentN) return;
+            const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', currentN.id).single();
+            if(data) {
+                if(data.status === 'matched') triggerSync(data);
+                else if(data.u1_lat && data.u2_lat && document.getElementById('oracle-ballot').style.display !== 'block') fetchVenues(data);
+            }
         }
 
         async function fetchVenues(s) {
@@ -124,17 +125,14 @@
 
         async function drawTrails(s) {
             const vLoc = [s.selected_lng, s.selected_lat];
-            new mapboxgl.Marker({color: '#f00'}).setLngLat(vLoc).addTo(map);
-
+            new mapboxgl.Marker({color:'#f00'}).setLngLat(vLoc).addTo(map);
             const getRoute = async (start) => {
                 const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${start.lng},${start.lat};${vLoc[0]},${vLoc[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`);
                 return await r.json();
             };
             const routeMe = await getRoute(myLoc); const routePeer = await getRoute(peerLoc);
-            
             renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
             renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
-            
             document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
             map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc), { padding: 50, pitch: 45, duration: 2500 });
         }
@@ -142,7 +140,7 @@
         function renderLayer(id, geo, color) {
             if (map.getSource(id)) map.removeLayer(id).removeSource(id);
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: geo } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6 } });
+            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } });
         }
         setInterval(scan, 5000); scan();
     </script>

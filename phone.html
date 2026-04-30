@@ -9,6 +9,7 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
         #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
+        #msg-box { height: 150px; overflow-y: auto; color:#0f0; margin-bottom: 10px; border: 1px solid #030; padding: 5px; }
         #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; }
         .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; cursor: pointer; }
     </style>
@@ -16,9 +17,9 @@
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot" style="display:none; color:#0f0; border:1px solid #0f0; padding:10px; margin-bottom:10px;">AWAITING ORACLE MATCH...</div>
+        <div id="oracle-ballot" style="display:none; color:#0f0; border:1px solid #0f0; padding:10px; margin-bottom:10px;">ANALYZING MIDPOINT...</div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px;">[ INITIATE ORACLE ]</button>
-        <div id="msg-box" style="height:150px; overflow-y:auto; color:#0f0; margin-bottom:10px;"></div>
+        <div id="msg-box"></div>
         <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
     </div>
     <div id="nav-hud"><h3 id="target-name">LOCATION SYNCED</h3><button class="hud-btn" onclick="location.reload()">TERMINATE</button></div>
@@ -34,12 +35,15 @@
 
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
         let currentN = null, myLoc = null;
+        let activeMarkers = []; // Fix for previous nodes
 
         navigator.geolocation.watchPosition(p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; }, null, {enableHighAccuracy:true});
 
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
-            document.querySelectorAll('.mapboxgl-marker').forEach(m => m.remove());
+            activeMarkers.forEach(m => m.remove()); // Clear old markers
+            activeMarkers = [];
+            
             data?.forEach(n => {
                 const el = document.createElement('div'); el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px;"; el.innerText = "[ NODE ]";
                 el.onclick = async () => { 
@@ -47,7 +51,8 @@
                     document.getElementById('terminal').style.display = 'flex';
                     startChatSync(); startOracleLive();
                 };
-                new mapboxgl.Marker(el).setLngLat([parseFloat(n.lng), parseFloat(n.lat)]).addTo(map);
+                const m = new mapboxgl.Marker(el).setLngLat([parseFloat(n.lng), parseFloat(n.lat)]).addTo(map);
+                activeMarkers.push(m);
             });
         }
 
@@ -67,7 +72,6 @@
 
         window.initiateOracle = async () => {
             document.getElementById('oracle-btn').innerText = "[ SIGNAL SENT ]";
-            // Step 3: Specific write (u2)
             await _supabase.from('oracle_sessions').upsert({ 
                 bridge_id: currentN.id, u2_lat: myLoc.lat, u2_lng: myLoc.lng 
             }, { onConflict: 'bridge_id' });
@@ -75,8 +79,8 @@
 
         function startOracleLive() {
             _supabase.channel('oracle-live')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, payload => {
-                const s = payload.new;
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, payload => {
+                const s = payload.new || payload.old;
                 if (s.u1_lat && s.u2_lat) document.getElementById('oracle-ballot').style.display = 'block';
                 if (s.status === 'matched') triggerSync(s);
             }).subscribe();

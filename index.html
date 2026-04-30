@@ -11,12 +11,11 @@
         #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
         .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 11px; text-transform: uppercase; }
-        .venue-card:hover { background: #0f0; color: #000; }
         #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
         .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
         .msg.me { text-align: right; color: #0f0; }
         .msg.them { text-align: left; color: #0a0; }
-        #nav-hud { display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; box-sizing: border-box; text-align: center; }
+        #nav-hud { display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; box-sizing: border-box; text-align: center; color: #0f0; }
         .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 15px 30px; margin: 5px; cursor: pointer; font-family: monospace; }
     </style>
 </head>
@@ -30,9 +29,9 @@
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none;">
     </div>
     <div id="nav-hud">
-        <h2 id="target-name" style="color:#0f0; margin:0 0 10px 0;">SYNCED</h2>
-        <div id="eta-display" style="color:#0f0; margin-bottom:15px; font-size:12px;"></div>
-        <button class="hud-btn" onclick="location.reload()">TERMINATE VORTEX</button>
+        <h2 id="target-name">LOCATION SYNCED</h2>
+        <div id="eta-display">CALCULATING ROUTES...</div>
+        <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
@@ -90,7 +89,7 @@
                 if(s.status === 'matched') triggerSync(s);
                 else if(s.u1_lat && s.u2_lat) fetchVenues(s);
             }).subscribe();
-            setInterval(checkSyncManual, 3000); // Fail-safe polling
+            setInterval(checkSyncManual, 3000);
         }
 
         async function checkSyncManual() {
@@ -124,7 +123,7 @@
                 document.body.style.background = "#000";
                 document.getElementById('terminal').style.display = 'none';
                 document.getElementById('nav-hud').style.display = 'block';
-                document.getElementById('target-name').innerText = s.selected_venue_name.toUpperCase();
+                document.getElementById('target-name').innerText = `PROCEED TO ${s.selected_venue_name.toUpperCase()}`;
                 drawTrails(s);
             }, 1000);
         }
@@ -140,13 +139,13 @@
             renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
             renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
             document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc), { padding: 80, pitch: 45, duration: 2000 });
+            map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc), { padding: 80, pitch: 45, duration: 2500 });
         }
 
         function renderLayer(id, geo, color) {
             if (map.getSource(id)) map.removeLayer(id).removeSource(id);
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: geo } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.8 } });
+            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6 } });
         }
     </script>
 </body>

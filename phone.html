@@ -44,28 +44,16 @@
         navigator.geolocation.watchPosition(p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; });
 
         async function scan() {
-            // Re-introducing the stable node render logic
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             document.querySelectorAll('.mapboxgl-marker').forEach(m => m.remove());
-            
             data?.forEach(n => {
-                const el = document.createElement('div'); 
-                el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px; cursor:pointer;"; 
-                el.innerText = "[ NODE ]";
-                
+                const el = document.createElement('div'); el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px; cursor:pointer;"; el.innerText = "[ NODE ]";
                 el.onclick = async () => { 
-                    currentN = n; 
-                    await _supabase.from('requests').insert([{ node_id: n.id, requester_id: 'SEEKER' }]);
+                    currentN = n; await _supabase.from('requests').insert([{ node_id: n.id, requester_id: 'SEEKER' }]);
                     document.getElementById('terminal').style.display = 'flex';
                     startChatSync(); startOracleSync();
                 };
-                
-                // Strict parse check
-                const lat = parseFloat(n.lat);
-                const lng = parseFloat(n.lng);
-                if(!isNaN(lat) && !isNaN(lng)) {
-                   new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
-                }
+                new mapboxgl.Marker(el).setLngLat([parseFloat(n.lng), parseFloat(n.lat)]).addTo(map);
             });
         }
 
@@ -138,21 +126,42 @@
         async function drawTrails(s) {
             const vLoc = [s.selected_lng, s.selected_lat];
             new mapboxgl.Marker({color:'#f00'}).setLngLat(vLoc).addTo(map);
+            
             const getRoute = async (start) => {
                 const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${start.lng},${start.lat};${vLoc[0]},${vLoc[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`);
-                return await r.json();
+                const res = await r.json();
+                if(!res.routes || res.routes.length === 0) throw new Error("No route found");
+                return res;
             };
-            const routeMe = await getRoute(myLoc); const routePeer = await getRoute(peerLoc);
-            renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
-            renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
-            document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc), { padding: 50, pitch: 45, duration: 2500 });
+
+            try {
+                const routeMe = await getRoute(myLoc); 
+                const routePeer = await getRoute(peerLoc);
+                
+                renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
+                renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
+                
+                document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
+                
+                const bounds = new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc);
+                map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
+            } catch (e) {
+                console.error("TRAIL_ERROR:", e);
+            }
         }
 
         function renderLayer(id, geo, color) {
-            if (map.getSource(id)) map.removeLayer(id).removeSource(id);
+            if (map.getSource(id)) {
+                map.removeLayer(id);
+                map.removeSource(id);
+            }
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: geo } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6 } });
+            map.addLayer({ 
+                id, 
+                type: 'line', 
+                source: id, 
+                paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.8 } 
+            });
         }
         setInterval(scan, 5000); scan();
     </script>

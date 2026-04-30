@@ -95,7 +95,6 @@
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
             
-            // Add Marker for meeting point
             new mapboxgl.Marker({color: '#fff'}).setLngLat([s.selected_lng, s.selected_lat]).addTo(map);
 
             drawRoute('routeA', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat, '#0f0');

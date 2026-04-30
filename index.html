@@ -3,60 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <title>VESSEL | CREATOR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; }
-        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
+        #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
+        #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
+        #msg-box { height: 150px; overflow-y: auto; color:#0f0; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
+        #oracle-ballot { display: none; color:#0f0; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); font-size: 11px; text-align: center; }
+        #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; box-sizing: border-box; }
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; outline: none; }
-        #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
-        #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
-        #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
-        .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 11px; text-transform: uppercase; }
-        #nav-hud { display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; }
-        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 15px 30px; margin: 5px; cursor: pointer; font-family: monospace; }
+        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; text-transform: uppercase; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <button id="fab" onclick="startCreation()">+</button>
+    
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">ORACLE GENERATING...</div></div>
-        <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; cursor:pointer; margin-bottom:10px;">[ INITIATE ORACLE ]</button>
+        <div id="oracle-ballot">CONSULTING ORACLE...</div>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="TYPE MESSAGE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none;">
+        <div style="display:flex;">
+            <input type="text" id="chat-in" placeholder="TYPE MESSAGE..." onkeypress="if(event.key==='Enter') sendMsg()" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px; outline:none;">
+            <button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px; cursor:pointer; font-weight:bold;">SEND</button>
+        </div>
     </div>
+
     <div id="nav-hud">
-        <h2 id="target-name">LOCATION SYNCED</h2>
-        <div id="eta-display">TRAILS ACTIVE</div>
-        <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
+        <h3 id="target-name" style="margin:0; text-transform:uppercase;">LOCATION SYNCED</h3>
+        <button class="hud-btn" onclick="location.reload()">TERMINATE SESSION</button>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
+        const IS_CREATOR = true; 
         const SB_URL = "https://rnroyhkvkmzuichysxnk.supabase.co";
         const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU";
-        const _supabase = supabase.createClient(SB_URL, SB_KEY);
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        
+        const _supabase = supabase.createClient(SB_URL, SB_KEY);
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
-        let myNodeId = null, myLoc = null, peerLoc = null;
+        let currentN = null, myLoc = null, oracleProcessed = false;
 
         navigator.geolocation.watchPosition(p => { 
             myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; 
         }, null, {enableHighAccuracy: true});
 
-        window.startCreation = () => { map.once('click', async (e) => {
-            const { data } = await _supabase.from('nodes').insert([{ lat: e.lngLat.lat, lng: e.lngLat.lng, intent: '☕ Coffee', status: 'active' }]).select();
-            myNodeId = data[0].id;
-            new mapboxgl.Marker({color: '#0f0'}).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
-            listenForRequests();
-        });};
+        window.startCreation = () => {
+            map.once('click', async (e) => {
+                const { data } = await _supabase.from('nodes').insert([{ lat: e.lngLat.lat, lng: e.lngLat.lng, intent: '☕ Coffee', status: 'active' }]).select();
+                currentN = data[0];
+                new mapboxgl.Marker({color: '#0f0'}).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
+                listenForRequests();
+            });
+        };
 
         function listenForRequests() {
-            // FIX: Ensure terminal opens immediately on laptop when request hits
-            _supabase.channel('reqs').on('postgres_changes', { event:'INSERT', schema:'public', table:'requests', filter:`node_id=eq.${myNodeId}` }, () => {
+            _supabase.channel('reqs').on('postgres_changes', { event:'INSERT', schema:'public', table:'requests', filter:`node_id=eq.${currentN.id}` }, () => {
                 document.getElementById('terminal').style.display = 'flex';
                 startChatSync(); startOracleLive();
             }).subscribe();
@@ -65,13 +72,13 @@
         window.sendMsg = async () => {
             const val = document.getElementById('chat-in').value;
             if(!val) return;
-            await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]);
+            await _supabase.from('messages').insert([{node_id:currentN.id, sender: 'CREATOR', content:val}]);
             document.getElementById('chat-in').value = '';
             document.getElementById('oracle-btn').style.display = 'block';
         };
 
         function startChatSync() {
-            _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => {
+            _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
                 const box = document.getElementById('msg-box');
                 box.innerHTML += `<div style="color:#0f0; margin-bottom:5px;">> ${p.new.content}</div>`;
                 box.scrollTop = box.scrollHeight;
@@ -80,60 +87,60 @@
         }
 
         window.initiateOracle = async () => {
-            document.getElementById('oracle-btn').innerText = "[ SIGNAL SENT ]";
-            await _supabase.from('oracle_sessions').upsert({ 
-                bridge_id: myNodeId, u1_lat: myLoc.lat, u1_lng: myLoc.lng 
-            }, { onConflict: 'bridge_id' });
+            if (!myLoc) { alert("GPS warming up..."); return; }
+            document.getElementById('oracle-btn').innerText = "[ SYNCING... ]";
+            const payload = { bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng };
+            await _supabase.from('oracle_sessions').upsert(payload, { onConflict: 'bridge_id' });
         };
 
         function startOracleLive() {
-            _supabase.channel('oracle-live')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${myNodeId}` }, async payload => {
-                const s = payload.new;
-                if (s.u1_lat && s.u2_lat && !s.options_generated) {
-                    await fetchVenues(s);
-                    await _supabase.from('oracle_sessions').update({ options_generated: true }).eq('bridge_id', myNodeId);
+            const catchUp = async () => {
+                const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', currentN.id).maybeSingle();
+                if (data) {
+                    if (data.status === 'matched') triggerSync(data);
+                    else if (data.u1_lat && data.u2_lat && !data.options_generated) runOracleBrain(data);
                 }
+            };
+            catchUp();
+
+            _supabase.channel('oracle-' + currentN.id)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, payload => {
+                const s = payload.new || payload.old;
+                if (s.u1_lat && s.u2_lat && !s.options_generated && !oracleProcessed) runOracleBrain(s);
                 if (s.status === 'matched') triggerSync(s);
             }).subscribe();
         }
 
-        async function fetchVenues(s) {
-            peerLoc = {lat: s.u2_lat, lng: s.u2_lng};
+        async function runOracleBrain(s) {
+            oracleProcessed = true;
             const mLa = (s.u1_lat + s.u2_lat) / 2; const mLn = (s.u1_lng + s.u2_lng) / 2;
-            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=cafe&proximity=${mLn},${mLa}&country=AE&access_token=${MAPBOX_TOKEN}`;
-            const res = await fetch(url); const d = await res.json();
-            const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => {
-                const card = document.createElement('div'); card.className = 'venue-card';
-                card.innerHTML = `<strong>${f.properties.name}</strong>`;
-                card.onclick = async () => {
-                    await _supabase.from('oracle_sessions').update({ 
-                        status:'matched', selected_venue_name: f.properties.name, 
-                        selected_lat: f.geometry.coordinates[1], selected_lng: f.geometry.coordinates[0] 
-                    }).eq('bridge_id', myNodeId);
-                };
-                list.appendChild(card);
-            });
-            document.getElementById('oracle-ballot').style.display = 'block';
+            const res = await fetch(`https://api.mapbox.com/search/geocode/v6/forward?q=cafe&proximity=${mLn},${mLa}&limit=1&access_token=${MAPBOX_TOKEN}`);
+            const result = await res.json();
+            const venue = result.features[0];
+
+            await _supabase.from('oracle_sessions').update({ 
+                status: 'matched', options_generated: true, selected_venue_name: venue.properties.name,
+                selected_lat: venue.geometry.coordinates[1], selected_lng: venue.geometry.coordinates[0]
+            }).eq('bridge_id', currentN.id);
         }
 
         function triggerSync(s) {
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
-            document.getElementById('target-name').innerText = `PROCEED TO ${s.selected_venue_name.toUpperCase()}`;
-            drawRoute('routeA', myLoc.lng, myLoc.lat, s.selected_lng, s.selected_lat);
-            drawRoute('routeB', s.u2_lng, s.u2_lat, s.selected_lng, s.selected_lat);
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([s.u2_lng, s.u2_lat]).extend([s.selected_lng, s.selected_lat]), { padding: 80, pitch: 45 });
+            document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
+            drawRoute('routeA', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat, '#0f0'); 
+            drawRoute('routeB', parseFloat(s.u2_lng), parseFloat(s.u2_lat), s.selected_lng, s.selected_lat, '#00ffaa'); 
+            const bounds = new mapboxgl.LngLatBounds().extend([s.u1_lng, s.u1_lat]).extend([s.u2_lng, s.u2_lat]).extend([s.selected_lng, s.selected_lat]);
+            map.fitBounds(bounds, { padding: 60, pitch: 45, duration: 2500 });
         }
 
-        async function drawRoute(id, fLng, fLat, tLng, tLat) {
-            const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${fLng},${fLat};${tLng},${tLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
+        async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
+            const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
             const res = await fetch(url); const data = await res.json();
             const route = data.routes[0].geometry;
             if (map.getSource(id)) { map.removeLayer(id); map.removeSource(id); }
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: route } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': id === 'routeA' ? '#0f0' : '#0a0', 'line-width': 8 } });
+            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.8 } });
         }
     </script>
 </body>

@@ -5,14 +5,13 @@
     <title>VESSEL | CREATOR</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; transition: background 0.3s; }
+        html, body { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #000; overflow: hidden; font-family: monospace; }
         #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; outline: none; }
         #terminal { display: none; position: absolute; top: 20px; left: 20px; width: 350px; max-height: 85vh; background: rgba(0, 15, 0, 0.95); border: 1px solid #0f0; z-index: 1000; flex-direction: column; padding: 15px; }
         #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
         .venue-card { background: rgba(0, 0, 0, 0.95); border: 1px solid #0f0; color: #0f0; padding: 12px; margin-top: 8px; cursor: pointer; font-size: 11px; text-transform: uppercase; }
         #msg-box { height: 250px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
-        .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
         #nav-hud { display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; }
         .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 15px 30px; margin: 5px; cursor: pointer; font-family: monospace; }
     </style>
@@ -24,11 +23,11 @@
         <div id="oracle-ballot"><div id="venue-list">Consulting Oracle...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; cursor:pointer; margin-bottom:10px;">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
-        <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none;">
+        <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box;">
     </div>
     <div id="nav-hud">
         <h2 id="target-name">LOCATION SYNCED</h2>
-        <div id="eta-display">CALCULATING ROUTES...</div>
+        <div id="eta-display">TRAILS ACTIVE</div>
         <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
@@ -62,14 +61,13 @@
             const val = document.getElementById('chat-in').value;
             await _supabase.from('messages').insert([{node_id:myNodeId, sender:'BAD_CREATOR', content:val}]);
             document.getElementById('chat-in').value = '';
-            document.getElementById('oracle-btn').style.display = 'block'; // FAST PATH: Show after 1 msg
+            document.getElementById('oracle-btn').style.display = 'block'; 
         };
 
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${myNodeId}` }, p => {
                 const box = document.getElementById('msg-box');
-                box.innerHTML += `<div class="msg ${p.new.sender === 'BAD_CREATOR' ? 'me' : 'them'}">${p.new.content}</div>`;
-                box.scrollTop = box.scrollHeight;
+                box.innerHTML += `<div style="color:#0f0; margin-bottom:5px;">> ${p.new.content}</div>`;
                 document.getElementById('oracle-btn').style.display = 'block';
             }).subscribe();
         }
@@ -83,12 +81,7 @@
         };
 
         function startOracleSync() {
-            _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${myNodeId}` }, p => {
-                const s = p.new || p.old;
-                if(s.status === 'matched') triggerSync(s);
-                else if(s.u1_lat && s.u2_lat) fetchVenues(s);
-            }).subscribe();
-            setInterval(checkSyncManual, 2000); // HIGH FREQUENCY CHECK
+            setInterval(checkSyncManual, 2000); 
         }
 
         async function checkSyncManual() {
@@ -102,7 +95,6 @@
         async function fetchVenues(s) {
             peerLoc = {lat: s.u2_lat, lng: s.u2_lng};
             const mLa = (s.u1_lat + s.u2_lat) / 2; const mLn = (s.u1_lng + s.u2_lng) / 2;
-            // IMPROVED: Category search for actual coffee shops, not just streets
             const url = `https://api.mapbox.com/search/geocode/v6/forward?q=starbucks&proximity=${mLn},${mLa}&country=AE&access_token=${MAPBOX_TOKEN}`;
             const res = await fetch(url); const d = await res.json();
             const list = document.getElementById('venue-list'); list.innerHTML = '';
@@ -123,19 +115,21 @@
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `PROCEED TO ${s.selected_venue_name.toUpperCase()}`;
+            
             drawRoute('routeA', myLoc.lng, myLoc.lat, s.selected_lng, s.selected_lat);
             drawRoute('routeB', peerLoc.lng, peerLoc.lat, s.selected_lng, s.selected_lat);
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend([s.selected_lng, s.selected_lat]), { padding: 80, pitch: 45 });
+            
+            const bounds = new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend([s.selected_lng, s.selected_lat]);
+            map.fitBounds(bounds, { padding: 80, pitch: 45, duration: 2500 });
         }
 
         async function drawRoute(id, fLng, fLat, tLng, tLat) {
             const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${fLng},${fLat};${tLng},${tLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-            const res = await fetch(url);
-            const data = await res.json();
+            const res = await fetch(url); const data = await res.json();
             const route = data.routes[0].geometry;
             if (map.getSource(id)) { map.removeLayer(id); map.removeSource(id); }
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: route } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': id === 'routeA' ? '#0f0' : '#0a0', 'line-width': 6 } });
+            map.addLayer({ id, type: 'line', source: id, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': id === 'routeA' ? '#0f0' : '#0a0', 'line-width': 8, 'line-opacity': 0.8 } });
         }
     </script>
 </body>

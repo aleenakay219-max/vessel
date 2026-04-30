@@ -93,6 +93,7 @@
         }
 
         async function checkSyncManual() {
+            if(!myNodeId) return;
             const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', myNodeId).single();
             if(data) {
                 if(data.status === 'matched') triggerSync(data);

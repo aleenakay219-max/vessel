@@ -111,7 +111,12 @@
                 const card = document.createElement('div'); card.className = 'venue-card';
                 card.innerHTML = `<strong>${f.properties.name}</strong>`;
                 card.onclick = async () => {
-                    await _supabase.from('oracle_sessions').update({ status:'matched', selected_venue_name: f.properties.name, selected_lat: f.geometry.coordinates[1], selected_lng: f.geometry.coordinates[0] }).eq('bridge_id', myNodeId);
+                    await _supabase.from('oracle_sessions').update({ 
+                        status:'matched', 
+                        selected_venue_name: f.properties.name, 
+                        selected_lat: f.geometry.coordinates[1], 
+                        selected_lng: f.geometry.coordinates[0] 
+                    }).eq('bridge_id', myNodeId);
                 };
                 list.appendChild(card);
             });
@@ -132,21 +137,47 @@
         async function drawTrails(s) {
             const vLoc = [s.selected_lng, s.selected_lat];
             new mapboxgl.Marker({color:'#f00'}).setLngLat(vLoc).addTo(map);
+
             const getRoute = async (start) => {
                 const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${start.lng},${start.lat};${vLoc[0]},${vLoc[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`);
-                return await r.json();
+                const res = await r.json();
+                if(!res.routes || res.routes.length === 0) throw new Error("No route found");
+                return res;
             };
-            const routeMe = await getRoute(myLoc); const routePeer = await getRoute(peerLoc);
-            renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
-            renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
-            document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc), { padding: 80, pitch: 45, duration: 2500 });
+
+            try {
+                const routeMe = await getRoute(myLoc); 
+                const routePeer = await getRoute(peerLoc);
+                
+                renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
+                renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
+                
+                document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
+                
+                const bounds = new mapboxgl.LngLatBounds()
+                    .extend([myLoc.lng, myLoc.lat])
+                    .extend([peerLoc.lng, peerLoc.lat])
+                    .extend(vLoc);
+                map.fitBounds(bounds, { padding: 80, pitch: 45, duration: 2500 });
+            } catch (e) {
+                console.error("TRAIL_ERROR:", e);
+                document.getElementById('eta-display').innerText = "ERROR DRAWING TRAILS";
+            }
         }
 
         function renderLayer(id, geo, color) {
-            if (map.getSource(id)) map.removeLayer(id).removeSource(id);
+            if (map.getSource(id)) {
+                map.removeLayer(id);
+                map.removeSource(id);
+            }
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: geo } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6 } });
+            map.addLayer({ 
+                id, 
+                type: 'line', 
+                source: id, 
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.8 } 
+            });
         }
     </script>
 </body>

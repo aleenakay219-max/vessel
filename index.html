@@ -18,6 +18,7 @@
         .msg.them { text-align: left; color: #0a0; }
         #nav-hud { display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; box-sizing: border-box; text-align: center; }
         .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 15px 30px; margin: 5px; cursor: pointer; font-family: monospace; }
+        #oracle-btn:disabled { border-color: #333; color: #333; cursor: default; }
     </style>
 </head>
 <body>
@@ -38,7 +39,9 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
+        const SB_URL = "https://rnroyhkvkmzuichysxnk.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU";
+        const _supabase = supabase.createClient(SB_URL, SB_KEY);
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
@@ -79,8 +82,20 @@
         }
 
         window.initiateOracle = () => {
+            const btn = document.getElementById('oracle-btn');
+            btn.innerText = "[ SIGNAL SENT... ]";
+            btn.disabled = true;
+
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude, u1_lng: pos.coords.longitude }, { onConflict: 'bridge_id' });
+                await _supabase.from('oracle_sessions').upsert({ 
+                    bridge_id: myNodeId, 
+                    u1_lat: pos.coords.latitude, 
+                    u1_lng: pos.coords.longitude 
+                }, { onConflict: 'bridge_id' });
+
+                // Fast-Path: Manual check
+                const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', myNodeId).single();
+                if(data && data.u1_lat && data.u2_lat) fetchVenues(data);
             });
         };
 

@@ -3,31 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <title>VESSEL | SEEKER</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; transition: background 0.3s; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
         #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
-        #oracle-ballot { display: none; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); color: #0f0; }
-        .venue-card { background: #000; border: 1px solid #0f0; color: #0f0; padding: 10px; margin-top: 5px; font-size: 11px; text-transform: uppercase; }
-        #msg-box { height: 150px; overflow-y: auto; border: 1px solid #030; padding: 10px; margin-bottom: 10px; display: flex; flex-direction: column; color: #0f0; }
-        .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
-        #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; box-sizing: border-box; text-align: center; color: #0f0; }
-        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; }
+        #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; }
+        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="terminal">
-        <div id="oracle-ballot"><div id="venue-list">Analyzing Midpoint...</div></div>
+        <div id="oracle-ballot" style="display:none; color:#0f0; border:1px solid #0f0; padding:10px; margin-bottom:10px;">VOTING OPEN...</div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px;">[ INITIATE ORACLE ]</button>
-        <div id="msg-box"></div>
-        <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
+        <div id="msg-box" style="height:150px; overflow-y:auto; color:#0f0;"></div>
+        <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; padding:10px; margin-left:5px;">SEND</button></div>
     </div>
     <div id="nav-hud">
-        <h3 id="target-name" style="margin:0;">LOCATION SYNCED</h3>
-        <p id="eta-display" style="font-size:12px;"></p>
+        <h3 id="target-name">SYNCED</h3>
         <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
@@ -41,7 +36,7 @@
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
-        let currentN = null, msgCount = 0, myLoc = null, peerLoc = null;
+        let currentN = null, myLoc = null, peerLoc = null;
 
         navigator.geolocation.watchPosition(p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; });
 
@@ -49,7 +44,7 @@
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             document.querySelectorAll('.mapboxgl-marker').forEach(m => m.remove());
             data?.forEach(n => {
-                const el = document.createElement('div'); el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px; cursor:pointer;"; el.innerText = "[ NODE ]";
+                const el = document.createElement('div'); el.style.color="#0f0"; el.innerText = "[ NODE ]";
                 el.onclick = async () => { 
                     currentN = n; await _supabase.from('requests').insert([{ node_id: n.id, requester_id: 'SEEKER' }]);
                     document.getElementById('terminal').style.display = 'flex';
@@ -63,14 +58,14 @@
             const val = document.getElementById('chat-in').value;
             await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]);
             document.getElementById('chat-in').value = '';
+            document.getElementById('oracle-btn').style.display = 'block';
         };
 
         function startChatSync() {
             _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
                 const box = document.getElementById('msg-box');
-                box.innerHTML += `<div class="msg ${p.new.sender === 'SEEKER' ? 'me' : 'them'}">${p.new.content}</div>`;
-                box.scrollTop = box.scrollHeight;
-                if(++msgCount >= 5) document.getElementById('oracle-btn').style.display = 'block';
+                box.innerHTML += `<div>${p.new.content}</div>`;
+                document.getElementById('oracle-btn').style.display = 'block';
             }).subscribe();
         }
 
@@ -86,9 +81,9 @@
             _supabase.channel('oracle-sync').on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:`bridge_id=eq.${currentN.id}` }, p => {
                 const s = p.new || p.old;
                 if(s.status === 'matched') triggerSync(s);
-                else if(s.u1_lat && s.u2_lat) fetchVenues(s);
+                else if(s.u1_lat && s.u2_lat) document.getElementById('oracle-ballot').style.display = 'block';
             }).subscribe();
-            setInterval(checkSyncManual, 3000);
+            setInterval(checkSyncManual, 2000);
         }
 
         async function checkSyncManual() {
@@ -96,72 +91,26 @@
             const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', currentN.id).single();
             if(data) {
                 if(data.status === 'matched') triggerSync(data);
-                else if(data.u1_lat && data.u2_lat && document.getElementById('oracle-ballot').style.display !== 'block') fetchVenues(data);
+                else if(data.u1_lat && data.u2_lat) document.getElementById('oracle-ballot').style.display = 'block';
             }
-        }
-
-        async function fetchVenues(s) {
-            peerLoc = {lat: s.u1_lat, lng: s.u1_lng};
-            const mLa = (s.u1_lat + s.u2_lat) / 2; const mLn = (s.u1_lng + s.u2_lng) / 2;
-            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=cafe&proximity=${mLn},${mLa}&country=AE&access_token=${MAPBOX_TOKEN}`;
-            const res = await fetch(url); const d = await res.json();
-            const list = document.getElementById('venue-list'); list.innerHTML = '';
-            d.features.forEach(f => {
-                const card = document.createElement('div'); card.className = 'venue-card';
-                card.innerHTML = `<strong>${f.properties.name}</strong>`;
-                list.appendChild(card);
-            });
-            document.getElementById('oracle-ballot').style.display = 'block';
         }
 
         function triggerSync(s) {
-            document.body.style.background = "#0f0";
-            setTimeout(() => {
-                document.body.style.background = "#000";
-                document.getElementById('terminal').style.display = 'none';
-                document.getElementById('nav-hud').style.display = 'block';
-                document.getElementById('target-name').innerText = `PROCEED TO ${s.selected_venue_name.toUpperCase()}`;
-                
-                // EXECUTE BLUEPRINT
-                drawRoute('routeA', myLoc.lng, myLoc.lat, s.selected_lng, s.selected_lat);
-                drawRoute('routeB', peerLoc.lng, peerLoc.lat, s.selected_lng, s.selected_lat);
-                
-                const bounds = new mapboxgl.LngLatBounds()
-                    .extend([myLoc.lng, myLoc.lat])
-                    .extend([peerLoc.lng, peerLoc.lat])
-                    .extend([s.selected_lng, s.selected_lat]);
-                map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
-            }, 1000);
+            document.getElementById('terminal').style.display = 'none';
+            document.getElementById('nav-hud').style.display = 'block';
+            document.getElementById('target-name').innerText = `PROCEED TO ${s.selected_venue_name.toUpperCase()}`;
+            drawRoute('routeA', myLoc.lng, myLoc.lat, s.selected_lng, s.selected_lat);
+            drawRoute('routeB', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat);
+            map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([s.u1_lng, s.u1_lat]).extend([s.selected_lng, s.selected_lat]), { padding: 50, pitch: 45 });
         }
 
-        async function drawRoute(id, fromLng, fromLat, toLng, toLat) {
-            const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${fromLng},${fromLat};${toLng},${toLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-            const res = await fetch(url);
-            const data = await res.json();
+        async function drawRoute(id, fLng, fLat, tLng, tLat) {
+            const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${fLng},${fLat};${tLng},${tLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
+            const res = await fetch(url); const data = await res.json();
             const route = data.routes[0].geometry;
-
-            if (map.getSource(id)) {
-                map.removeLayer(id);
-                map.removeSource(id);
-            }
-
-            map.addSource(id, {
-                type: 'geojson',
-                data: { type: 'Feature', geometry: route }
-            });
-
-            map.addLayer({
-                id: id,
-                type: 'line',
-                source: id,
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: {
-                    'line-color': id === 'routeA' ? '#00ff00' : '#00aa00',
-                    'line-width': 4,
-                    'line-opacity': 0.9,
-                    'line-dasharray': id === 'routeB' ? [2, 2] : [1]
-                }
-            });
+            if (map.getSource(id)) { map.removeLayer(id); map.removeSource(id); }
+            map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: route } });
+            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': id === 'routeA' ? '#0f0' : '#0a0', 'line-width': 6 } });
         }
         setInterval(scan, 5000); scan();
     </script>

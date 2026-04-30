@@ -26,15 +26,15 @@
         <div style="display:flex;"><input type="text" id="chat-in" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px;"><button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px;">SEND</button></div>
     </div>
     <div id="nav-hud">
-        <h3 id="target-name" style="margin:0;">SYNCED</h3>
-        <p id="eta-display" style="font-size:12px;"></p>
-        <button class="hud-btn" onclick="location.reload()">TERMINATE VORTEX</button>
+        <h3 id="target-name" style="margin:0;">LOCATION SYNCED</h3>
+        <p id="eta-display" style="font-size:11px;"></p>
+        <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        const _supabase = supabase.createClient("https://rnroyhkvkvzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
+        const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
@@ -44,15 +44,17 @@
         navigator.geolocation.watchPosition(p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; });
 
         async function scan() {
+            // Fix: Clean old nodes before drawing new ones
             document.querySelectorAll('.mapboxgl-marker').forEach(m => m.remove());
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             data?.forEach(n => {
-                const el = document.createElement('div'); el.style.color="#0f0"; el.innerText = "[ NODE ]";
+                const el = document.createElement('div'); el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px; cursor:pointer;"; el.innerText = "[ NODE ]";
                 el.onclick = async () => { 
                     currentN = n; await _supabase.from('requests').insert([{ node_id: n.id, requester_id: 'SEEKER' }]);
                     document.getElementById('terminal').style.display = 'flex';
                     startChatSync(); startOracleSync();
                 };
+                // Fix: Force numeric coordinates
                 new mapboxgl.Marker(el).setLngLat([parseFloat(n.lng), parseFloat(n.lat)]).addTo(map);
             });
         }
@@ -86,7 +88,7 @@
                 if(s.status === 'matched') triggerSync(s);
                 else if(s.u1_lat && s.u2_lat) fetchVenues(s);
             }).subscribe();
-            setInterval(checkSyncManual, 3000); // Fail-safe polling
+            setInterval(checkSyncManual, 3000);
         }
 
         async function checkSyncManual() {
@@ -140,7 +142,7 @@
         function renderLayer(id, geo, color) {
             if (map.getSource(id)) map.removeLayer(id).removeSource(id);
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: geo } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } });
+            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6 } });
         }
         setInterval(scan, 5000); scan();
     </script>

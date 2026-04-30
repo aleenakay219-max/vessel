@@ -16,24 +16,32 @@
         .msg { margin-bottom: 8px; font-size: 13px; border-bottom: 1px solid #010; padding-bottom: 4px; }
         .msg.me { text-align: right; color: #0f0; }
         .msg.them { text-align: left; color: #0a0; }
+        
+        /* FINAL FLOW HUD */
         #nav-hud { display: none; position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; box-sizing: border-box; text-align: center; }
-        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 15px 30px; margin: 5px; cursor: pointer; font-family: monospace; }
-        #oracle-btn:disabled { border-color: #333; color: #333; cursor: default; }
+        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 15px 30px; margin: 5px; cursor: pointer; font-family: monospace; text-transform: uppercase; }
+        .hud-btn.active { background: #0f0; color: #000; }
+        #target-name { color: #0f0; margin: 0 0 5px 0; letter-spacing: 2px; }
+        #eta-display { color: #0f0; margin-bottom: 15px; font-size: 12px; opacity: 0.8; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <button id="fab" onclick="startCreation()">+</button>
+    
     <div id="terminal">
         <div id="oracle-ballot"><div id="venue-list">Consulting Oracle...</div></div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; cursor:pointer; margin-bottom:10px;">[ INITIATE ORACLE ]</button>
         <div id="msg-box"></div>
         <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="background:#000; border:1px solid #0f0; color:#0f0; padding:12px; width:100%; box-sizing:border-box; outline:none;">
     </div>
+
+    <!-- ACTION PANEL -->
     <div id="nav-hud">
-        <h2 id="target-name" style="color:#0f0; margin:0 0 10px 0;">SYNCED</h2>
-        <div id="eta-display" style="color:#0f0; margin-bottom:15px; font-size:12px;"></div>
-        <button class="hud-btn" onclick="location.reload()">TERMINATE VORTEX</button>
+        <h2 id="target-name">LOCATION SYNCED</h2>
+        <div id="eta-display">CALCULATING TRAILS...</div>
+        <button class="hud-btn active" id="heading-btn" onclick="this.innerText='ON MY WAY'; this.classList.add('active')">I'm heading there</button>
+        <button class="hud-btn" style="border-color:#f00; color:#f00;" onclick="location.reload()">Cancel</button>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
@@ -82,18 +90,9 @@
         }
 
         window.initiateOracle = () => {
-            const btn = document.getElementById('oracle-btn');
-            btn.innerText = "[ SIGNAL SENT... ]";
-            btn.disabled = true;
-
+            document.getElementById('oracle-btn').innerText = "[ SIGNAL SENT... ]";
             navigator.geolocation.getCurrentPosition(async (pos) => {
-                await _supabase.from('oracle_sessions').upsert({ 
-                    bridge_id: myNodeId, 
-                    u1_lat: pos.coords.latitude, 
-                    u1_lng: pos.coords.longitude 
-                }, { onConflict: 'bridge_id' });
-
-                // Fast-Path: Manual check
+                await _supabase.from('oracle_sessions').upsert({ bridge_id: myNodeId, u1_lat: pos.coords.latitude, u1_lng: pos.coords.longitude }, { onConflict: 'bridge_id' });
                 const { data } = await _supabase.from('oracle_sessions').select('*').eq('bridge_id', myNodeId).single();
                 if(data && data.u1_lat && data.u2_lat) fetchVenues(data);
             });
@@ -116,7 +115,7 @@
             const list = document.getElementById('venue-list'); list.innerHTML = '';
             d.features.forEach(f => {
                 const card = document.createElement('div'); card.className = 'venue-card';
-                card.innerHTML = `<strong>${f.properties.name}</strong><br><small>${f.properties.full_address || ""}</small>`;
+                card.innerHTML = `<strong>${f.properties.name}</strong>`;
                 card.onclick = async () => {
                     await _supabase.from('oracle_sessions').update({ status:'matched', selected_venue_name: f.properties.name, selected_lat: f.geometry.coordinates[1], selected_lng: f.geometry.coordinates[0] }).eq('bridge_id', myNodeId);
                 };
@@ -126,33 +125,40 @@
         }
 
         function triggerSync(s) {
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             document.body.style.background = "#0f0";
             setTimeout(() => {
                 document.body.style.background = "#000";
                 document.getElementById('terminal').style.display = 'none';
                 document.getElementById('nav-hud').style.display = 'block';
-                document.getElementById('target-name').innerText = s.selected_venue_name.toUpperCase();
+                document.getElementById('target-name').innerText = `PROCEED TO ${s.selected_venue_name.toUpperCase()}`;
                 drawTrails(s);
             }, 1000);
         }
 
         async function drawTrails(s) {
             const vLoc = [s.selected_lng, s.selected_lat];
+            new mapboxgl.Marker({color: '#f00'}).setLngLat(vLoc).addTo(map);
+
             const getRoute = async (start) => {
                 const r = await fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${start.lng},${start.lat};${vLoc[0]},${vLoc[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`);
                 return await r.json();
             };
             const routeMe = await getRoute(myLoc); const routePeer = await getRoute(peerLoc);
+            
             renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
             renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
-            document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc), { padding: 80, pitch: 45, duration: 2000 });
+
+            document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN WALK | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN WALK`;
+            
+            const bounds = new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc);
+            map.fitBounds(bounds, { padding: 100, pitch: 45, duration: 2500 });
         }
 
         function renderLayer(id, geo, color) {
             if (map.getSource(id)) map.removeLayer(id).removeSource(id);
             map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: geo } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5, 'line-opacity': 0.8 } });
+            map.addLayer({ id, type: 'line', source: id, layout: {'line-join': 'round', 'line-cap': 'round'}, paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.8 } });
         }
     </script>
 </body>

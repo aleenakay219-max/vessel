@@ -34,7 +34,9 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
+        const SB_URL = "https://rnroyhkvkmzuichysxnk.supabase.co";
+        const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU";
+        const _supabase = supabase.createClient(SB_URL, SB_KEY);
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
@@ -119,46 +121,47 @@
                 document.getElementById('terminal').style.display = 'none';
                 document.getElementById('nav-hud').style.display = 'block';
                 document.getElementById('target-name').innerText = `PROCEED TO ${s.selected_venue_name.toUpperCase()}`;
-                drawTrails(s);
+                
+                // EXECUTE BLUEPRINT
+                drawRoute('routeA', myLoc.lng, myLoc.lat, s.selected_lng, s.selected_lat);
+                drawRoute('routeB', peerLoc.lng, peerLoc.lat, s.selected_lng, s.selected_lat);
+                
+                const bounds = new mapboxgl.LngLatBounds()
+                    .extend([myLoc.lng, myLoc.lat])
+                    .extend([peerLoc.lng, peerLoc.lat])
+                    .extend([s.selected_lng, s.selected_lat]);
+                map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
             }, 1000);
         }
 
-        async function drawTrails(s) {
-            const vLoc = [s.selected_lng, s.selected_lat];
-            new mapboxgl.Marker({color:'#f00'}).setLngLat(vLoc).addTo(map);
-            
-            const getRoute = async (start) => {
-                const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${start.lng},${start.lat};${vLoc[0]},${vLoc[1]}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-                const r = await fetch(url);
-                return await r.json();
-            };
+        async function drawRoute(id, fromLng, fromLat, toLng, toLat) {
+            const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${fromLng},${fromLat};${toLng},${toLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
+            const res = await fetch(url);
+            const data = await res.json();
+            const route = data.routes[0].geometry;
 
-            const routeMe = await getRoute(myLoc); 
-            const routePeer = await getRoute(peerLoc);
-            
-            if(routeMe.routes && routeMe.routes[0]) renderLayer('my-trail', routeMe.routes[0].geometry, '#0f0');
-            if(routePeer.routes && routePeer.routes[0]) renderLayer('peer-trail', routePeer.routes[0].geometry, '#0a0');
-            
-            document.getElementById('eta-display').innerText = `YOU: ${Math.round(routeMe.routes[0].duration/60)} MIN | PEER: ${Math.round(routePeer.routes[0].duration/60)} MIN`;
-            
-            const bounds = new mapboxgl.LngLatBounds().extend([myLoc.lng, myLoc.lat]).extend([peerLoc.lng, peerLoc.lat]).extend(vLoc);
-            map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
-        }
-
-        function renderLayer(id, geo, color) {
-            const layerData = { type: 'Feature', geometry: geo };
             if (map.getSource(id)) {
-                map.getSource(id).setData(layerData);
-            } else {
-                map.addSource(id, { type: 'geojson', data: layerData });
-                map.addLayer({ 
-                    id, 
-                    type: 'line', 
-                    source: id, 
-                    layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: { 'line-color': color, 'line-width': 8, 'line-opacity': 0.9 } 
-                });
+                map.removeLayer(id);
+                map.removeSource(id);
             }
+
+            map.addSource(id, {
+                type: 'geojson',
+                data: { type: 'Feature', geometry: route }
+            });
+
+            map.addLayer({
+                id: id,
+                type: 'line',
+                source: id,
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: {
+                    'line-color': id === 'routeA' ? '#00ff00' : '#00aa00',
+                    'line-width': 4,
+                    'line-opacity': 0.9,
+                    'line-dasharray': id === 'routeB' ? [2, 2] : [1]
+                }
+            });
         }
         setInterval(scan, 5000); scan();
     </script>

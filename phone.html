@@ -77,11 +77,7 @@
 
         window.initiateOracle = async () => {
             if (!myLoc || myLoc.lat === 0) return;
-            await _supabase.from('oracle_sessions').upsert({ 
-                bridge_id: currentN.id, 
-                u2_lat: myLoc.lat, 
-                u2_lng: myLoc.lng 
-            }, { onConflict: 'bridge_id' });
+            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: myLoc.lat, u2_lng: myLoc.lng }, { onConflict: 'bridge_id' });
         };
 
         function startOracleLive() {
@@ -90,7 +86,6 @@
                 const s = payload.new;
                 document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
                 document.getElementById('oracle-ballot').style.display = 'block';
-
                 if (s.status === 'matched') triggerSync(s);
             }).subscribe();
         }
@@ -99,15 +94,9 @@
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
-            
-            // Draw trails from the specific database coordinates
             drawRoute('routeA', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat, '#0f0');
             drawRoute('routeB', parseFloat(s.u2_lng), parseFloat(s.u2_lat), s.selected_lng, s.selected_lat, '#00ffaa');
-            
-            const bounds = new mapboxgl.LngLatBounds()
-                .extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)])
-                .extend([parseFloat(s.u2_lng), parseFloat(s.u2_lat)])
-                .extend([s.selected_lng, s.selected_lat]);
+            const bounds = new mapboxgl.LngLatBounds().extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)]).extend([parseFloat(s.u2_lng), parseFloat(s.u2_lat)]).extend([s.selected_lng, s.selected_lat]);
             map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
         }
 

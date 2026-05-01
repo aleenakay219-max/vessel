@@ -5,8 +5,6 @@
     <title>VESSEL | CREATOR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
-    <!-- Turf.js for hard geofencing -->
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
@@ -81,54 +79,67 @@
             _supabase.channel('oracle-' + currentN.id)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async payload => {
                 const s = payload.new;
+                
+                if (s.status === 'matched' || s.options_generated) {
+                    triggerSync(s);
+                    return;
+                }
+
+                document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
+                document.getElementById('oracle-ballot').style.display = 'block';
+
                 if (s.u1_lat && s.u2_lat && s.status === 'pending') {
                     await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id);
                 }
+                
                 if (s.status === 'ready' && !s.options_generated) {
                     runOracleBrain(s);
                 }
-                if (s.status === 'matched') triggerSync(s);
             }).subscribe();
         }
 
         async function runOracleBrain(s) {
+            if (oracleProcessed || s.options_generated) return;
             oracleProcessed = true;
+
             const mLa = (s.u1_lat + s.u2_lat) / 2;
             const mLn = (s.u1_lng + s.u2_lng) / 2;
-            
-            // 20km Radius Cage
-            const rad = 0.18; 
-            const bbox = `${mLn - rad},${mLa - rad},${mLn + rad},${mLa + rad}`;
+            const queryTerm = s.intent === '☕ Coffee' ? 'cafe' : 'restaurant';
+            let radius = 0.15; // ~15km 
 
-            // Generic Search (Places API)
-            const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/cafe.json?bbox=${bbox}&limit=5&proximity=${mLn},${mLa}&types=poi&access_token=${MAPBOX_TOKEN}`;
-            
-            try {
-                const res = await fetch(url);
-                const d = await res.json();
-                
-                if (d.features && d.features.length > 0) {
-                    // TURF.JS HARD FILTER
-                    const center = turf.point([mLn, mLa]);
-                    const validPOIs = d.features.filter(feat => {
-                        const poi = turf.point(feat.geometry.coordinates);
-                        const distance = turf.distance(center, poi, {units: 'kilometers'});
-                        return distance <= 15; // Hard limit 15km
-                    });
+            for (let i = 0; i < 3; i++) {
+                const bbox = [mLn - radius, mLa - radius, mLn + radius, mLa + radius].join(',');
+                const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${queryTerm}&bbox=${bbox}&types=poi&limit=10&country=AE&access_token=${MAPBOX_TOKEN}`;
 
-                    if (validPOIs.length > 0) {
-                        const winner = validPOIs[0];
-                        await _supabase.from('oracle_sessions').update({ 
-                            status: 'matched', options_generated: true, selected_venue_name: winner.text, 
-                            selected_lat: winner.geometry.coordinates[1], selected_lng: winner.geometry.coordinates[0] 
-                        }).eq('bridge_id', currentN.id);
-                    } else {
-                        oracleProcessed = false;
+                try {
+                    const res = await fetch(url);
+                    const data = await res.json();
+
+                    if (data.suggestions && data.suggestions.length > 0) {
+                        const best = data.suggestions
+                            .filter(p => p.geometry && p.geometry.coordinates)
+                            .map(p => {
+                                const [lng, lat] = p.geometry.coordinates;
+                                const dist = Math.sqrt(Math.pow(lat - mLa, 2) + Math.pow(lng - mLn, 2));
+                                return { ...p, dist };
+                            })
+                            .sort((a, b) => a.dist - b.dist)[0];
+
+                        if (best) {
+                            await _supabase.from('oracle_sessions').update({
+                                status: 'matched',
+                                options_generated: true,
+                                selected_venue_name: best.name,
+                                selected_lat: best.geometry.coordinates[1],
+                                selected_lng: best.geometry.coordinates[0]
+                            }).eq('bridge_id', currentN.id);
+                            return;
+                        }
                     }
-                } else {
-                    oracleProcessed = false;
-                }
-            } catch (err) { oracleProcessed = false; }
+                } catch (err) { console.error("Oracle Loop Error:", err); }
+                radius += 0.1; // Expand to ~25km then ~35km
+            }
+            oracleProcessed = false; 
         }
 
         function triggerSync(s) {

@@ -19,7 +19,7 @@
     <div id="map"></div>
     <div id="terminal">
         <div id="oracle-ballot">STATUS: PENDING</div>
-        <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ SYNC GPS WITH ORACLE ]</button>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ SYNC GPS ]</button>
         <div id="msg-box"></div>
         <div style="display:flex;">
             <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px; outline:none;">
@@ -92,9 +92,7 @@
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
-            
             new mapboxgl.Marker({color: '#fff'}).setLngLat([s.selected_lng, s.selected_lat]).addTo(map);
-
             drawRoute('routeA', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat, '#0f0');
             drawRoute('routeB', parseFloat(s.u2_lng), parseFloat(s.u2_lat), s.selected_lng, s.selected_lat, '#00ffaa');
             const bounds = new mapboxgl.LngLatBounds().extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)]).extend([parseFloat(s.u2_lng), parseFloat(s.u2_lat)]).extend([s.selected_lng, s.selected_lat]);

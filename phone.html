@@ -84,8 +84,6 @@
             _supabase.channel('oracle-' + currentN.id)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, payload => {
                 const s = payload.new;
-                document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
-                document.getElementById('oracle-ballot').style.display = 'block';
                 if (s.status === 'matched') triggerSync(s);
             }).subscribe();
         }

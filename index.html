@@ -87,21 +87,19 @@
                 console.log('🟢 Node created:', currentN.id);
                 new mapboxgl.Marker({color: '#0f0'}).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
                 
-                // Realtime subscription
                 const channel = _supabase.channel('reqs-' + currentN.id)
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: `node_id=eq.${currentN.id}` }, (payload) => {
-                        console.log('📩 Request received via realtime!', payload);
+                        console.log('📩 Request received via realtime!');
                         document.getElementById('terminal').style.display = 'flex';
                         startChatSync(); 
                         startOracleLive();
                         if (requestPollInterval) clearInterval(requestPollInterval);
                     }).subscribe((status) => {
-                        console.log('🔌 Realtime subscription status:', status);
+                        console.log('🔌 Realtime subscription:', status);
                     });
 
-                // Fallback polling every 3 seconds
                 requestPollInterval = setInterval(openChatIfRequested, 3000);
-                console.log('⏳ Waiting for seeker request... (polling + realtime)');
+                console.log('⏳ Waiting for seeker...');
             });
         };
 
@@ -122,11 +120,8 @@
         }
 
         window.initiateOracle = async () => {
-            if (!myLoc || myLoc.lat === 0) {
-                console.warn('⚠️ GPS not ready yet');
-                return;
-            }
-            console.log('🔮 Creator initiating oracle with GPS:', myLoc.lat, myLoc.lng);
+            if (!myLoc || myLoc.lat === 0) { console.warn('⚠️ GPS not ready'); return; }
+            console.log('🔮 Creator oracle GPS:', myLoc.lat, myLoc.lng);
             await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' });
         };
 
@@ -157,35 +152,27 @@
             const midLat = (s.u1_lat + s.u2_lat) / 2;
             const midLng = (s.u1_lng + s.u2_lng) / 2;
             const userDistanceKm = haversineDistanceKm(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
-
             console.log('🧠 Oracle running... Midpoint:', midLat, midLng, 'Distance:', userDistanceKm.toFixed(2), 'km');
 
-            const searchQueries = ['cafe', 'coffee', 'restaurant', 'mall', 'park', 'starbucks', 'costa'];
+            const searchQueries = ['cafe', 'coffee', 'restaurant', 'mall', 'park'];
             let bestVenue = null;
 
             for (const query of searchQueries) {
                 const radiusSteps = [2, 5, 10, 15, MAX_VENUE_DISTANCE_KM];
-                
                 for (const radius of radiusSteps) {
                     if (bestVenue) break;
-
                     const bbox = bboxFromMidpoint(midLat, midLng, radius);
                     const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(query)}&proximity=${midLng},${midLat}&bbox=${bbox}&limit=5&language=en&access_token=${MAPBOX_TOKEN}`;
-                    
                     console.log(`   Searching: "${query}" radius=${radius}km`);
-
                     try {
                         const res = await fetch(url);
                         const d = await res.json();
-                        
                         if (d.features && d.features.length > 0) {
                             const nearbyVenues = d.features.filter(f => {
                                 const vLat = f.geometry.coordinates[1];
                                 const vLng = f.geometry.coordinates[0];
-                                const dist = haversineDistanceKm(midLat, midLng, vLat, vLng);
-                                return dist <= MAX_VENUE_DISTANCE_KM;
+                                return haversineDistanceKm(midLat, midLng, vLat, vLng) <= MAX_VENUE_DISTANCE_KM;
                             });
-
                             if (nearbyVenues.length > 0) {
                                 nearbyVenues.sort((a, b) => {
                                     const distA = haversineDistanceKm(midLat, midLng, a.geometry.coordinates[1], a.geometry.coordinates[0]);
@@ -193,14 +180,11 @@
                                     return distA - distB;
                                 });
                                 bestVenue = nearbyVenues[0];
-                                const bestDist = haversineDistanceKm(midLat, midLng, bestVenue.geometry.coordinates[1], bestVenue.geometry.coordinates[0]);
-                                console.log(`   ✅ FOUND: ${bestVenue.properties.name} at ${bestDist.toFixed(1)}km`);
+                                console.log(`   ✅ FOUND: ${bestVenue.properties.name}`);
                                 break;
                             }
                         }
-                    } catch (err) {
-                        console.warn('   ⚠️ Search error:', err.message);
-                    }
+                    } catch (err) { console.warn('   ⚠️ Search error:', err.message); }
                 }
                 if (bestVenue) break;
             }
@@ -209,14 +193,13 @@
                 const vLat = bestVenue.geometry.coordinates[1];
                 const vLng = bestVenue.geometry.coordinates[0];
                 const vName = bestVenue.properties.name || bestVenue.properties.full_address || bestVenue.properties.place_formatted || 'Venue';
-                console.log(`🎯 Final choice: ${vName} at [${vLat}, ${vLng}]`);
-
+                console.log(`🎯 Final: ${vName} at [${vLat}, ${vLng}]`);
                 await _supabase.from('oracle_sessions').update({ 
                     status: 'matched', options_generated: true, 
                     selected_venue_name: vName, selected_lat: vLat, selected_lng: vLng 
                 }).eq('bridge_id', currentN.id);
             } else {
-                console.warn('⚠️ NO VENUE — falling back to midpoint');
+                console.warn('⚠️ Fallback to midpoint');
                 await _supabase.from('oracle_sessions').update({ 
                     status: 'matched', options_generated: true, 
                     selected_venue_name: 'Midpoint Meeting Spot', selected_lat: midLat, selected_lng: midLng 
@@ -225,13 +208,23 @@
         }
 
         function triggerSync(s) {
-            console.log('🎯 triggerSync:', s.selected_venue_name, s.selected_lat, s.selected_lng);
+            // Parse all coords to numbers
+            const u1lat = parseFloat(s.u1_lat);
+            const u1lng = parseFloat(s.u1_lng);
+            const u2lat = parseFloat(s.u2_lat);
+            const u2lng = parseFloat(s.u2_lng);
+            const vlat = parseFloat(s.selected_lat);
+            const vlng = parseFloat(s.selected_lng);
 
-            if (!s.selected_lat || !s.selected_lng || 
-                Math.abs(s.selected_lat) > 90 || Math.abs(s.selected_lng) > 180 ||
-                !s.u1_lat || Math.abs(s.u1_lat) > 90 || Math.abs(s.u1_lng) > 180 ||
-                !s.u2_lat || Math.abs(s.u2_lat) > 90 || Math.abs(s.u2_lng) > 180) {
-                console.error('❌ INVALID COORDINATES');
+            console.log('🗺️ Drawing routes:');
+            console.log('   Creator:', u1lat, u1lng);
+            console.log('   Seeker:', u2lat, u2lng);
+            console.log('   Venue:', vlat, vlng, s.selected_venue_name);
+
+            if (!vlat || !vlng || Math.abs(vlat) > 90 || Math.abs(vlng) > 180 ||
+                !u1lat || Math.abs(u1lat) > 90 || Math.abs(u1lng) > 180 ||
+                !u2lat || Math.abs(u2lat) > 90 || Math.abs(u2lng) > 180) {
+                console.error('❌ INVALID COORDINATES - aborting');
                 return;
             }
 
@@ -239,25 +232,64 @@
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
             
-            drawRoute('routeA', s.u1_lng, s.u1_lat, s.selected_lng, s.selected_lat, '#0f0');
-            drawRoute('routeB', s.u2_lng, s.u2_lat, s.selected_lng, s.selected_lat, '#00ffaa');
+            // Add markers for all 3 points
+            new mapboxgl.Marker({color: '#0f0'}).setLngLat([u1lng, u1lat]).setPopup(new mapboxgl.Popup().setText('You')).addTo(map);
+            new mapboxgl.Marker({color: '#00ffaa'}).setLngLat([u2lng, u2lat]).setPopup(new mapboxgl.Popup().setText('Seeker')).addTo(map);
+            new mapboxgl.Marker({color: '#ff0'}).setLngLat([vlng, vlat]).setPopup(new mapboxgl.Popup().setText(s.selected_venue_name)).addTo(map);
+
+            // Draw routes
+            drawRoute('route-creator', u1lng, u1lat, vlng, vlat, '#0f0');
+            drawRoute('route-seeker', u2lng, u2lat, vlng, vlat, '#00ffaa');
             
+            // Fit bounds to show all 3 points
             const bounds = new mapboxgl.LngLatBounds()
-                .extend([s.u1_lng, s.u1_lat])
-                .extend([s.u2_lng, s.u2_lat])
-                .extend([s.selected_lng, s.selected_lat]);
-            map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
+                .extend([u1lng, u1lat])
+                .extend([u2lng, u2lat])
+                .extend([vlng, vlat]);
+            map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 2000 });
         }
 
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
+            console.log(`🛤️ Drawing ${id}: [${sLng},${sLat}] → [${eLng},${eLat}]`);
             try {
-                const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-                const res = await fetch(url); const d = await res.json();
-                if (!d.routes || !d.routes[0]) { console.warn('⚠️ No route for', id); return; }
-                if (map.getSource(id)) { map.removeLayer(id); map.removeSource(id); }
-                map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: d.routes[0].geometry } });
-                map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.8 } });
-            } catch (err) { console.warn('⚠️ Route error:', err.message); }
+                const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+                const res = await fetch(url);
+                const d = await res.json();
+                
+                if (!d.routes || !d.routes[0]) {
+                    console.warn(`⚠️ No route for ${id}, trying walking...`);
+                    // Fallback to walking
+                    const walkUrl = `https://api.mapbox.com/directions/v5/mapbox/walking/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+                    const walkRes = await fetch(walkUrl);
+                    const walkD = await walkRes.json();
+                    if (!walkD.routes || !walkD.routes[0]) {
+                        console.warn(`⚠️ No walking route either for ${id}`);
+                        return;
+                    }
+                    renderRoute(id, walkD.routes[0].geometry, color);
+                    return;
+                }
+                renderRoute(id, d.routes[0].geometry, color);
+            } catch (err) {
+                console.warn(`⚠️ Route error for ${id}:`, err.message);
+            }
+        }
+
+        function renderRoute(id, geometry, color) {
+            if (map.getLayer(id)) map.removeLayer(id);
+            if (map.getSource(id)) map.removeSource(id);
+            map.addSource(id, {
+                type: 'geojson',
+                data: { type: 'Feature', properties: {}, geometry: geometry }
+            });
+            map.addLayer({
+                id: id,
+                type: 'line',
+                source: id,
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.9 }
+            });
+            console.log(`✅ Route ${id} drawn`);
         }
     </script>
 </body>

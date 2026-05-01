@@ -44,6 +44,15 @@
             myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; 
         }, null, {enableHighAccuracy: true});
 
+        // Smart Distance Filter (Manual Guardrail)
+        function calcDist(lat1, lng1, lat2, lng2) {
+            const R = 6371; 
+            const dLat = (lat2-lat1) * Math.PI/180;
+            const dLng = (lng2-lng1) * Math.PI/180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+        }
+
         window.startCreation = () => {
             map.once('click', async (e) => {
                 const { data } = await _supabase.from('nodes').insert([{ lat: e.lngLat.lat, lng: e.lngLat.lng, intent: '☕ Coffee', status: 'active' }]).select();
@@ -79,9 +88,6 @@
             _supabase.channel('oracle-' + currentN.id)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async payload => {
                 const s = payload.new;
-                document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
-                document.getElementById('oracle-ballot').style.display = 'block';
-
                 if (s.u1_lat && s.u2_lat && s.status === 'pending') {
                     await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id);
                 }
@@ -94,23 +100,59 @@
 
         async function runOracleBrain(s) {
             oracleProcessed = true;
-            const mLa = (s.u1_lat + s.u2_lat) / 2; const mLn = (s.u1_lng + s.u2_lng) / 2;
+            const mLa = (s.u1_lat + s.u2_lat) / 2;
+            const mLn = (s.u1_lng + s.u2_lng) / 2;
             
-            const brands = "Starbucks,KFC,Pizza Hut,Mall";
-            const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${brands}&proximity=${s.u1_lng},${s.u1_lat}&country=ae&limit=1&access_token=${MAPBOX_TOKEN}`;
+            // 1. HARD BBOX FILTER (15km radius)
+            const rad = 0.15; 
+            const bbox = [mLn - rad, mLa - rad, mLn + rad, mLa + rad].join(',');
+
+            // 2. GENERIC QUERY (No Brands)
+            const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=food&bbox=${bbox}&types=poi&limit=5&country=AE&access_token=${MAPBOX_TOKEN}`;
             
-            const res = await fetch(url);
-            const d = await res.json();
+            try {
+                const res = await fetch(url);
+                const d = await res.json();
+                
+                // 3. FALLBACK STRATEGY
+                if (!d.suggestions || d.suggestions.length === 0) {
+                   console.log("Expanding search to 30km...");
+                   const biggerRad = 0.30;
+                   const biggerBbox = [mLn - biggerRad, mLa - biggerRad, mLn + biggerRad, mLa + biggerRad].join(',');
+                   const retryUrl = `https://api.mapbox.com/search/searchbox/v1/suggest?q=restaurant&bbox=${biggerBbox}&types=poi&limit=5&country=AE&access_token=${MAPBOX_TOKEN}`;
+                   const retryRes = await fetch(retryUrl);
+                   const retryD = await retryRes.json();
+                   processResult(retryD, s);
+                } else {
+                   processResult(d, s);
+                }
+            } catch (err) { oracleProcessed = false; }
+        }
+
+        async function processResult(data, s) {
+            if (!data.suggestions || data.suggestions.length === 0) return;
             
-            if (d.features && d.features.length > 0) {
-                const v = d.features[0];
-                await _supabase.from('oracle_sessions').update({ 
-                    status: 'matched', options_generated: true, selected_venue_name: v.properties.name, 
-                    selected_lat: v.geometry.coordinates[1], selected_lng: v.geometry.coordinates[0] 
-                }).eq('bridge_id', currentN.id);
-            } else {
+            // Get first result
+            const sug = data.suggestions[0];
+            
+            // Fetch exact coords for the suggestion
+            const detailRes = await fetch(`https://api.mapbox.com/search/searchbox/v1/retrieve/${sug.mapbox_id}?access_token=${MAPBOX_TOKEN}&session_token=123`);
+            const detailD = await detailRes.json();
+            const feat = detailD.features[0];
+            const vLat = feat.geometry.coordinates[1];
+            const vLng = feat.geometry.coordinates[0];
+
+            // 4. MANUAL DISTANCE FILTER (< 20km from Creator)
+            if (calcDist(s.u1_lat, s.u1_lng, vLat, vLng) > 20) {
+                console.error("Result too far. Killing process.");
                 oracleProcessed = false;
+                return;
             }
+
+            await _supabase.from('oracle_sessions').update({ 
+                status: 'matched', options_generated: true, selected_venue_name: sug.name, 
+                selected_lat: vLat, selected_lng: vLng 
+            }).eq('bridge_id', currentN.id);
         }
 
         function triggerSync(s) {

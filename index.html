@@ -50,6 +50,7 @@
                 currentN = data[0];
                 new mapboxgl.Marker({color: '#0f0'}).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
 
+                // FIXED LISTENER: Opens chat window immediately
                 _supabase.channel('reqs').on('postgres_changes', { 
                     event: 'INSERT', schema: 'public', table: 'requests', filter: `node_id=eq.${currentN.id}` 
                 }, () => {
@@ -88,56 +89,43 @@
             _supabase.channel('oracle-' + currentN.id)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async payload => {
                 const s = payload.new;
-                
                 if (s.status === 'matched' || s.options_generated) {
                     triggerSync(s);
                     return;
                 }
-
                 document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
                 document.getElementById('oracle-ballot').style.display = 'block';
-
                 if (s.u1_lat && s.u2_lat && s.status === 'pending') {
                     await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id);
                 }
-                
-                if (s.status === 'ready') {
-                    runOracleBrain(s);
-                }
+                if (s.status === 'ready') runOracleBrain(s);
             }).subscribe();
         }
 
         async function runOracleBrain(s) {
             if (oracleProcessed || s.options_generated) return;
             oracleProcessed = true;
-
             const mLa = (s.u1_lat + s.u2_lat) / 2;
             const mLn = (s.u1_lng + s.u2_lng) / 2;
-            const queryTerm = s.intent === '☕ Coffee' ? 'cafe' : 'restaurant';
+            const q = s.intent === '☕ Coffee' ? 'cafe' : 'restaurant';
             let radius = 0.15; 
 
             for (let i = 0; i < 3; i++) {
                 const bbox = [mLn - radius, mLa - radius, mLn + radius, mLa + radius].join(',');
-                // Switching to Places API for immediate coordinate retrieval to avoid UQ drift
-                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${queryTerm}.json?bbox=${bbox}&limit=5&proximity=${mLn},${mLa}&types=poi&access_token=${MAPBOX_TOKEN}`;
-
+                const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${q}&bbox=${bbox}&types=poi&limit=10&country=AE&access_token=${MAPBOX_TOKEN}`;
                 try {
                     const res = await fetch(url);
-                    const d = await res.json();
-
-                    if (d.features && d.features.length > 0) {
-                        const winner = d.features[0];
+                    const data = await res.json();
+                    if (data.suggestions && data.suggestions.length > 0) {
+                        const best = data.suggestions[0];
                         await _supabase.from('oracle_sessions').update({
-                            status: 'matched',
-                            options_generated: true,
-                            selected_venue_name: winner.text,
-                            selected_lat: winner.geometry.coordinates[1],
-                            selected_lng: winner.geometry.coordinates[0]
+                            status: 'matched', options_generated: true, selected_venue_name: best.name,
+                            selected_lat: best.geometry.coordinates[1], selected_lng: best.geometry.coordinates[0]
                         }).eq('bridge_id', currentN.id);
                         return;
                     }
-                } catch (err) { console.error("Oracle Loop Error:", err); }
-                radius += 0.1; 
+                } catch (err) { console.error(err); }
+                radius += 0.1;
             }
             oracleProcessed = false; 
         }

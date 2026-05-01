@@ -50,7 +50,6 @@
                 currentN = data[0];
                 new mapboxgl.Marker({color: '#0f0'}).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
 
-                // LISTENER: Opens chat window when Seeker connects
                 _supabase.channel('reqs').on('postgres_changes', { 
                     event: 'INSERT', schema: 'public', table: 'requests', filter: `node_id=eq.${currentN.id}` 
                 }, () => {
@@ -119,32 +118,23 @@
 
             for (let i = 0; i < 3; i++) {
                 const bbox = [mLn - radius, mLa - radius, mLn + radius, mLa + radius].join(',');
-                const url = `https://api.mapbox.com/search/searchbox/v1/suggest?q=${queryTerm}&bbox=${bbox}&types=poi&limit=10&country=AE&access_token=${MAPBOX_TOKEN}`;
+                // Switching to Places API for immediate coordinate retrieval to avoid UQ drift
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${queryTerm}.json?bbox=${bbox}&limit=5&proximity=${mLn},${mLa}&types=poi&access_token=${MAPBOX_TOKEN}`;
 
                 try {
                     const res = await fetch(url);
-                    const data = await res.json();
+                    const d = await res.json();
 
-                    if (data.suggestions && data.suggestions.length > 0) {
-                        const best = data.suggestions
-                            .filter(p => p.geometry && p.geometry.coordinates)
-                            .map(p => {
-                                const [lng, lat] = p.geometry.coordinates;
-                                const dist = Math.sqrt(Math.pow(lat - mLa, 2) + Math.pow(lng - mLn, 2));
-                                return { ...p, dist };
-                            })
-                            .sort((a, b) => a.dist - b.dist)[0];
-
-                        if (best) {
-                            await _supabase.from('oracle_sessions').update({
-                                status: 'matched',
-                                options_generated: true,
-                                selected_venue_name: best.name,
-                                selected_lat: best.geometry.coordinates[1],
-                                selected_lng: best.geometry.coordinates[0]
-                            }).eq('bridge_id', currentN.id);
-                            return;
-                        }
+                    if (d.features && d.features.length > 0) {
+                        const winner = d.features[0];
+                        await _supabase.from('oracle_sessions').update({
+                            status: 'matched',
+                            options_generated: true,
+                            selected_venue_name: winner.text,
+                            selected_lat: winner.geometry.coordinates[1],
+                            selected_lng: winner.geometry.coordinates[0]
+                        }).eq('bridge_id', currentN.id);
+                        return;
                     }
                 } catch (err) { console.error("Oracle Loop Error:", err); }
                 radius += 0.1; 

@@ -9,7 +9,8 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
         #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
-        #msg-box { height: 150px; overflow-y: auto; color:#0f0; font-size: 12px; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
+        #msg-box { height: 150px; overflow-y: auto; color:#0f0; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
+        #oracle-ballot { display: none; color:#0f0; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); font-size: 11px; text-align: center; }
         #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; box-sizing: border-box; }
         .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; text-transform: uppercase; }
     </style>
@@ -18,7 +19,7 @@
     <div id="map"></div>
     <div id="terminal">
         <div id="oracle-ballot">STATUS: PENDING</div>
-        <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ SYNC GPS ]</button>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex;">
             <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px; outline:none;">
@@ -41,13 +42,15 @@
             myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; 
         }, null, {enableHighAccuracy: true});
 
+        // ============ NODE SCANNING ============
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             activeMarkers.forEach(m => m.remove());
             activeMarkers = [];
             data?.forEach(n => {
                 const el = document.createElement('div');
-                el.style.cssText = "width:20px; height:20px; background:#0f0; border:2px solid #fff; border-radius:50%; cursor:pointer;";
+                el.style.cssText = "color:#0f0; background:#000; border:1px solid #0f0; padding:5px; font-size:10px; cursor:pointer;";
+                el.innerText = "[ NODE ]";
                 el.onclick = async () => {
                     if (currentN) return;
                     currentN = n;
@@ -59,48 +62,53 @@
                 activeMarkers.push(m);
             });
         }
-        setInterval(scan, 3000); // FIXED SCANNER
+        scan();
+        setInterval(scan, 5000);
 
+        // ============ CHAT ============
         window.sendMsg = async () => {
             const val = document.getElementById('chat-in').value;
-            if(!val) return;
+            if (!val.trim()) return;
             await _supabase.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]);
             document.getElementById('chat-in').value = '';
             document.getElementById('oracle-btn').style.display = 'block';
         };
 
         function startChatSync() {
-            _supabase.channel('msgs').on('postgres_changes', { 
-                event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` 
-            }, p => {
+            _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
                 document.getElementById('msg-box').innerHTML += `<div style="color:#0f0">> ${p.new.content}</div>`;
-                document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
+                document.getElementById('oracle-btn').style.display = 'block';
             }).subscribe();
         }
 
+        // ============ ORACLE INITIATION ============
         window.initiateOracle = async () => {
             if (!myLoc || myLoc.lat === 0) return;
-            await _supabase.from('oracle_sessions').upsert({ 
-                bridge_id: currentN.id, u2_lat: myLoc.lat, u2_lng: myLoc.lng 
-            }, { onConflict: 'bridge_id' });
+            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: myLoc.lat, u2_lng: myLoc.lng }, { onConflict: 'bridge_id' });
         };
 
+        // ============ ORACLE LIVE SYNC (SEEKER SIDE — LISTENS ONLY) ============
         function startOracleLive() {
             _supabase.channel('oracle-' + currentN.id)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, payload => {
                 const s = payload.new;
-                if (s.status === 'matched' || s.options_generated) triggerSync(s);
+                document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
+                document.getElementById('oracle-ballot').style.display = 'block';
+                if (s.status === 'matched') triggerSync(s);
             }).subscribe();
         }
 
+        // ============ SYNC: SHOW ROUTE ============
         function triggerSync(s) {
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
-            new mapboxgl.Marker({color: '#fff'}).setLngLat([s.selected_lng, s.selected_lat]).addTo(map);
             drawRoute('routeA', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat, '#0f0');
             drawRoute('routeB', parseFloat(s.u2_lng), parseFloat(s.u2_lat), s.selected_lng, s.selected_lat, '#00ffaa');
-            const bounds = new mapboxgl.LngLatBounds().extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)]).extend([parseFloat(s.u2_lng), parseFloat(s.u2_lat)]).extend([s.selected_lng, s.selected_lat]);
+            const bounds = new mapboxgl.LngLatBounds()
+                .extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)])
+                .extend([parseFloat(s.u2_lng), parseFloat(s.u2_lat)])
+                .extend([s.selected_lng, s.selected_lat]);
             map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
         }
 

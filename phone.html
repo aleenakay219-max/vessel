@@ -35,22 +35,18 @@
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        // ============ FAKE GPS FOR TESTING ============
         const FAKE_SEEKER_LAT = 25.0800;
         const FAKE_SEEKER_LNG = 55.1400;
-        // ===========================================
 
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [FAKE_SEEKER_LNG, FAKE_SEEKER_LAT], zoom: 14 });
         let currentN = null, myLoc = { lat: FAKE_SEEKER_LAT, lng: FAKE_SEEKER_LNG }, activeMarkers = [];
 
-        // Override geolocation with fake coordinates
-        navigator.geolocation.watchPosition = function(success, error, options) {
-            console.log('📍 SEEKER using FAKE GPS:', FAKE_SEEKER_LAT, FAKE_SEEKER_LNG);
+        navigator.geolocation.watchPosition = function(success) {
+            console.log('📍 SEEKER FAKE GPS:', FAKE_SEEKER_LAT, FAKE_SEEKER_LNG);
             success({ coords: { latitude: FAKE_SEEKER_LAT, longitude: FAKE_SEEKER_LNG, accuracy: 5 } });
             return 1;
         };
 
-        // ============ NODE SCANNING ============
         async function scan() {
             const { data } = await _supabase.from('nodes').select('*').eq('status', 'active');
             activeMarkers.forEach(m => m.remove());
@@ -73,7 +69,6 @@
         scan();
         setInterval(scan, 5000);
 
-        // ============ CHAT ============
         window.sendMsg = async () => {
             const val = document.getElementById('chat-in').value;
             if (!val.trim()) return;
@@ -83,57 +78,85 @@
         };
 
         function startChatSync() {
-            _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
-                document.getElementById('msg-box').innerHTML += `<div style="color:#0f0">> ${p.new.content}</div>`;
-                document.getElementById('oracle-btn').style.display = 'block';
-            }).subscribe();
+            _supabase.channel('msgs-' + currentN.id)
+                .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
+                    document.getElementById('msg-box').innerHTML += `<div style="color:#0f0">> ${p.new.content}</div>`;
+                    document.getElementById('oracle-btn').style.display = 'block';
+                }).subscribe();
         }
 
-        // ============ ORACLE INITIATION ============
         window.initiateOracle = async () => {
-            if (!myLoc || myLoc.lat === 0) return;
+            console.log('🔮 Seeker oracle GPS:', myLoc.lat, myLoc.lng);
             await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: myLoc.lat, u2_lng: myLoc.lng }, { onConflict: 'bridge_id' });
         };
 
-        // ============ ORACLE LIVE SYNC ============
         function startOracleLive() {
             _supabase.channel('oracle-' + currentN.id)
             .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, payload => {
                 const s = payload.new;
+                console.log('🔮 Seeker oracle state:', s.status);
                 document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
                 document.getElementById('oracle-ballot').style.display = 'block';
                 if (s.status === 'matched') triggerSync(s);
             }).subscribe();
         }
 
-        // ============ SYNC: SHOW ROUTE ============
         function triggerSync(s) {
-            if (!s.selected_lat || !s.selected_lng || 
-                Math.abs(s.selected_lat) > 90 || Math.abs(s.selected_lng) > 180 ||
-                Math.abs(s.u1_lat) > 90 || Math.abs(s.u1_lng) > 180 ||
-                Math.abs(s.u2_lat) > 90 || Math.abs(s.u2_lng) > 180) {
-                console.error('❌ Invalid coordinates in oracle session:', s);
+            const u1lat = parseFloat(s.u1_lat);
+            const u1lng = parseFloat(s.u1_lng);
+            const u2lat = parseFloat(s.u2_lat);
+            const u2lng = parseFloat(s.u2_lng);
+            const vlat = parseFloat(s.selected_lat);
+            const vlng = parseFloat(s.selected_lng);
+
+            console.log('🗺️ Seeker drawing routes to:', s.selected_venue_name);
+
+            if (!vlat || !vlng || Math.abs(vlat) > 90 || Math.abs(vlng) > 180) {
+                console.error('❌ Invalid coords');
                 return;
             }
 
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
             document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
-            drawRoute('routeA', parseFloat(s.u1_lng), parseFloat(s.u1_lat), s.selected_lng, s.selected_lat, '#0f0');
-            drawRoute('routeB', parseFloat(s.u2_lng), parseFloat(s.u2_lat), s.selected_lng, s.selected_lat, '#00ffaa');
+
+            new mapboxgl.Marker({color: '#0f0'}).setLngLat([u1lng, u1lat]).setPopup(new mapboxgl.Popup().setText('Creator')).addTo(map);
+            new mapboxgl.Marker({color: '#00ffaa'}).setLngLat([u2lng, u2lat]).setPopup(new mapboxgl.Popup().setText('You')).addTo(map);
+            new mapboxgl.Marker({color: '#ff0'}).setLngLat([vlng, vlat]).setPopup(new mapboxgl.Popup().setText(s.selected_venue_name)).addTo(map);
+
+            drawRoute('route-creator', u1lng, u1lat, vlng, vlat, '#0f0');
+            drawRoute('route-seeker', u2lng, u2lat, vlng, vlat, '#00ffaa');
+
             const bounds = new mapboxgl.LngLatBounds()
-                .extend([parseFloat(s.u1_lng), parseFloat(s.u1_lat)])
-                .extend([parseFloat(s.u2_lng), parseFloat(s.u2_lat)])
-                .extend([s.selected_lng, s.selected_lat]);
-            map.fitBounds(bounds, { padding: 50, pitch: 45, duration: 2500 });
+                .extend([u1lng, u1lat])
+                .extend([u2lng, u2lat])
+                .extend([vlng, vlat]);
+            map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 2000 });
         }
 
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
-            const url = `https://api.mapbox.com/directions/v5/mapbox/walking/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
-            const res = await fetch(url); const d = await res.json();
-            if (map.getSource(id)) { map.removeLayer(id); map.removeSource(id); }
-            map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: d.routes[0].geometry } });
-            map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.8 } });
+            console.log(`🛤️ Drawing ${id}: [${sLng},${sLat}] → [${eLng},${eLat}]`);
+            try {
+                const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+                const res = await fetch(url);
+                const d = await res.json();
+                if (!d.routes || !d.routes[0]) {
+                    const walkUrl = `https://api.mapbox.com/directions/v5/mapbox/walking/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+                    const walkRes = await fetch(walkUrl);
+                    const walkD = await walkRes.json();
+                    if (!walkD.routes || !walkD.routes[0]) return;
+                    renderRoute(id, walkD.routes[0].geometry, color);
+                    return;
+                }
+                renderRoute(id, d.routes[0].geometry, color);
+            } catch (err) { console.warn('Route error:', err.message); }
+        }
+
+        function renderRoute(id, geometry, color) {
+            if (map.getLayer(id)) map.removeLayer(id);
+            if (map.getSource(id)) map.removeSource(id);
+            map.addSource(id, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: geometry } });
+            map.addLayer({ id, type: 'line', source: id, layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': color, 'line-width': 6, 'line-opacity': 0.9 } });
         }
     </script>
 </body>

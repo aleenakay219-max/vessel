@@ -9,7 +9,7 @@
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
         #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
-        #msg-box { height: 150px; overflow-y: auto; color:#0f0; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
+        #msg-box { height: 150px; overflow-y: auto; color:#0f0; font-size: 12px; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
         #oracle-ballot { display: none; color:#0f0; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); font-size: 11px; text-align: center; }
         #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; box-sizing: border-box; }
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
@@ -49,30 +49,40 @@
                 const { data } = await _supabase.from('nodes').insert([{ lat: e.lngLat.lat, lng: e.lngLat.lng, intent: '☕ Coffee', status: 'active' }]).select();
                 currentN = data[0];
                 new mapboxgl.Marker({color: '#0f0'}).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
-                _supabase.channel('reqs').on('postgres_changes', { event:'INSERT', schema:'public', table:'requests', filter:`node_id=eq.${currentN.id}` }, () => {
+
+                // LISTENER: Opens chat window when Seeker connects
+                _supabase.channel('reqs').on('postgres_changes', { 
+                    event: 'INSERT', schema: 'public', table: 'requests', filter: `node_id=eq.${currentN.id}` 
+                }, () => {
                     document.getElementById('terminal').style.display = 'flex';
-                    startChatSync(); startOracleLive();
+                    startChatSync(); 
+                    startOracleLive();
                 }).subscribe();
             });
         };
 
         window.sendMsg = async () => {
             const val = document.getElementById('chat-in').value;
+            if(!val) return;
             await _supabase.from('messages').insert([{node_id:currentN.id, sender:'CREATOR', content:val}]);
             document.getElementById('chat-in').value = '';
             document.getElementById('oracle-btn').style.display = 'block';
         };
 
         function startChatSync() {
-            _supabase.channel('msgs').on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
+            _supabase.channel('msgs').on('postgres_changes', { 
+                event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` 
+            }, p => {
                 document.getElementById('msg-box').innerHTML += `<div style="color:#0f0">> ${p.new.content}</div>`;
-                document.getElementById('oracle-btn').style.display = 'block';
+                document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
             }).subscribe();
         }
 
         window.initiateOracle = async () => {
             if (!myLoc || myLoc.lat === 0) return;
-            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' });
+            await _supabase.from('oracle_sessions').upsert({ 
+                bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng 
+            }, { onConflict: 'bridge_id' });
         };
 
         function startOracleLive() {
@@ -92,7 +102,7 @@
                     await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id);
                 }
                 
-                if (s.status === 'ready' && !s.options_generated) {
+                if (s.status === 'ready') {
                     runOracleBrain(s);
                 }
             }).subscribe();
@@ -105,7 +115,7 @@
             const mLa = (s.u1_lat + s.u2_lat) / 2;
             const mLn = (s.u1_lng + s.u2_lng) / 2;
             const queryTerm = s.intent === '☕ Coffee' ? 'cafe' : 'restaurant';
-            let radius = 0.15; // ~15km 
+            let radius = 0.15; 
 
             for (let i = 0; i < 3; i++) {
                 const bbox = [mLn - radius, mLa - radius, mLn + radius, mLa + radius].join(',');
@@ -137,7 +147,7 @@
                         }
                     }
                 } catch (err) { console.error("Oracle Loop Error:", err); }
-                radius += 0.1; // Expand to ~25km then ~35km
+                radius += 0.1; 
             }
             oracleProcessed = false; 
         }

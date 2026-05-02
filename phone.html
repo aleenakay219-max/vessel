@@ -18,11 +18,8 @@
         .hud-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
         .sync-btn{background:transparent;border:2px solid #0f0;color:#0f0;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
         .rate-btn{background:transparent;border:2px solid #ff0;color:#ff0;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
-        .node-popup .mapboxgl-popup-content {
-            background:#000!important; border:1px solid #0f0!important; color:#0f0!important;
-            font-family:monospace; padding:6px 10px!important; border-radius:0!important; box-shadow:0 0 10px #0f0;
-        }
-        .node-popup .mapboxgl-popup-tip { border-top-color:#0f0!important; }
+        .node-popup .mapboxgl-popup-content{background:#000!important;border:1px solid #0f0!important;color:#0f0!important;font-family:monospace;padding:6px 10px!important;border-radius:0!important;box-shadow:0 0 10px #0f0}
+        .node-popup .mapboxgl-popup-tip{border-top-color:#0f0!important}
     </style>
 </head>
 <body>
@@ -80,6 +77,7 @@
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[FAKE_LNG,FAKE_LAT],zoom:14});
         let currentN = null, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
+        let pollInterval = null;
 
         navigator.geolocation.watchPosition = function(success){
             success({coords:{latitude:FAKE_LAT,longitude:FAKE_LNG,accuracy:5}});
@@ -92,75 +90,30 @@
             map.addSource('nodes-source', {
                 type: 'geojson',
                 data: { type: 'FeatureCollection', features: [] },
-                cluster: true,
-                clusterMaxZoom: 14,
-                clusterRadius: 50
+                cluster: true, clusterMaxZoom: 14, clusterRadius: 50
             });
-            map.addLayer({
-                id: 'nodes-clusters',
-                type: 'circle',
-                source: 'nodes-source',
-                filter: ['has', 'point_count'],
-                paint: {
-                    'circle-color': '#111',
-                    'circle-stroke-color': '#0f0',
-                    'circle-stroke-width': 2,
-                    'circle-radius': ['step', ['get', 'point_count'], 20, 10, 25, 30, 35],
-                    'circle-opacity': 0.9
-                }
-            });
-            map.addLayer({
-                id: 'nodes-cluster-count',
-                type: 'symbol',
-                source: 'nodes-source',
-                filter: ['has', 'point_count'],
-                layout: {
-                    'text-field': '{point_count_abbreviated}',
-                    'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-                    'text-size': 14
-                },
-                paint: { 'text-color': '#0f0' }
-            });
-            map.addLayer({
-                id: 'nodes-unclustered',
-                type: 'circle',
-                source: 'nodes-source',
-                filter: ['!', ['has', 'point_count']],
-                paint: {
-                    'circle-color': ['get', 'color'],
-                    'circle-radius': 8,
-                    'circle-opacity': 0.9,
-                    'circle-stroke-color': '#fff',
-                    'circle-stroke-width': 1.5
-                }
-            });
-            map.addLayer({
-                id: 'nodes-emoji',
-                type: 'symbol',
-                source: 'nodes-source',
-                filter: ['!', ['has', 'point_count']],
-                layout: {
-                    'text-field': ['get', 'emoji'],
-                    'text-font': ['Arial Unicode MS Bold'],
-                    'text-size': 12,
-                    'text-allow-overlap': true
-                },
-                paint: { 'text-color': '#000' }
-            });
+            map.addLayer({ id:'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'],
+                paint:{ 'circle-color':'#111','circle-stroke-color':'#0f0','circle-stroke-width':2,
+                    'circle-radius':['step',['get','point_count'],20,10,25,30,35],'circle-opacity':0.9 } });
+            map.addLayer({ id:'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'],
+                layout:{ 'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14 },
+                paint:{ 'text-color':'#0f0' } });
+            map.addLayer({ id:'nodes-unclustered', type:'circle', source:'nodes-source', filter:['!',['has','point_count']],
+                paint:{ 'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5 } });
+            map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
+                layout:{ 'text-field':['get','emoji'],'text-font':['Arial Unicode MS Bold'],'text-size':12,'text-allow-overlap':true },
+                paint:{ 'text-color':'#000' } });
 
-            const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, className: 'node-popup' });
+            const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });
             map.on('mouseenter', 'nodes-unclustered', (e) => {
                 map.getCanvas().style.cursor = 'pointer';
                 const props = e.features[0].properties;
                 const timeLeft = Math.max(0, Math.floor((new Date(props.expires_at) - Date.now()) / 60000));
                 popup.setLngLat(e.lngLat).setHTML(props.intent + ' [' + timeLeft + 'm]').addTo(map);
             });
-            map.on('mouseleave', 'nodes-unclustered', () => {
-                map.getCanvas().style.cursor = '';
-                popup.remove();
-            });
+            map.on('mouseleave', 'nodes-unclustered', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
 
-            // CLICK ON NODE: send request, do NOT open terminal
+            // CLICK ON NODE: send request, then start polling for acceptance
             map.on('click', 'nodes-unclustered', async (e) => {
                 const nodeProps = e.features[0].properties;
                 if (currentN) return;
@@ -169,26 +122,32 @@
                 const { error } = await supabaseClient.from('requests').insert([{node_id:nodeProps.id, requester_id:'SEEKER', status:'pending'}]);
                 if (error) { setStatus('error','Request failed'); return; }
                 setStatus('success','Request sent. Waiting for creator...');
-                // Listen for acceptance
-                supabaseClient.channel('my-req-'+nodeProps.id)
-                    .on('postgres_changes', {event:'UPDATE', schema:'public', table:'requests', filter:'node_id=eq.'+nodeProps.id+' and requester_id=eq.SEEKER'}, payload => {
-                        if (payload.new.status === 'accepted') {
-                            document.getElementById('terminal').style.display='flex';
-                            startChatSync();
-                        } else if (payload.new.status === 'declined') {
-                            setStatus('error','Creator declined');
-                            currentN = null;
-                        }
-                    }).subscribe();
+
+                // Poll for acceptance every 2 seconds
+                if (pollInterval) clearInterval(pollInterval);
+                pollInterval = setInterval(async () => {
+                    const { data, error } = await supabaseClient.from('requests')
+                        .select('status')
+                        .eq('node_id', nodeProps.id)
+                        .eq('requester_id', 'SEEKER')
+                        .maybeSingle();
+                    if (error) return;
+                    if (data && data.status === 'accepted') {
+                        clearInterval(pollInterval);
+                        document.getElementById('terminal').style.display = 'flex';
+                        startChatSync();
+                    } else if (data && data.status === 'declined') {
+                        clearInterval(pollInterval);
+                        setStatus('error','Creator declined');
+                        currentN = null;
+                    }
+                }, 2000);
             });
 
             map.on('click', 'nodes-clusters', (e) => {
-                const features = map.queryRenderedFeatures(e.point, { layers: ['nodes-clusters'] });
+                const features = map.queryRenderedFeatures(e.point, { layers:['nodes-clusters'] });
                 const clusterId = features[0].properties.cluster_id;
-                map.getSource('nodes-source').getClusterExpansionZoom(clusterId, (err, zoom) => {
-                    if (err) return;
-                    map.easeTo({ center: features[0].geometry.coordinates, zoom: zoom });
-                });
+                map.getSource('nodes-source').getClusterExpansionZoom(clusterId, (err, zoom) => { if (err) return; map.easeTo({ center:features[0].geometry.coordinates, zoom }); });
             });
 
             document.getElementById('status-bar').innerText = 'Scanning...';
@@ -199,38 +158,26 @@
             const now = new Date().toISOString();
             const { data, error } = await supabaseClient.from('nodes').select('*').eq('status','active').gt('expires_at',now);
             if (error) { setStatus('error','Connection issue'); return; }
-
             const features = (data || []).map(node => ({
                 type: 'Feature',
-                geometry: { type: 'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
+                geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
                 properties: {
-                    id: node.id,
-                    intent: node.intent || 'Coffee',
+                    id: node.id, intent: node.intent || 'Coffee',
                     color: intentColors[node.intent] || defaultColor,
                     emoji: intentEmojis[node.intent] || '📍',
                     expires_at: node.expires_at
                 }
             }));
-
-            if (map.getSource('nodes-source')) {
-                map.getSource('nodes-source').setData({ type: 'FeatureCollection', features });
-            }
-
-            if (features.length === 0) {
-                setStatus('info','No active nodes. Scanning...');
-            } else {
-                document.getElementById('status-bar').style.display='none';
-            }
+            if (map.getSource('nodes-source')) map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
+            if (features.length === 0) setStatus('info','No active nodes. Scanning...');
+            else document.getElementById('status-bar').style.display='none';
         }
         setInterval(scan, 5000);
 
-        // Chat functions (only used after acceptance)
         window.sendMsg=async function(){
-            const val=document.getElementById('chat-in').value;
-            if(!val.trim()) return;
+            const val=document.getElementById('chat-in').value; if(!val.trim()) return;
             await supabaseClient.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]);
-            document.getElementById('chat-in').value='';
-            document.getElementById('oracle-btn').style.display='block';
+            document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block';
         };
         function startChatSync(){
             supabaseClient.channel('msgs-'+currentN.id)
@@ -270,8 +217,7 @@
             map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000});
         }
         window.confirmProceed=async function(){
-            myConfirmed=true;
-            document.getElementById('sync-confirm-btn').style.display='none';
+            myConfirmed=true; document.getElementById('sync-confirm-btn').style.display='none';
             document.getElementById('sync-status').innerText='Waiting for other user...';
             await supabaseClient.from('oracle_sessions').update({u2_confirmed:true}).eq('bridge_id',currentN.id);
         };
@@ -280,9 +226,7 @@
             const navHud=document.getElementById('nav-hud'); navHud.style.display='block'; setTimeout(()=>navHud.style.opacity='1',10);
             document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();
             let remaining=MEET_DURATION_MINUTES*60;
-            meetTimerInterval=setInterval(async()=>{
-                remaining--;
-                const mins=Math.floor(remaining/60),secs=remaining%60;
+            meetTimerInterval=setInterval(async()=>{ remaining--; const mins=Math.floor(remaining/60),secs=remaining%60;
                 document.getElementById('meet-timer').innerText='MEET WINDOW: '+mins+'m '+secs+'s';
                 if(remaining<=0){clearInterval(meetTimerInterval); await supabaseClient.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id);}
             },1000);
@@ -292,18 +236,15 @@
             const rp=document.getElementById('rate-panel'); rp.style.display='block'; setTimeout(()=>rp.style.opacity='1',10);
         }
         window.submitRating=async function(r){
-            if(meetRated)return; meetRated=true;
-            document.getElementById('rate-panel').style.display='none';
+            if(meetRated)return; meetRated=true; document.getElementById('rate-panel').style.display='none';
             await supabaseClient.from('oracle_sessions').update({u2_rating:r}).eq('bridge_id',currentN.id);
             setStatus('success','Thanks for rating!'); setTimeout(()=>location.reload(),3000);
         };
         async function drawRoute(id,sLng,sLat,eLng,eLat,color){
             try{
                 const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&access_token='+mapboxgl.accessToken;
-                const r=await(await fetch(url)).json();
-                if(!r.routes||!r.routes[0])return;
-                if(map.getLayer(id))map.removeLayer(id);
-                if(map.getSource(id))map.removeSource(id);
+                const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return;
+                if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id);
                 map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}});
                 map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}});
             }catch(e){}

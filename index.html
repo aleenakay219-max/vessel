@@ -305,6 +305,8 @@
                 inbox.style.display='none';
                 return;
             }
+            // ⭐ FIX: Show terminal so inbox becomes visible
+            document.getElementById('terminal').style.display = 'flex';
             inbox.style.display='block';
             inbox.innerHTML = '<div style="color:#0f0;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
             for(let req of requests){

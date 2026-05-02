@@ -126,7 +126,7 @@
         async function ensureUser(){const{data}=await _supabase.from('users').select('id').eq('id',myUserId).limit(1);if(!data||data.length===0)await _supabase.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]);}
         ensureUser();
 
-        // Build accordion
+        // Build accordion (same as before)
         function buildAccordion(){
             const panel=document.getElementById('intent-panel');
             panel.innerHTML='';
@@ -156,7 +156,6 @@
                 btnRow.appendChild(customBtn);
                 body.appendChild(btnRow);
 
-                // Node type
                 const typeRow=document.createElement('div');
                 typeRow.className='node-type-row';
                 typeRow.innerHTML='<span style="color:#0f0;font-size:12px">Type:</span>';
@@ -174,7 +173,6 @@
                 typeRow.appendChild(maxInput);
                 body.appendChild(typeRow);
 
-                // Vibe row (social only)
                 if(cat==='social'){
                     const vibeRow=document.createElement('div');
                     vibeRow.className='vibe-row';
@@ -183,7 +181,6 @@
                     body.appendChild(vibeRow);
                 }
 
-                // Custom input + done
                 const customInput=document.createElement('input');
                 customInput.className='custom-input';
                 customInput.id='custom-'+cat;
@@ -280,21 +277,20 @@
                 el.innerText=meta.emoji;
                 new mapboxgl.Marker(el).setLngLat([e.lngLat.lng,e.lngLat.lat]).addTo(map);
 
-                // Realtime listener
+                // Realtime listener + polling
                 _supabase.channel('inbox-'+currentN.id)
                     .on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id},()=>{
-                        console.log('📩 Realtime event: new request');
+                        console.log('📩 Realtime: new request');
                         loadInbox();
                     }).subscribe();
 
-                // Initial fetch + polling fallback
                 loadInbox();
                 if(inboxPollInterval) clearInterval(inboxPollInterval);
                 inboxPollInterval = setInterval(loadInbox, 4000);
             });
         };
 
-        // Inbox – fixed to fetch user data separately
+        // Updated loadInbox: uses answer_given
         async function loadInbox(){
             if(!currentN) return;
             const{data:requests,error} = await _supabase.from('requests')
@@ -319,8 +315,8 @@
 
                 const item = document.createElement('div'); item.className='inbox-item';
                 const dossier = document.createElement('div');
-                if(req.answer){
-                    const vibeLabel = req.answer==='a' ? (vibeChecks[currentN.intent]?.a || 'Option A') : (vibeChecks[currentN.intent]?.b || 'Option B');
+                if(req.answer_given){
+                    const vibeLabel = req.answer_given==='a' ? (vibeChecks[currentN.intent]?.a || 'Option A') : (vibeChecks[currentN.intent]?.b || 'Option B');
                     dossier.innerHTML = `<span style="color:#0f0">Vibe: ${vibeLabel}</span><br>`;
                 }
                 dossier.innerHTML += `<span class="inbox-dossier">⭐${trust} · ${meets} meets</span>`;

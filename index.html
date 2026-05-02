@@ -41,6 +41,7 @@
         .inbox-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding:5px;border:1px solid #0f0}
         .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #0f0;color:#0f0;cursor:pointer}
         .inbox-dossier{font-size:10px;color:#aaa}
+        #debug-btn{background:transparent;border:1px solid #ff0;color:#ff0;padding:5px 10px;margin-left:5px;cursor:pointer;font-size:10px}
     </style>
 </head>
 <body>
@@ -57,6 +58,7 @@
         <div style="display:flex">
             <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter')sendMsg()" style="flex:1;background:#000;border:1px solid #0f0;color:#0f0;padding:10px;outline:none">
             <button onclick="sendMsg()" style="background:#0f0;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
+            <button id="debug-btn" onclick="debugInbox()">DEBUG</button>
         </div>
     </div>
     <div id="sync-panel">
@@ -126,7 +128,7 @@
         async function ensureUser(){const{data}=await _supabase.from('users').select('id').eq('id',myUserId).limit(1);if(!data||data.length===0)await _supabase.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]);}
         ensureUser();
 
-        // Build accordion (same as before)
+        // Build accordion
         function buildAccordion(){
             const panel=document.getElementById('intent-panel');
             panel.innerHTML='';
@@ -242,7 +244,7 @@
         window.openIntentPanel=()=>{if(!gpsReady){setStatus('warning','GPS not ready');return}document.getElementById('intent-panel').style.display='block';}
         function closeIntentPanel(){document.getElementById('intent-panel').style.display='none';collapseAll();}
 
-        // Node creation with vibe validation
+        // Node creation
         window.startCreation = ()=>{
             const finalIntent = selectedIntent==='Custom'?customIntentText:selectedIntent;
             if(!finalIntent.trim()){setStatus('error','Please select or enter an intent');return}
@@ -277,7 +279,7 @@
                 el.innerText=meta.emoji;
                 new mapboxgl.Marker(el).setLngLat([e.lngLat.lng,e.lngLat.lat]).addTo(map);
 
-                // Realtime listener + polling
+                // Realtime + polling
                 _supabase.channel('inbox-'+currentN.id)
                     .on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id},()=>{
                         console.log('📩 Realtime: new request');
@@ -290,7 +292,7 @@
             });
         };
 
-        // Updated loadInbox: uses answer_given
+        // Inbox load
         async function loadInbox(){
             if(!currentN) return;
             const{data:requests,error} = await _supabase.from('requests')
@@ -331,24 +333,29 @@
             }
         }
 
-        async function handleRequest(requestId,newStatus){
-            const{data:req}=await _supabase.from('requests').select('*').eq('id',requestId).single();
-            if(!req)return;
-            if(newStatus==='declined'){
-                await _supabase.from('requests').update({status:'declined'}).eq('id',requestId);
-                await _supabase.from('rejected_requests').upsert({node_id:req.node_id,requester_id:req.requester_id},{onConflict:'node_id,requester_id'});
-            } else {
-                await _supabase.from('requests').update({status:'accepted'}).eq('id',requestId);
-                if(currentN.node_type==='one_on_one'){
-                    await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id);
-                }
-                document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10);
-                startChatSync(); startOracleLive();
+        // Debug function
+        window.debugInbox = async function() {
+            if(!currentN) {
+                alert('No current node. Create a node first.');
+                return;
             }
-            loadInbox();
-        }
+            const {data, error} = await _supabase.from('requests')
+                .select('*')
+                .eq('node_id', currentN.id)
+                .eq('status', 'pending');
+            if(error) {
+                alert('Supabase error: ' + error.message);
+                return;
+            }
+            if(!data || data.length === 0) {
+                alert('No pending requests found for node ' + currentN.id);
+            } else {
+                alert('Found ' + data.length + ' pending request(s). First: ' + JSON.stringify(data[0]));
+                loadInbox();
+            }
+        };
 
-        // Chat & Oracle (unchanged)
+        // Rest same as before (chat, oracle, etc.)
         window.sendMsg=async()=>{const val=document.getElementById('chat-in').value;if(!val.trim())return;await _supabase.from('messages').insert([{node_id:currentN.id,sender:'CREATOR',content:val}]);document.getElementById('chat-in').value='';document.getElementById('oracle-btn').style.display='block';}
         function startChatSync(){_supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id},p=>{document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>';document.getElementById('oracle-btn').style.display='block'}).subscribe();}
         window.initiateOracle=async()=>{if(!gpsReady||myLoc.lat===0){setStatus('error','GPS not ready');return}setStatus('info','Syncing GPS...');await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id,u1_lat:myLoc.lat,u1_lng:myLoc.lng,error_state:null},{onConflict:'bridge_id'});}

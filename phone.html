@@ -152,12 +152,12 @@
             });
         }
 
-        async function sendRequest(nodeProps, answer){
+        async function sendRequest(nodeProps, answer_given){
             setStatus('info','Sending request...');
             const payload = { node_id:nodeProps.id, requester_id: myUserId, status:'pending' };
-            if(answer) payload.answer = answer;
+            if(answer_given) payload.answer_given = answer_given;   // FIXED: answer_given
             const{error} = await supabaseClient.from('requests').insert([payload]);
-            if(error){ setStatus('error','Request failed'); return; }
+            if(error){ setStatus('error','Request failed: '+error.message); console.error(error); return; }
             setStatus('success','Request sent! Waiting for creator...');
             currentN = nodeProps;
             supabaseClient.channel('my-req-'+nodeProps.id)

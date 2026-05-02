@@ -32,7 +32,7 @@
         <div id="oracle-ballot">STATUS: PENDING</div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #0f0;color:#0f0;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
-        <div id="chat-controls" style="display:none;flex">
+        <div id="chat-controls" style="display:flex">
             <input type="text" id="chat-in" placeholder="TYPE..." style="flex:1;background:#000;border:1px solid #0f0;color:#0f0;padding:10px;outline:none">
             <button onclick="sendMsg()" style="background:#0f0;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
         </div>
@@ -160,6 +160,7 @@
                 popup.remove();
             });
 
+            // CLICK ON NODE: send request, do NOT open terminal
             map.on('click', 'nodes-unclustered', async (e) => {
                 const nodeProps = e.features[0].properties;
                 if (currentN) return;
@@ -167,20 +168,16 @@
                 setStatus('info','Sending request...');
                 const { error } = await supabaseClient.from('requests').insert([{node_id:nodeProps.id, requester_id:'SEEKER', status:'pending'}]);
                 if (error) { setStatus('error','Request failed'); return; }
-                // Show terminal but keep chat hidden until acceptance
-                document.getElementById('terminal').style.display='flex';
-                document.getElementById('chat-controls').style.display='none';
-                document.getElementById('status-bar').style.display='none';
-                startOracleLive();
-                // Listen for acceptance to unlock chat
+                setStatus('success','Request sent. Waiting for creator...');
+                // Listen for acceptance
                 supabaseClient.channel('my-req-'+nodeProps.id)
-                    .on('postgres_changes', {event:'UPDATE', schema:'public', table:'requests', filter:`node_id=eq.${nodeProps.id} and requester_id=eq.SEEKER`}, payload => {
+                    .on('postgres_changes', {event:'UPDATE', schema:'public', table:'requests', filter:'node_id=eq.'+nodeProps.id+' and requester_id=eq.SEEKER'}, payload => {
                         if (payload.new.status === 'accepted') {
-                            document.getElementById('chat-controls').style.display='flex';
+                            document.getElementById('terminal').style.display='flex';
                             startChatSync();
                         } else if (payload.new.status === 'declined') {
                             setStatus('error','Creator declined');
-                            document.getElementById('terminal').style.display='none';
+                            currentN = null;
                         }
                     }).subscribe();
             });

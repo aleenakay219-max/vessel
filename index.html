@@ -6,33 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
-        #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
-        #status-bar { display: none; position: fixed; top: 10px; left: 5%; width: 90%; background: rgba(0,0,0,0.9); border: 1px solid #ff0; z-index: 3000; padding: 10px; text-align: center; color: #ff0; font-size: 12px; box-sizing: border-box; }
-        #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
-        #msg-box { height: 150px; overflow-y: auto; color:#0f0; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
-        #oracle-ballot { display: none; color:#0f0; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); font-size: 11px; text-align: center; }
-        #sync-panel { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.95); border: 2px solid #0f0; z-index: 5000; padding: 30px; text-align: center; color:#0f0; }
-        #rate-panel { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.95); border: 2px solid #ff0; z-index: 5000; padding: 30px; text-align: center; color:#ff0; }
-        #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; box-sizing: border-box; }
-        #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
-        #intent-picker { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,10,0,0.97); border: 2px solid #0f0; z-index: 5000; padding: 20px; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 320px; }
-        .intent-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 10px 15px; cursor: pointer; font-family: monospace; font-size: 13px; }
-        .intent-btn:hover { background: #0f0; color: #000; }
-        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; text-transform: uppercase; }
-        .sync-btn { background: transparent; border: 2px solid #0f0; color: #0f0; padding: 15px 30px; cursor: pointer; font-family: monospace; font-size: 16px; margin: 10px; }
-        .rate-btn { background: transparent; border: 2px solid #ff0; color: #ff0; padding: 15px 25px; cursor: pointer; font-family: monospace; font-size: 24px; margin: 10px; }
-        /* Simple fade-in for markers */
-        @keyframes subtle-pulse {
-            0% { opacity: 0.8; }
-            50% { opacity: 1; }
-            100% { opacity: 0.8; }
-        }
+        body, html { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; font-family:monospace; }
+        #map { height:100%; width:100%; position:absolute; top:0; z-index:1; }
+        #status-bar { display:none; position:fixed; top:10px; left:5%; width:90%; background:rgba(0,0,0,0.9); border:1px solid #ff0; z-index:3000; padding:10px; text-align:center; color:#ff0; font-size:12px; box-sizing:border-box; }
+        #terminal { display:none; opacity:0; transition: opacity 0.3s; position:fixed; bottom:10px; left:5%; width:90%; background:rgba(0,10,0,0.95); border:1px solid #0f0; z-index:2000; flex-direction:column; padding:15px; box-sizing:border-box; }
+        #msg-box { height:150px; overflow-y:auto; color:#0f0; margin-bottom:10px; border:1px solid #030; padding:5px; display:flex; flex-direction:column; }
+        #oracle-ballot { display:none; color:#0f0; border:1px solid #0f0; padding:10px; margin-bottom:10px; background:rgba(0,255,0,0.1); font-size:11px; text-align:center; }
+        #sync-panel { display:none; opacity:0; transition: opacity 0.3s; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:2px solid #0f0; z-index:5000; padding:30px; text-align:center; color:#0f0; }
+        #rate-panel { display:none; opacity:0; transition: opacity 0.3s; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:2px solid #ff0; z-index:5000; padding:30px; text-align:center; color:#ff0; }
+        #nav-hud { display:none; opacity:0; transition: opacity 0.3s; position:fixed; bottom:0; left:0; width:100%; background:rgba(0,10,0,0.95); border-top:2px solid #0f0; z-index:4000; padding:20px; text-align:center; color:#0f0; box-sizing:border-box; }
+        #instruction-banner { display:none; position:fixed; top:60px; left:5%; width:90%; background:rgba(0,0,0,0.9); border:1px solid #0ff; z-index:3500; padding:12px; text-align:center; color:#0ff; font-size:14px; font-weight:bold; box-sizing:border-box; }
+        #fab { position:absolute; bottom:30px; right:30px; width:70px; height:70px; background:#000; border:2px solid #0f0; border-radius:50%; color:#0f0; font-size:35px; cursor:pointer; z-index:2000; display:flex; align-items:center; justify-content:center; box-shadow:0 0 15px #0f0; }
+        #intent-picker { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,10,0,0.97); border:2px solid #0f0; z-index:5000; padding:20px; flex-wrap:wrap; gap:10px; justify-content:center; max-width:320px; }
+        .intent-btn { background:transparent; border:1px solid #0f0; color:#0f0; padding:10px 15px; cursor:pointer; font-family:monospace; font-size:13px; }
+        .intent-btn:hover { background:#0f0; color:#000; }
+        .hud-btn { background:transparent; border:1px solid #0f0; color:#0f0; padding:12px; margin:10px 5px; cursor:pointer; font-family:monospace; text-transform:uppercase; }
+        .sync-btn { background:transparent; border:2px solid #0f0; color:#0f0; padding:15px 30px; cursor:pointer; font-family:monospace; font-size:16px; margin:10px; }
+        .rate-btn { background:transparent; border:2px solid #ff0; color:#ff0; padding:15px 25px; cursor:pointer; font-family:monospace; font-size:24px; margin:10px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="status-bar"></div>
+    <div id="instruction-banner"></div>
     <button id="fab" onclick="openIntentPicker()">+</button>
     <div id="intent-picker">
         <button class="intent-btn" onclick="startCreation('☕ Coffee')">☕ Coffee</button>
@@ -69,6 +65,7 @@
     <div id="nav-hud">
         <h3 id="target-name">MATCHED</h3>
         <p id="meet-timer"></p>
+        <button class="hud-btn" id="nav-btn" onclick="startNavigation()" style="display:none;">[ NAVIGATE ]</button>
         <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
@@ -81,116 +78,71 @@
 
         const MAX_VENUE_DISTANCE_KM = 20;
         const NODE_EXPIRY_MINUTES = 30;
-        const MEET_DURATION_MINUTES = 25;
+        const params = new URLSearchParams(window.location.search);
+        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
 
-        const intentColors = {
-            '☕ Coffee': '#FFD700',
-            '🚶 Walk':   '#00FF88',
-            '🍽️ Food':   '#FF6B6B',
-            '📚 Study':  '#6BCBFF',
-            '🏋️ Gym':    '#FF8C42',
-            '🍺 Drinks': '#C084FC',
-            '⚽ Sports': '#4ADE80',
-            '💬 Chat':   '#F472B6'
-        };
+        const intentIcons = { '☕ Coffee':'☕','🚶 Walk':'🚶','🍽️ Food':'🍽️','📚 Study':'📚','🏋️ Gym':'🏋️','🍺 Drinks':'🍺','⚽ Sports':'⚽','💬 Chat':'💬' };
+        const intentColors = { '☕ Coffee':'#FFD700','🚶 Walk':'#00FF88','🍽️ Food':'#FF6B6B','📚 Study':'#6BCBFF','🏋️ Gym':'#FF8C42','🍺 Drinks':'#C084FC','⚽ Sports':'#4ADE80','💬 Chat':'#F472B6' };
         const defaultColor = '#AAAAAA';
 
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
-        let currentN = null, myLoc = {lat: 0, lng: 0}, oracleProcessed = false;
-        let gpsReady = false, gpsFailures = 0;
-        let selectedIntent = '☕ Coffee';
-        let myUserId = localStorage.getItem('vessel_user_id');
-        if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
-        let meetRated = false;
-        let myConfirmed = false;
-        let meetTimerInterval = null;
+        const map = new mapboxgl.Map({ container:'map', style:'mapbox://styles/mapbox/dark-v11', center:[55.39,25.34], zoom:12 });
+        let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false;
+        let gpsReady = false, gpsFailures = 0, selectedIntent = '☕ Coffee';
+        let myUserId = localStorage.getItem('vessel_user_id') || (myUserId='u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8), localStorage.setItem('vessel_user_id',myUserId), myUserId);
+        let meetRated = false, myConfirmed = false, meetTimerInterval = null;
+        let navActive = false, routeSteps = [], currentStep = 0, navWatchId = null;
+        let selectedVenueCoords = null; // {lat, lng}
 
-        function setStatus(type, msg) {
-            const bar = document.getElementById('status-bar');
-            const colors = { info:'#ff0', warning:'#f90', error:'#f00', success:'#0f0' };
-            bar.style.display = 'block'; bar.style.borderColor = colors[type]||'#ff0'; bar.style.color = colors[type]||'#ff0'; bar.innerText = msg;
-        }
-        function clearStatus() { document.getElementById('status-bar').style.display = 'none'; }
+        function setStatus(type,msg){ const bar=document.getElementById('status-bar'); const colors={info:'#ff0',warning:'#f90',error:'#f00',success:'#0f0'}; bar.style.display='block'; bar.style.borderColor=colors[type]||'#ff0'; bar.style.color=colors[type]||'#ff0'; bar.innerText=msg; }
+        function clearStatus(){ document.getElementById('status-bar').style.display='none'; }
 
-        navigator.geolocation.watchPosition(
-            p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; gpsReady = true; gpsFailures = 0; clearStatus(); },
-            err => { gpsFailures++; gpsReady = false; if(gpsFailures===1) setStatus('warning','GPS signal weak'); if(gpsFailures>5) setStatus('error','GPS unavailable'); },
-            {enableHighAccuracy:true, timeout:15000, maximumAge:30000}
-        );
+        navigator.geolocation.watchPosition(p=>{ myLoc={lat:p.coords.latitude,lng:p.coords.longitude}; gpsReady=true; gpsFailures=0; clearStatus(); }, err=>{ gpsFailures++; gpsReady=false; if(gpsFailures===1)setStatus('warning','GPS signal weak'); if(gpsFailures>5)setStatus('error','GPS unavailable'); }, {enableHighAccuracy:true,timeout:15000,maximumAge:30000});
         setStatus('info','Waiting for GPS...');
 
         function haversineDistanceKm(lat1,lng1,lat2,lng2){ const R=6371; const dLat=(lat2-lat1)*Math.PI/180; const dLng=(lng2-lng1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); }
         function bboxFromMidpoint(midLat,midLng,rKm){ const dLat=rKm/111.32; const dLng=rKm/(111.32*Math.cos(midLat*Math.PI/180)); return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat); }
 
-        async function ensureUser() {
-            const { data } = await _supabase.from('users').select('id').eq('id', myUserId).limit(1);
-            if (!data || data.length === 0) await _supabase.from('users').insert([{ id: myUserId, trust_score: 5.0, total_meets: 0 }]);
-        }
+        async function ensureUser(){ const {data}=await _supabase.from('users').select('id').eq('id',myUserId).limit(1); if(!data||data.length===0) await _supabase.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]); }
         ensureUser();
 
-        window.openIntentPicker = () => {
-            if (!gpsReady) { setStatus('warning','GPS not ready'); return; }
-            document.getElementById('intent-picker').style.display = 'flex';
-        };
+        window.openIntentPicker = ()=>{ if(!gpsReady){ setStatus('warning','GPS not ready'); return; } document.getElementById('intent-picker').style.display='flex'; };
 
-        window.startCreation = async (intent) => {
-            document.getElementById('intent-picker').style.display = 'none';
+        window.startCreation = async (intent)=>{
+            document.getElementById('intent-picker').style.display='none';
             selectedIntent = intent;
             setStatus('info','Tap anywhere on the map to drop your "'+intent+'" node');
-
-            map.once('click', async (e) => {
+            map.once('click', async (e)=>{
                 setStatus('info','Creating node...');
-                const nodeData = {
-                    lat: e.lngLat.lat,
-                    lng: e.lngLat.lng,
-                    intent: selectedIntent,
-                    status: 'active',
-                    user_id: myUserId,
-                    expires_at: new Date(Date.now() + NODE_EXPIRY_MINUTES*60*1000).toISOString()
-                };
-                const { data, error } = await _supabase.from('nodes').insert([nodeData]).select();
-                if (error) { setStatus('error','Failed to create node'); return; }
+                const nodeData = { lat:e.lngLat.lat, lng:e.lngLat.lng, intent:selectedIntent, status:'active', user_id:myUserId, expires_at:new Date(Date.now()+NODE_EXPIRY_MINUTES*60*1000).toISOString() };
+                const {data,error} = await _supabase.from('nodes').insert([nodeData]).select();
+                if(error){ setStatus('error','Failed to create node'); return; }
                 currentN = data[0];
                 clearStatus();
                 setStatus('success','"'+selectedIntent+'" node active! Expires in '+NODE_EXPIRY_MINUTES+' mins.');
 
-                // Create a simple colored dot marker (no complex animation that could break)
-                const color = intentColors[selectedIntent] || defaultColor;
+                const color = intentColors[selectedIntent]||defaultColor;
+                const emoji = intentIcons[selectedIntent]||'📍';
                 const el = document.createElement('div');
-                el.style.cssText = `
-                    width: 18px; height: 18px; background: ${color};
-                    border: 2px solid #fff; border-radius: 50%;
-                    box-shadow: 0 0 12px ${color};
-                `;
+                el.style.cssText = `width:30px;height:30px;background:${color};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;color:#000;box-shadow:0 0 12px ${color};`;
+                el.innerText = emoji;
                 new mapboxgl.Marker(el).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
 
-                // Listen for requests
-                _supabase.channel('reqs-'+currentN.id)
-                    .on('postgres_changes', { event:'INSERT', schema:'public', table:'requests', filter:'node_id=eq.'+currentN.id }, () => {
-                        clearStatus(); setStatus('success','Someone wants to connect!');
-                        document.getElementById('terminal').style.display = 'flex';
-                        startChatSync(); startOracleLive();
-                    }).subscribe();
-
-                const poll = setInterval(async () => {
-                    if (document.getElementById('terminal').style.display === 'flex') { clearInterval(poll); return; }
-                    const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', currentN.id).limit(1);
-                    if (reqs && reqs.length > 0) { clearInterval(poll); clearStatus(); setStatus('success','Someone wants to connect!'); document.getElementById('terminal').style.display = 'flex'; startChatSync(); startOracleLive(); }
-                }, 3000);
+                _supabase.channel('reqs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id}, ()=>{ clearStatus(); setStatus('success','Someone wants to connect!'); document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10); startChatSync(); startOracleLive(); }).subscribe();
+                const poll = setInterval(async ()=>{ if(document.getElementById('terminal').style.display==='flex'){ clearInterval(poll); return; } const {data:reqs}=await _supabase.from('requests').select('*').eq('node_id',currentN.id).limit(1); if(reqs&&reqs.length>0){ clearInterval(poll); clearStatus(); setStatus('success','Someone wants to connect!'); document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10); startChatSync(); startOracleLive(); } },3000);
             });
         };
 
-        window.sendMsg = async () => { const val=document.getElementById('chat-in').value; if(!val.trim()) return; await _supabase.from('messages').insert([{node_id:currentN.id, sender:'CREATOR', content:val}]); document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block'; };
-        function startChatSync(){ _supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id}, p=>{ document.getElementById('msg-box').innerHTML += '<div style="color:#0f0">> '+p.new.content+'</div>'; document.getElementById('oracle-btn').style.display='block'; }).subscribe(); }
+        window.sendMsg = async ()=>{ const val=document.getElementById('chat-in').value; if(!val.trim())return; await _supabase.from('messages').insert([{node_id:currentN.id,sender:'CREATOR',content:val}]); document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block'; };
+        function startChatSync(){ _supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id}, p=>{ document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>'; document.getElementById('oracle-btn').style.display='block'; }).subscribe(); }
 
-        window.initiateOracle = async () => { if(!gpsReady||myLoc.lat===0){ setStatus('error','GPS not ready'); return; } setStatus('info','Syncing GPS with Oracle...'); await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id, u1_lat:myLoc.lat, u1_lng:myLoc.lng, error_state:null}, {onConflict:'bridge_id'}); };
+        window.initiateOracle = async ()=>{ if(!gpsReady||myLoc.lat===0){ setStatus('error','GPS not ready'); return; } setStatus('info','Syncing GPS with Oracle...'); await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id,u1_lat:myLoc.lat,u1_lng:myLoc.lng,error_state:null},{onConflict:'bridge_id'}); };
 
         function startOracleLive(){
-            _supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id}, async payload => {
-                const s = payload.new;
-                if(s.error_state){ const msgs={gps_timeout:'GPS timeout',no_venues:'No meeting spots found',node_expired:'Node expired',seeker_disconnected:'Seeker disconnected'}; setStatus('error',msgs[s.error_state]||s.error_state); return; }
+            _supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id}, async payload=>{
+                const s=payload.new;
+                if(s.error_state){ setStatus('error',s.error_state); return; }
                 document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display='block';
-                const hasGPS = (s.u1_lat&&s.u1_lng&&s.u2_lat&&s.u2_lng&&s.u1_lat!==0&&s.u2_lat!==0);
+                const hasGPS=(s.u1_lat&&s.u1_lng&&s.u2_lat&&s.u2_lng&&s.u1_lat!==0&&s.u2_lat!==0);
                 if(!hasGPS&&s.status==='pending') setStatus('warning','Waiting for both users GPS...');
                 if(hasGPS&&s.status==='pending'){ setStatus('info','Oracle calculating...'); await _supabase.from('oracle_sessions').update({status:'ready'}).eq('bridge_id',currentN.id); }
                 if(s.status==='ready'&&!s.options_generated&&!oracleProcessed){ oracleProcessed=true; await runOracleBrain(s); }
@@ -216,72 +168,81 @@
             else { await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:'Midpoint Meeting Spot',selected_lat:midLat,selected_lng:midLng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id); }
         }
 
-        // UPDATED: show sync panel instead of nav-hud directly
         function triggerSync(s){
             document.getElementById('terminal').style.display='none';
-            document.getElementById('sync-panel').style.display='block';
+            const syncPanel = document.getElementById('sync-panel'); syncPanel.style.display='block'; setTimeout(()=>syncPanel.style.opacity='1',10);
             document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name;
             document.getElementById('sync-status').innerText='Waiting for both users to confirm...';
             document.getElementById('sync-confirm-btn').style.display='block';
-            myConfirmed = false;
-
+            myConfirmed=false;
+            selectedVenueCoords = {lat:+s.selected_lat, lng:+s.selected_lng};
             const u1lat=+s.u1_lat,u1lng=+s.u1_lng,u2lat=+s.u2_lat,u2lng=+s.u2_lng,vlat=+s.selected_lat,vlng=+s.selected_lng;
             new mapboxgl.Marker({color:'#0f0'}).setLngLat([u1lng,u1lat]).addTo(map);
             new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([u2lng,u2lat]).addTo(map);
             new mapboxgl.Marker({color:'#ff0'}).setLngLat([vlng,vlat]).addTo(map);
-            drawRoute('rA',u1lng,u1lat,vlng,vlat,'#0f0');
-            drawRoute('rB',u2lng,u2lat,vlng,vlat,'#00ffaa');
+            drawRoute('rA',u1lng,u1lat,vlng,vlat,'#0f0', true); // store full route for navigation
+            drawRoute('rB',u2lng,u2lat,vlng,vlat,'#00ffaa', false);
             map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000});
         }
 
-        window.confirmProceed = async () => {
-            myConfirmed = true;
-            document.getElementById('sync-confirm-btn').style.display='none';
-            document.getElementById('sync-status').innerText='Waiting for other user...';
-            await _supabase.from('oracle_sessions').update({u1_confirmed:true}).eq('bridge_id',currentN.id);
-        };
+        async function drawRoute(id,sLng,sLat,eLng,eLat,color,storeSteps=false){
+            try{ const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&steps=true&access_token='+MAPBOX_TOKEN; const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return; if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id); map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}}); map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}}); if(storeSteps) routeSteps = r.routes[0].legs[0].steps; }catch(e){}
+        }
+
+        window.confirmProceed = async ()=>{ myConfirmed=true; document.getElementById('sync-confirm-btn').style.display='none'; document.getElementById('sync-status').innerText='Waiting for other user...'; await _supabase.from('oracle_sessions').update({u1_confirmed:true}).eq('bridge_id',currentN.id); };
 
         function startMeetTimer(s){
-            document.getElementById('sync-panel').style.display='none';
-            document.getElementById('nav-hud').style.display='block';
+            const syncPanel = document.getElementById('sync-panel'); syncPanel.style.opacity='0'; setTimeout(()=>syncPanel.style.display='none',300);
+            const navHud = document.getElementById('nav-hud'); navHud.style.display='block'; setTimeout(()=>navHud.style.opacity='1',10);
             document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();
-            let remaining = MEET_DURATION_MINUTES * 60;
-            meetTimerInterval = setInterval(async () => {
-                remaining--;
-                const mins = Math.floor(remaining/60), secs = remaining%60;
-                document.getElementById('meet-timer').innerText = 'MEET WINDOW: '+mins+'m '+secs+'s';
-                if(remaining <= 0){
-                    clearInterval(meetTimerInterval);
-                    await _supabase.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id);
-                }
-            }, 1000);
+            document.getElementById('nav-btn').style.display='inline-block';
+            let remaining = MEET_DURATION_MINUTES*60;
+            meetTimerInterval = setInterval(async ()=>{ remaining--; const mins=Math.floor(remaining/60),secs=remaining%60; document.getElementById('meet-timer').innerText='MEET WINDOW: '+mins+'m '+secs+'s'; if(remaining<=0){ clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id); } },1000);
+        }
+
+        // ---------- NAVIGATION MODE ----------
+        window.startNavigation = ()=>{
+            if(!selectedVenueCoords) return;
+            navActive = true;
+            document.getElementById('instruction-banner').style.display='block';
+            currentStep = 0;
+            updateInstruction();
+            if(navWatchId) navigator.geolocation.clearWatch(navWatchId);
+            navWatchId = navigator.geolocation.watchPosition(pos=>{
+                if(!navActive) return;
+                map.setCenter([pos.coords.longitude, pos.coords.latitude]);
+                checkProgress(pos.coords.latitude, pos.coords.longitude);
+            }, err=>{}, {enableHighAccuracy:true});
+        };
+
+        function updateInstruction(){
+            if(!routeSteps.length || currentStep>=routeSteps.length) return;
+            const step = routeSteps[currentStep];
+            document.getElementById('instruction-banner').innerText = step.maneuver.instruction;
+        }
+
+        function checkProgress(lat,lng){
+            if(!routeSteps.length || currentStep>=routeSteps.length) return;
+            const nextStep = routeSteps[currentStep];
+            const dist = haversineDistanceKm(lat,lng, nextStep.maneuver.location[1], nextStep.maneuver.location[0]);
+            if(dist<0.05 && currentStep<routeSteps.length-1){ currentStep++; updateInstruction(); }
+            const toVenue = haversineDistanceKm(lat,lng, selectedVenueCoords.lat, selectedVenueCoords.lng);
+            if(toVenue<0.05){ document.getElementById('instruction-banner').innerText='✅ You have arrived!'; setTimeout(()=>{ document.getElementById('instruction-banner').style.display='none'; navActive=false; if(navWatchId) navigator.geolocation.clearWatch(navWatchId); },3000); }
         }
 
         function showRatingPanel(){
-            document.getElementById('nav-hud').style.display='none';
-            document.getElementById('rate-panel').style.display='block';
+            const navHud = document.getElementById('nav-hud'); navHud.style.opacity='0'; setTimeout(()=>navHud.style.display='none',300);
+            const ratePanel = document.getElementById('rate-panel'); ratePanel.style.display='block'; setTimeout(()=>ratePanel.style.opacity='1',10);
         }
 
-        window.submitRating = async (rating) => {
-            if(meetRated) return;
-            meetRated = true;
+        window.submitRating = async (rating)=>{
+            if(meetRated) return; meetRated=true;
             document.getElementById('rate-panel').style.display='none';
             await _supabase.from('oracle_sessions').update({u1_rating:rating}).eq('bridge_id',currentN.id);
-
-            const {data:userData} = await _supabase.from('users').select('trust_score,total_meets').eq('id', myUserId).limit(1);
-            if(userData && userData.length > 0){
-                const u = userData[0];
-                const newTotal = (u.total_meets||0) + 1;
-                const newScore = ((u.trust_score||5.0)*(u.total_meets||0) + (rating===1?1:0)) / newTotal;
-                await _supabase.from('users').update({trust_score:Math.round(newScore*10)/10,total_meets:newTotal}).eq('id',myUserId);
-            }
-            setStatus('success','Thanks for rating!');
-            setTimeout(()=>{ location.reload(); }, 3000);
+            const {data:userData}=await _supabase.from('users').select('trust_score,total_meets').eq('id',myUserId).limit(1);
+            if(userData&&userData.length>0){ const u=userData[0]; const nt=(u.total_meets||0)+1; const ns=((u.trust_score||5.0)*(u.total_meets||0)+(rating===1?1:0))/nt; await _supabase.from('users').update({trust_score:Math.round(ns*10)/10,total_meets:nt}).eq('id',myUserId); }
+            setStatus('success','Thanks for rating!'); setTimeout(()=>location.reload(),3000);
         };
-
-        async function drawRoute(id,sLng,sLat,eLng,eLat,color){
-            try{ const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&access_token='+MAPBOX_TOKEN; const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return; if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id); map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}}); map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}}); }catch(e){}
-        }
     </script>
 </body>
 </html>

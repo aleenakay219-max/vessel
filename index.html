@@ -12,16 +12,17 @@
         #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
         #msg-box { height: 150px; overflow-y: auto; color:#0f0; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
         #oracle-ballot { display: none; color:#0f0; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); font-size: 11px; text-align: center; }
-        #sync-panel { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.95); border: 2px solid #0f0; z-index: 5000; padding: 30px; text-align: center; color:#0f0; }
-        #rate-panel { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.95); border: 2px solid #ff0; z-index: 5000; padding: 30px; text-align: center; color:#ff0; }
         #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; box-sizing: border-box; }
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
         #intent-picker { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,10,0,0.97); border: 2px solid #0f0; z-index: 5000; padding: 20px; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 320px; }
         .intent-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 10px 15px; cursor: pointer; font-family: monospace; font-size: 13px; }
         .intent-btn:hover { background: #0f0; color: #000; }
         .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; text-transform: uppercase; }
-        .sync-btn { background: transparent; border: 2px solid #0f0; color: #0f0; padding: 15px 30px; cursor: pointer; font-family: monospace; font-size: 16px; margin: 10px; }
-        .rate-btn { background: transparent; border: 2px solid #ff0; color: #ff0; padding: 15px 25px; cursor: pointer; font-family: monospace; font-size: 24px; margin: 10px; }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -48,22 +49,8 @@
             <button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px; cursor:pointer; font-weight:bold;">SEND</button>
         </div>
     </div>
-    <div id="sync-panel">
-        <h2 id="sync-title">VENUE LOCKED</h2>
-        <p id="sync-venue"></p>
-        <p id="sync-status">Waiting for both users to confirm...</p>
-        <button class="sync-btn" id="sync-confirm-btn" onclick="confirmProceed()">[ CONFIRM & PROCEED ]</button>
-        <p id="sync-countdown" style="display:none; font-size:48px; color:#0f0;"></p>
-    </div>
-    <div id="rate-panel">
-        <h2>MEET COMPLETE</h2>
-        <p>How was your experience?</p>
-        <button class="rate-btn" onclick="submitRating(1)">👍</button>
-        <button class="rate-btn" onclick="submitRating(-1)">👎</button>
-    </div>
     <div id="nav-hud">
         <h3 id="target-name">MATCHED</h3>
-        <p id="meet-timer" style="font-size:14px;"></p>
         <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
@@ -76,84 +63,121 @@
 
         const MAX_VENUE_DISTANCE_KM = 20;
         const NODE_EXPIRY_MINUTES = 30;
-        const MEET_DURATION_MINUTES = 25;
 
-        // User identity via localStorage
+        const intentColors = {
+            '☕ Coffee': '#FFD700',
+            '🚶 Walk':   '#00FF88',
+            '🍽️ Food':   '#FF6B6B',
+            '📚 Study':  '#6BCBFF',
+            '🏋️ Gym':    '#FF8C42',
+            '🍺 Drinks': '#C084FC',
+            '⚽ Sports': '#4ADE80',
+            '💬 Chat':   '#F472B6'
+        };
+        const defaultColor = '#AAAAAA';
+
+        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
+        let currentN = null, myLoc = {lat: 0, lng: 0}, oracleProcessed = false;
+        let gpsReady = false, gpsFailures = 0;
+        let selectedIntent = '☕ Coffee';
         let myUserId = localStorage.getItem('vessel_user_id');
         if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
 
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
-        let currentN = null, myLoc = {lat: 0, lng: 0}, oracleProcessed = false, meetTimerInterval = null;
-        let gpsReady = false, gpsFailures = 0, selectedIntent = '☕ Coffee', myConfirmed = false, meetRated = false;
-
-        function setStatus(st, msg) {
-            const b = document.getElementById('status-bar');
-            const c = { info:'#ff0', warning:'#f90', error:'#f00', success:'#0f0' };
-            b.style.display='block'; b.style.borderColor=c[st]||'#ff0'; b.style.color=c[st]||'#ff0'; b.innerText=msg;
+        function setStatus(type, msg) {
+            const bar = document.getElementById('status-bar');
+            const colors = { info:'#ff0', warning:'#f90', error:'#f00', success:'#0f0' };
+            bar.style.display = 'block'; bar.style.borderColor = colors[type]||'#ff0'; bar.style.color = colors[type]||'#ff0'; bar.innerText = msg;
         }
-        function clearStatus() { document.getElementById('status-bar').style.display='none'; }
+        function clearStatus() { document.getElementById('status-bar').style.display = 'none'; }
 
-        navigator.geolocation.watchPosition(p => { myLoc={lat:p.coords.latitude,lng:p.coords.longitude}; gpsReady=true; gpsFailures=0; clearStatus(); }, err => { gpsFailures++; gpsReady=false; if(gpsFailures===1) setStatus('warning','GPS signal weak'); if(gpsFailures>5) setStatus('error','GPS unavailable'); }, {enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+        navigator.geolocation.watchPosition(
+            p => { myLoc = {lat: p.coords.latitude, lng: p.coords.longitude}; gpsReady = true; gpsFailures = 0; clearStatus(); },
+            err => { gpsFailures++; gpsReady = false; if(gpsFailures===1) setStatus('warning','GPS signal weak'); if(gpsFailures>5) setStatus('error','GPS unavailable'); },
+            {enableHighAccuracy:true, timeout:15000, maximumAge:30000}
+        );
         setStatus('info','Waiting for GPS...');
 
         function haversineDistanceKm(lat1,lng1,lat2,lng2){ const R=6371; const dLat=(lat2-lat1)*Math.PI/180; const dLng=(lng2-lng1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); }
         function bboxFromMidpoint(midLat,midLng,rKm){ const dLat=rKm/111.32; const dLng=rKm/(111.32*Math.cos(midLat*Math.PI/180)); return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat); }
 
-        // Ensure user exists in DB
         async function ensureUser() {
             const { data } = await _supabase.from('users').select('id').eq('id', myUserId).limit(1);
-            if (!data || data.length === 0) {
-                await _supabase.from('users').insert([{ id: myUserId, trust_score: 5.0, total_meets: 0 }]);
-            }
+            if (!data || data.length === 0) await _supabase.from('users').insert([{ id: myUserId, trust_score: 5.0, total_meets: 0 }]);
         }
         ensureUser();
 
-        window.openIntentPicker = () => { if(!gpsReady){ setStatus('warning','GPS not ready'); return; } document.getElementById('intent-picker').style.display='flex'; };
+        window.openIntentPicker = () => {
+            if (!gpsReady) { setStatus('warning','GPS not ready'); return; }
+            document.getElementById('intent-picker').style.display = 'flex';
+        };
 
         window.startCreation = async (intent) => {
-            document.getElementById('intent-picker').style.display='none';
+            document.getElementById('intent-picker').style.display = 'none';
             selectedIntent = intent;
             setStatus('info','Tap anywhere on the map to drop your "'+intent+'" node');
+
             map.once('click', async (e) => {
                 setStatus('info','Creating node...');
-                const nodeData = { lat: e.lngLat.lat, lng: e.lngLat.lng, intent: selectedIntent, status: 'active', user_id: myUserId, expires_at: new Date(Date.now()+NODE_EXPIRY_MINUTES*60*1000).toISOString() };
+                const nodeData = {
+                    lat: e.lngLat.lat,
+                    lng: e.lngLat.lng,
+                    intent: selectedIntent,
+                    status: 'active',
+                    user_id: myUserId,
+                    expires_at: new Date(Date.now() + NODE_EXPIRY_MINUTES*60*1000).toISOString()
+                };
                 const { data, error } = await _supabase.from('nodes').insert([nodeData]).select();
-                if(error){ setStatus('error','Failed to create node'); return; }
+                if (error) { setStatus('error','Failed to create node'); return; }
                 currentN = data[0];
                 clearStatus();
                 setStatus('success','"'+selectedIntent+'" node active! Expires in '+NODE_EXPIRY_MINUTES+' mins.');
-                new mapboxgl.Marker({color:'#0f0'}).setLngLat([e.lngLat.lng,e.lngLat.lat]).addTo(map);
-                _supabase.channel('reqs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id},()=>{ clearStatus(); setStatus('success','Someone wants to connect!'); document.getElementById('terminal').style.display='flex'; startChatSync(); startOracleLive(); }).subscribe();
-                const pi = setInterval(async()=>{ if(document.getElementById('terminal').style.display==='flex'){ clearInterval(pi); return; } const {data:reqs}=await _supabase.from('requests').select('*').eq('node_id',currentN.id).limit(1); if(reqs&&reqs.length>0){ clearInterval(pi); clearStatus(); setStatus('success','Someone wants to connect!'); document.getElementById('terminal').style.display='flex'; startChatSync(); startOracleLive(); } },3000);
+
+                // Create colored pulse marker
+                const color = intentColors[selectedIntent] || defaultColor;
+                const el = document.createElement('div');
+                el.style.cssText = `
+                    width: 20px; height: 20px; background: ${color};
+                    border: 2px solid #fff; border-radius: 50%;
+                    box-shadow: 0 0 15px ${color}; animation: pulse 2s infinite;
+                `;
+                new mapboxgl.Marker(el).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
+
+                // Request listener
+                _supabase.channel('reqs-'+currentN.id)
+                    .on('postgres_changes', { event:'INSERT', schema:'public', table:'requests', filter:'node_id=eq.'+currentN.id }, () => {
+                        clearStatus(); setStatus('success','Someone wants to connect!');
+                        document.getElementById('terminal').style.display = 'flex';
+                        startChatSync(); startOracleLive();
+                    }).subscribe();
+
+                const poll = setInterval(async () => {
+                    if (document.getElementById('terminal').style.display === 'flex') { clearInterval(poll); return; }
+                    const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', currentN.id).limit(1);
+                    if (reqs && reqs.length > 0) { clearInterval(poll); clearStatus(); setStatus('success','Someone wants to connect!'); document.getElementById('terminal').style.display = 'flex'; startChatSync(); startOracleLive(); }
+                }, 3000);
             });
         };
 
-        window.sendMsg = async () => { const val=document.getElementById('chat-in').value; if(!val.trim()) return; await _supabase.from('messages').insert([{node_id:currentN.id,sender:'CREATOR',content:val}]); document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block'; };
-        function startChatSync(){ _supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id},p=>{ document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>'; document.getElementById('oracle-btn').style.display='block'; }).subscribe(); }
+        window.sendMsg = async () => { const val=document.getElementById('chat-in').value; if(!val.trim()) return; await _supabase.from('messages').insert([{node_id:currentN.id, sender:'CREATOR', content:val}]); document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block'; };
+        function startChatSync(){ _supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id}, p=>{ document.getElementById('msg-box').innerHTML += '<div style="color:#0f0">> '+p.new.content+'</div>'; document.getElementById('oracle-btn').style.display='block'; }).subscribe(); }
 
-        window.initiateOracle = async () => { if(!gpsReady||myLoc.lat===0){ setStatus('error','GPS not ready'); return; } setStatus('info','Syncing GPS with Oracle...'); await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id,u1_lat:myLoc.lat,u1_lng:myLoc.lng,error_state:null},{onConflict:'bridge_id'}); };
+        window.initiateOracle = async () => { if(!gpsReady||myLoc.lat===0){ setStatus('error','GPS not ready'); return; } setStatus('info','Syncing GPS with Oracle...'); await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id, u1_lat:myLoc.lat, u1_lng:myLoc.lng, error_state:null}, {onConflict:'bridge_id'}); };
 
         function startOracleLive(){
-            _supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id},async payload=>{
-                const s=payload.new;
+            _supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id}, async payload => {
+                const s = payload.new;
                 if(s.error_state){ const msgs={gps_timeout:'GPS timeout',no_venues:'No meeting spots found',node_expired:'Node expired',seeker_disconnected:'Seeker disconnected'}; setStatus('error',msgs[s.error_state]||s.error_state); return; }
-                document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase();
-                document.getElementById('oracle-ballot').style.display='block';
-                const hasGPS=(s.u1_lat&&s.u1_lng&&s.u2_lat&&s.u2_lng&&s.u1_lat!==0&&s.u2_lat!==0);
+                document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display='block';
+                const hasGPS = (s.u1_lat&&s.u1_lng&&s.u2_lat&&s.u2_lng&&s.u1_lat!==0&&s.u2_lat!==0);
                 if(!hasGPS&&s.status==='pending') setStatus('warning','Waiting for both users GPS...');
                 if(hasGPS&&s.status==='pending'){ setStatus('info','Oracle calculating...'); await _supabase.from('oracle_sessions').update({status:'ready'}).eq('bridge_id',currentN.id); }
                 if(s.status==='ready'&&!s.options_generated&&!oracleProcessed){ oracleProcessed=true; await runOracleBrain(s); }
                 if(s.status==='matched'){ clearStatus(); triggerSync(s); }
-                // Feature 9: Check confirmations
-                if(s.u1_confirmed&&s.u2_confirmed&&!meetRated){ startMeetTimer(s); }
-                // Feature 8: Check meet completion
-                if(s.meet_completed&&!meetRated){ showRatingPanel(); }
             }).subscribe();
         }
 
         async function runOracleBrain(s){
             const midLat=(s.u1_lat+s.u2_lat)/2, midLng=(s.u1_lng+s.u2_lng)/2;
-            console.log('Oracle - Mid:',midLat.toFixed(5),midLng.toFixed(5));
             const queries=['cafe','coffee shop','restaurant','starbucks','mall','costa','park']; let bestVenue=null;
             for(const q of queries){ for(const r of [3,6,10,15,MAX_VENUE_DISTANCE_KM]){ if(bestVenue)break;
                 const bbox=bboxFromMidpoint(midLat,midLng,r);
@@ -164,23 +188,15 @@
                 }catch(e){} }
                 if(bestVenue)break;
             }
-            if(bestVenue){ await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:bestVenue.name,selected_lat:bestVenue.lat,selected_lng:bestVenue.lng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id); }
-            else { await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:'Midpoint Meeting Spot',selected_lat:midLat,selected_lng:midLng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id); }
+            if(bestVenue){ await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:bestVenue.name,selected_lat:bestVenue.lat,selected_lng:bestVenue.lng,meet_expires_at:new Date(Date.now()+25*60*1000).toISOString()}).eq('bridge_id',currentN.id); }
+            else { await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:'Midpoint Meeting Spot',selected_lat:midLat,selected_lng:midLng,meet_expires_at:new Date(Date.now()+25*60*1000).toISOString()}).eq('bridge_id',currentN.id); }
         }
 
         function triggerSync(s){
             const u1lat=+s.u1_lat,u1lng=+s.u1_lng,u2lat=+s.u2_lat,u2lng=+s.u2_lng,vlat=+s.selected_lat,vlng=+s.selected_lng;
             if(!vlat||Math.abs(vlat)>90||Math.abs(vlng)>180){ setStatus('error','Invalid coordinates'); return; }
-            document.getElementById('terminal').style.display='none';
-            document.getElementById('nav-hud').style.display='block';
+            document.getElementById('terminal').style.display='none'; document.getElementById('nav-hud').style.display='block';
             document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();
-            // Feature 9: Show sync panel
-            document.getElementById('sync-panel').style.display='block';
-            document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name;
-            document.getElementById('sync-status').innerText='Waiting for both users to confirm...';
-            document.getElementById('sync-confirm-btn').style.display='block';
-            document.getElementById('sync-countdown').style.display='none';
-            myConfirmed = false;
             new mapboxgl.Marker({color:'#0f0'}).setLngLat([u1lng,u1lat]).addTo(map);
             new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([u2lng,u2lat]).addTo(map);
             new mapboxgl.Marker({color:'#ff0'}).setLngLat([vlng,vlat]).addTo(map);
@@ -188,54 +204,6 @@
             drawRoute('rB',u2lng,u2lat,vlng,vlat,'#00ffaa');
             map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000});
         }
-
-        // Feature 9: Confirm proceed
-        window.confirmProceed = async () => {
-            myConfirmed = true;
-            document.getElementById('sync-confirm-btn').style.display='none';
-            document.getElementById('sync-status').innerText='Waiting for other user...';
-            await _supabase.from('oracle_sessions').update({u1_confirmed:true}).eq('bridge_id',currentN.id);
-        };
-
-        function startMeetTimer(s){
-            document.getElementById('sync-panel').style.display='none';
-            document.getElementById('nav-hud').style.display='block';
-            let remaining = MEET_DURATION_MINUTES * 60;
-            const timerEl = document.getElementById('meet-timer');
-            meetTimerInterval = setInterval(async () => {
-                remaining--;
-                const mins = Math.floor(remaining/60), secs = remaining%60;
-                timerEl.innerText = 'MEET WINDOW: '+mins+'m '+secs+'s';
-                if(remaining <= 0){
-                    clearInterval(meetTimerInterval);
-                    await _supabase.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id);
-                }
-            }, 1000);
-        }
-
-        // Feature 8: Rating panel
-        function showRatingPanel(){
-            document.getElementById('nav-hud').style.display='none';
-            document.getElementById('rate-panel').style.display='block';
-        }
-
-        // Feature 10: Submit rating + trust score
-        window.submitRating = async (rating) => {
-            if(meetRated) return;
-            meetRated = true;
-            document.getElementById('rate-panel').style.display='none';
-            await _supabase.from('oracle_sessions').update({u1_rating:rating}).eq('bridge_id',currentN.id);
-            // Update trust score
-            const { data: userData } = await _supabase.from('users').select('trust_score,total_meets').eq('id',myUserId).limit(1);
-            if(userData && userData.length > 0){
-                const u = userData[0];
-                const newTotal = (u.total_meets||0) + 1;
-                const newScore = ((u.trust_score||5.0) * (u.total_meets||0) + (rating===1?1:0)) / newTotal;
-                await _supabase.from('users').update({trust_score:Math.round(newScore*10)/10,total_meets:newTotal}).eq('id',myUserId);
-            }
-            setStatus('success','Thanks for rating! Your trust score has been updated.');
-            setTimeout(() => { location.reload(); }, 3000);
-        };
 
         async function drawRoute(id,sLng,sLat,eLng,eLat,color){
             try{ const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&access_token='+MAPBOX_TOKEN; const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return; if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id); map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}}); map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}}); }catch(e){}

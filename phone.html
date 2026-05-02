@@ -6,39 +6,81 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
-        #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
-        #status-bar { display: none; position: fixed; top: 10px; left: 5%; width: 90%; background: rgba(0,0,0,0.9); border: 1px solid #ff0; z-index: 3000; padding: 10px; text-align: center; color: #ff0; font-size: 12px; box-sizing: border-box; }
-        #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
-        #msg-box { height: 150px; overflow-y: auto; color:#0f0; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
-        #oracle-ballot { display: none; color:#0f0; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); font-size: 11px; text-align: center; }
-        #sync-panel { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.95); border: 2px solid #0f0; z-index: 5000; padding: 30px; text-align: center; color:#0f0; }
-        #rate-panel { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.95); border: 2px solid #ff0; z-index: 5000; padding: 30px; text-align: center; color:#ff0; }
-        #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; box-sizing: border-box; }
-        .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; text-transform: uppercase; }
-        .node-marker { color:#0f0; background:#000; border:2px solid #0f0; padding:6px 10px; font-size:10px; cursor:pointer; white-space:nowrap; border-radius:3px; }
-        .sync-btn { background: transparent; border: 2px solid #0f0; color: #0f0; padding: 15px 30px; cursor: pointer; font-family: monospace; font-size: 16px; margin: 10px; }
-        .rate-btn { background: transparent; border: 2px solid #ff0; color: #ff0; padding: 15px 25px; cursor: pointer; font-family: monospace; font-size: 24px; margin: 10px; }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background: #111; overflow: hidden; font-family: monospace;
+        }
+        #map {
+            height: 100%; width: 100%; position: absolute; top: 0; z-index: 1;
+        }
+        #status-bar {
+            display: block; position: fixed; top: 10px; left: 5%; width: 90%;
+            background: rgba(0,0,0,0.9); border: 1px solid #ff0; z-index: 3000;
+            padding: 10px; text-align: center; color: #ff0; font-size: 12px; box-sizing: border-box;
+        }
+        #terminal {
+            display: none; position: fixed; bottom: 10px; left: 5%; width: 90%;
+            background: rgba(0,10,0,0.95); border: 1px solid #0f0; z-index: 2000;
+            padding: 15px; box-sizing: border-box;
+        }
+        #msg-box {
+            height: 150px; overflow-y: auto; color: #0f0; margin-bottom: 10px;
+            border: 1px solid #030; padding: 5px;
+        }
+        #oracle-ballot {
+            display: none; color: #0f0; border: 1px solid #0f0; padding: 10px;
+            margin-bottom: 10px; background: rgba(0,255,0,0.1); font-size: 11px; text-align: center;
+        }
+        #sync-panel {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(0,0,0,0.95); border: 2px solid #0f0; z-index: 5000;
+            padding: 30px; text-align: center; color: #0f0;
+        }
+        #rate-panel {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+            background: rgba(0,0,0,0.95); border: 2px solid #ff0; z-index: 5000;
+            padding: 30px; text-align: center; color: #ff0;
+        }
+        #nav-hud {
+            display: none; position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(0,10,0,0.95); border-top: 2px solid #0f0; z-index: 4000;
+            padding: 20px; text-align: center; color: #0f0; box-sizing: border-box;
+        }
+        .hud-btn {
+            background: transparent; border: 1px solid #0f0; color: #0f0;
+            padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; text-transform: uppercase;
+        }
+        .node-marker {
+            color: #0f0; background: #000; border: 2px solid #0f0;
+            padding: 6px 10px; font-size: 10px; cursor: pointer; white-space: nowrap; border-radius: 3px;
+        }
+        .sync-btn {
+            background: transparent; border: 2px solid #0f0; color: #0f0;
+            padding: 15px 30px; cursor: pointer; font-family: monospace; font-size: 16px; margin: 10px;
+        }
+        .rate-btn {
+            background: transparent; border: 2px solid #ff0; color: #ff0;
+            padding: 15px 25px; cursor: pointer; font-family: monospace; font-size: 24px; margin: 10px;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    <div id="status-bar"></div>
+    <div id="status-bar">Loading map...</div>
     <div id="terminal">
         <div id="oracle-ballot">STATUS: PENDING</div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex;">
-            <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter') sendMsg()" style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px; outline:none;">
+            <input type="text" id="chat-in" placeholder="TYPE..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px; outline:none;">
             <button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px; cursor:pointer; font-weight:bold;">SEND</button>
         </div>
     </div>
     <div id="sync-panel">
-        <h2 id="sync-title">VENUE LOCKED</h2>
+        <h2>VENUE LOCKED</h2>
         <p id="sync-venue"></p>
         <p id="sync-status">Waiting for both users to confirm...</p>
         <button class="sync-btn" id="sync-confirm-btn" onclick="confirmProceed()">[ CONFIRM & PROCEED ]</button>
-        <p id="sync-countdown" style="display:none; font-size:48px; color:#0f0;"></p>
     </div>
     <div id="rate-panel">
         <h2>MEET COMPLETE</h2>
@@ -48,125 +90,285 @@
     </div>
     <div id="nav-hud">
         <h3 id="target-name">MATCHED</h3>
-        <p id="meet-timer" style="font-size:14px;"></p>
+        <p id="meet-timer"></p>
         <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
-        const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
-        mapboxgl.accessToken = MAPBOX_TOKEN;
+        // ====== STEP 1: TOKENS ======
+        mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        
+        const supabaseUrl = 'https://rnroyhkvkmzuichysxnk.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
+        
+        var supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-        const FAKE_SEEKER_LAT = 25.0800;
-        const FAKE_SEEKER_LNG = 55.1400;
-        const MEET_DURATION_MINUTES = 25;
+        // ====== STEP 2: FAKE GPS ======
+        var FAKE_LAT = 25.0800;
+        var FAKE_LNG = 55.1400;
+        var myLoc = { lat: FAKE_LAT, lng: FAKE_LNG };
 
-        let myUserId = localStorage.getItem('vessel_user_id');
-        if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
+        // ====== STEP 3: USER ID ======
+        var myUserId = localStorage.getItem('vessel_user_id');
+        if (!myUserId) {
+            myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+            localStorage.setItem('vessel_user_id', myUserId);
+        }
 
-        const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [FAKE_SEEKER_LNG, FAKE_SEEKER_LAT], zoom: 14 });
-        let currentN = null, myLoc = { lat: FAKE_SEEKER_LAT, lng: FAKE_SEEKER_LNG }, activeMarkers = [];
-        let meetTimerInterval = null, myConfirmed = false, meetRated = false;
+        // ====== STEP 4: CREATE MAP ======
+        document.getElementById('status-bar').innerText = 'Creating map...';
+        
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/dark-v11',
+            center: [FAKE_LNG, FAKE_LAT],
+            zoom: 14
+        });
 
-        navigator.geolocation.watchPosition = function(success) {
-            success({ coords: { latitude: FAKE_SEEKER_LAT, longitude: FAKE_SEEKER_LNG, accuracy: 5 } });
-            return 1;
-        };
+        map.on('load', function() {
+            document.getElementById('status-bar').innerText = 'Map loaded! Scanning for nodes...';
+            scan();
+        });
 
-        async function ensureUser() {
-            const { data } = await _supabase.from('users').select('id').eq('id', myUserId).limit(1);
-            if (!data || data.length === 0) {
-                await _supabase.from('users').insert([{ id: myUserId, trust_score: 5.0, total_meets: 0 }]);
+        map.on('error', function(e) {
+            document.getElementById('status-bar').innerText = 'Map error: ' + e.error.message;
+            document.getElementById('status-bar').style.borderColor = '#f00';
+            document.getElementById('status-bar').style.color = '#f00';
+        });
+
+        // ====== STEP 5: STATE VARIABLES ======
+        var currentN = null;
+        var activeMarkers = [];
+        var meetRated = false;
+
+        // ====== STEP 6: SCAN FOR NODES ======
+        async function scan() {
+            var now = new Date().toISOString();
+            var result = await supabaseClient.from('nodes')
+                .select('*')
+                .eq('status', 'active')
+                .gt('expires_at', now);
+
+            if (result.error) {
+                document.getElementById('status-bar').innerText = 'Connection issue - retrying...';
+                document.getElementById('status-bar').style.borderColor = '#f90';
+                document.getElementById('status-bar').style.color = '#f90';
+                return;
+            }
+
+            // Remove old markers
+            activeMarkers.forEach(function(m) { m.remove(); });
+            activeMarkers = [];
+
+            var nodes = result.data;
+
+            if (!nodes || nodes.length === 0) {
+                document.getElementById('status-bar').innerText = 'No active nodes. Scanning...';
+                document.getElementById('status-bar').style.borderColor = '#ff0';
+                document.getElementById('status-bar').style.color = '#ff0';
+            } else {
+                document.getElementById('status-bar').style.display = 'none';
+            }
+
+            if (nodes) {
+                nodes.forEach(function(n) {
+                    var el = document.createElement('div');
+                    el.className = 'node-marker';
+                    var timeLeft = Math.max(0, Math.floor((new Date(n.expires_at) - new Date()) / 60000));
+                    el.innerText = (n.intent || 'Coffee') + ' [' + timeLeft + 'm]';
+
+                    el.onclick = async function() {
+                        if (currentN) return;
+                        currentN = n;
+                        document.getElementById('status-bar').innerText = 'Sending request...';
+                        document.getElementById('status-bar').style.display = 'block';
+                        document.getElementById('status-bar').style.borderColor = '#ff0';
+                        document.getElementById('status-bar').style.color = '#ff0';
+
+                        await supabaseClient.from('requests').insert([{
+                            node_id: n.id,
+                            requester_id: 'SEEKER'
+                        }]);
+
+                        document.getElementById('terminal').style.display = 'flex';
+                        document.getElementById('status-bar').style.display = 'none';
+                        startChatSync();
+                        startOracleLive();
+                    };
+
+                    var marker = new mapboxgl.Marker(el)
+                        .setLngLat([parseFloat(n.lng), parseFloat(n.lat)])
+                        .addTo(map);
+                    activeMarkers.push(marker);
+                });
             }
         }
-        ensureUser();
 
-        function setStatus(st, msg) {
-            const b = document.getElementById('status-bar');
-            const c = { info:'#ff0', warning:'#f90', error:'#f00', success:'#0f0' };
-            b.style.display='block'; b.style.borderColor=c[st]||'#ff0'; b.style.color=c[st]||'#ff0'; b.innerText=msg;
+        setInterval(scan, 5000);
+
+        // ====== STEP 7: CHAT ======
+        window.sendMsg = async function() {
+            var val = document.getElementById('chat-in').value;
+            if (!val.trim()) return;
+            await supabaseClient.from('messages').insert([{
+                node_id: currentN.id,
+                sender: 'SEEKER',
+                content: val
+            }]);
+            document.getElementById('chat-in').value = '';
+            document.getElementById('oracle-btn').style.display = 'block';
+        };
+
+        function startChatSync() {
+            supabaseClient.channel('msgs-' + currentN.id)
+                .on('postgres_changes', {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: 'node_id=eq.' + currentN.id
+                }, function(p) {
+                    document.getElementById('msg-box').innerHTML +=
+                        '<div style="color:#0f0">> ' + p.new.content + '</div>';
+                    document.getElementById('oracle-btn').style.display = 'block';
+                }).subscribe();
         }
 
-        async function scan() {
-            const now = new Date().toISOString();
-            const { data, error } = await _supabase.from('nodes').select('*').eq('status','active').gt('expires_at',now);
-            if(error){ setStatus('error','Connection issue'); return; }
-            activeMarkers.forEach(m=>m.remove());
-            activeMarkers=[];
-            if(!data||data.length===0){ setStatus('info','No active nodes nearby. Scanning...'); }
-            else { document.getElementById('status-bar').style.display='none'; }
-            data&&data.forEach(n=>{
-                const el=document.createElement('div');
-                el.className='node-marker';
-                const timeLeft=Math.max(0,Math.floor((new Date(n.expires_at)-new Date())/60000));
-                el.innerText=(n.intent||'Coffee')+' ['+timeLeft+'m]';
-                el.onclick=async()=>{
-                    if(currentN)return;
-                    currentN=n;
-                    setStatus('info','Sending request...');
-                    await _supabase.from('requests').insert([{node_id:n.id,requester_id:'SEEKER'}]);
-                    document.getElementById('terminal').style.display='flex';
-                    document.getElementById('status-bar').style.display='none';
-                    startChatSync();
-                    startOracleLive();
-                };
-                const m=new mapboxgl.Marker(el).setLngLat([parseFloat(n.lng),parseFloat(n.lat)]).addTo(map);
-                activeMarkers.push(m);
-            });
-        }
-        scan();
-        setInterval(scan,5000);
+        // ====== STEP 8: ORACLE ======
+        window.initiateOracle = async function() {
+            await supabaseClient.from('oracle_sessions').upsert({
+                bridge_id: currentN.id,
+                u2_lat: myLoc.lat,
+                u2_lng: myLoc.lng,
+                error_state: null
+            }, { onConflict: 'bridge_id' });
+        };
 
-        window.sendMsg=async()=>{ const val=document.getElementById('chat-in').value; if(!val.trim())return; await _supabase.from('messages').insert([{node_id:currentN.id,sender:'SEEKER',content:val}]); document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block'; };
-        function startChatSync(){ _supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id},p=>{ document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>'; document.getElementById('oracle-btn').style.display='block'; }).subscribe(); }
+        function startOracleLive() {
+            supabaseClient.channel('oracle-' + currentN.id)
+                .on('postgres_changes', {
+                    event: '*',
+                    schema: 'public',
+                    table: 'oracle_sessions',
+                    filter: 'bridge_id=eq.' + currentN.id
+                }, function(payload) {
+                    var s = payload.new;
+                    document.getElementById('oracle-ballot').innerText = 'STATUS: ' + s.status.toUpperCase();
+                    document.getElementById('oracle-ballot').style.display = 'block';
 
-        window.initiateOracle=async()=>{ setStatus('info','Syncing GPS...'); await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id,u2_lat:myLoc.lat,u2_lng:myLoc.lng,error_state:null},{onConflict:'bridge_id'}); };
-
-        function startOracleLive(){
-            _supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id},payload=>{
-                const s=payload.new;
-                document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase();
-                document.getElementById('oracle-ballot').style.display='block';
-                if(s.error_state){ setStatus('error',s.error_state); return; }
-                if(s.status==='matched'){ triggerSync(s); }
-                if(s.u1_confirmed&&s.u2_confirmed&&!meetRated){ startMeetTimer(s); }
-                if(s.meet_completed&&!meetRated){ showRatingPanel(); }
-            }).subscribe();
+                    if (s.error_state) return;
+                    if (s.status === 'matched') triggerSync(s);
+                    if (s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
+                    if (s.meet_completed && !meetRated) showRatingPanel();
+                }).subscribe();
         }
 
-        function triggerSync(s){
-            document.getElementById('terminal').style.display='none';
-            document.getElementById('sync-panel').style.display='block';
-            document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name;
-            document.getElementById('sync-confirm-btn').style.display='block';
-            document.getElementById('sync-countdown').style.display='none';
-            myConfirmed=false;
-            new mapboxgl.Marker({color:'#0f0'}).setLngLat([+s.u1_lng,+s.u1_lat]).addTo(map);
-            new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([+s.u2_lng,+s.u2_lat]).addTo(map);
-            new mapboxgl.Marker({color:'#ff0'}).setLngLat([+s.selected_lng,+s.selected_lat]).addTo(map);
-            drawRoute('rA',+s.u1_lng,+s.u1_lat,+s.selected_lng,+s.selected_lat,'#0f0');
-            drawRoute('rB',+s.u2_lng,+s.u2_lat,+s.selected_lng,+s.selected_lat,'#00ffaa');
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([+s.u1_lng,+s.u1_lat]).extend([+s.u2_lng,+s.u2_lat]).extend([+s.selected_lng,+s.selected_lat]),{padding:80,duration:2000});
+        function triggerSync(s) {
+            document.getElementById('terminal').style.display = 'none';
+            document.getElementById('sync-panel').style.display = 'block';
+            document.getElementById('sync-venue').innerText = 'Venue: ' + s.selected_venue_name;
+
+            new mapboxgl.Marker({ color: '#0f0' }).setLngLat([+s.u1_lng, +s.u1_lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#00ffaa' }).setLngLat([+s.u2_lng, +s.u2_lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#ff0' }).setLngLat([+s.selected_lng, +s.selected_lat]).addTo(map);
+
+            drawRoute('rA', +s.u1_lng, +s.u1_lat, +s.selected_lng, +s.selected_lat, '#0f0');
+            drawRoute('rB', +s.u2_lng, +s.u2_lat, +s.selected_lng, +s.selected_lat, '#00ffaa');
+
+            map.fitBounds(
+                new mapboxgl.LngLatBounds()
+                    .extend([+s.u1_lng, +s.u1_lat])
+                    .extend([+s.u2_lng, +s.u2_lat])
+                    .extend([+s.selected_lng, +s.selected_lat]),
+                { padding: 80, duration: 2000 }
+            );
         }
 
-        window.confirmProceed=async()=>{ myConfirmed=true; document.getElementById('sync-confirm-btn').style.display='none'; document.getElementById('sync-status').innerText='Waiting for other user...'; await _supabase.from('oracle_sessions').update({u2_confirmed:true}).eq('bridge_id',currentN.id); };
+        window.confirmProceed = async function() {
+            document.getElementById('sync-confirm-btn').style.display = 'none';
+            document.getElementById('sync-status').innerText = 'Waiting for other user...';
+            await supabaseClient.from('oracle_sessions').update({
+                u2_confirmed: true
+            }).eq('bridge_id', currentN.id);
+        };
 
-        function startMeetTimer(s){
-            document.getElementById('sync-panel').style.display='none';
-            document.getElementById('nav-hud').style.display='block';
-            document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();
-            let remaining=MEET_DURATION_MINUTES*60;
-            meetTimerInterval=setInterval(async()=>{ remaining--; const m=Math.floor(remaining/60),sec=remaining%60; document.getElementById('meet-timer').innerText='MEET WINDOW: '+m+'m '+sec+'s'; if(remaining<=0){ clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id); } },1000);
+        function startMeetTimer(s) {
+            document.getElementById('sync-panel').style.display = 'none';
+            document.getElementById('nav-hud').style.display = 'block';
+            document.getElementById('target-name').innerText = 'MEET AT: ' + s.selected_venue_name.toUpperCase();
+            var remaining = 25 * 60;
+            setInterval(async function() {
+                remaining--;
+                var m = Math.floor(remaining / 60);
+                var sec = remaining % 60;
+                document.getElementById('meet-timer').innerText = 'MEET WINDOW: ' + m + 'm ' + sec + 's';
+                if (remaining <= 0) {
+                    await supabaseClient.from('oracle_sessions').update({
+                        meet_completed: true
+                    }).eq('bridge_id', currentN.id);
+                }
+            }, 1000);
         }
 
-        function showRatingPanel(){ document.getElementById('nav-hud').style.display='none'; document.getElementById('rate-panel').style.display='block'; }
+        function showRatingPanel() {
+            document.getElementById('nav-hud').style.display = 'none';
+            document.getElementById('rate-panel').style.display = 'block';
+        }
 
-        window.submitRating=async(rating)=>{ if(meetRated)return; meetRated=true; document.getElementById('rate-panel').style.display='none'; await _supabase.from('oracle_sessions').update({u2_rating:rating}).eq('bridge_id',currentN.id); const{data:ud}=await _supabase.from('users').select('trust_score,total_meets').eq('id',myUserId).limit(1); if(ud&&ud.length>0){ const u=ud[0]; const nt=(u.total_meets||0)+1; const ns=((u.trust_score||5.0)*(u.total_meets||0)+(rating===1?1:0))/nt; await _supabase.from('users').update({trust_score:Math.round(ns*10)/10,total_meets:nt}).eq('id',myUserId); } setStatus('success','Thanks for rating!'); setTimeout(()=>{location.reload();},3000); };
+        window.submitRating = async function(rating) {
+            if (meetRated) return;
+            meetRated = true;
+            document.getElementById('rate-panel').style.display = 'none';
+            await supabaseClient.from('oracle_sessions').update({
+                u2_rating: rating
+            }).eq('bridge_id', currentN.id);
 
-        async function drawRoute(id,sLng,sLat,eLng,eLat,color){
-            try{ const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&access_token='+MAPBOX_TOKEN; const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return; if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id); map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}}); map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}}); }catch(e){}
+            var userResult = await supabaseClient.from('users')
+                .select('trust_score,total_meets')
+                .eq('id', myUserId)
+                .limit(1);
+
+            if (userResult.data && userResult.data.length > 0) {
+                var u = userResult.data[0];
+                var nt = (u.total_meets || 0) + 1;
+                var ns = ((u.trust_score || 5.0) * (u.total_meets || 0) + (rating === 1 ? 1 : 0)) / nt;
+                await supabaseClient.from('users').update({
+                    trust_score: Math.round(ns * 10) / 10,
+                    total_meets: nt
+                }).eq('id', myUserId);
+            }
+
+            document.getElementById('status-bar').innerText = 'Thanks for rating!';
+            document.getElementById('status-bar').style.display = 'block';
+            document.getElementById('status-bar').style.borderColor = '#0f0';
+            document.getElementById('status-bar').style.color = '#0f0';
+            setTimeout(function() { location.reload(); }, 3000);
+        };
+
+        async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
+            try {
+                var url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' +
+                    sLng + ',' + sLat + ';' + eLng + ',' + eLat +
+                    '?geometries=geojson&overview=full&access_token=' + mapboxgl.accessToken;
+                var res = await fetch(url);
+                var data = await res.json();
+                if (!data.routes || !data.routes[0]) return;
+                if (map.getLayer(id)) map.removeLayer(id);
+                if (map.getSource(id)) map.removeSource(id);
+                map.addSource(id, {
+                    type: 'geojson',
+                    data: { type: 'Feature', geometry: data.routes[0].geometry }
+                });
+                map.addLayer({
+                    id: id,
+                    type: 'line',
+                    source: id,
+                    paint: { 'line-color': color, 'line-width': 5 }
+                });
+            } catch (e) {
+                console.warn('Route error:', e.message);
+            }
         }
     </script>
 </body>

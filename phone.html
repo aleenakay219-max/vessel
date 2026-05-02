@@ -67,4 +67,107 @@
         if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
 
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [FAKE_SEEKER_LNG, FAKE_SEEKER_LAT], zoom: 14 });
-        let currentN = null, myLoc = { lat: FA
+        let currentN = null, myLoc = { lat: FAKE_SEEKER_LAT, lng: FAKE_SEEKER_LNG }, activeMarkers = [];
+        let meetTimerInterval = null, myConfirmed = false, meetRated = false;
+
+        navigator.geolocation.watchPosition = function(success) {
+            success({ coords: { latitude: FAKE_SEEKER_LAT, longitude: FAKE_SEEKER_LNG, accuracy: 5 } });
+            return 1;
+        };
+
+        async function ensureUser() {
+            const { data } = await _supabase.from('users').select('id').eq('id', myUserId).limit(1);
+            if (!data || data.length === 0) {
+                await _supabase.from('users').insert([{ id: myUserId, trust_score: 5.0, total_meets: 0 }]);
+            }
+        }
+        ensureUser();
+
+        function setStatus(st, msg) {
+            const b = document.getElementById('status-bar');
+            const c = { info:'#ff0', warning:'#f90', error:'#f00', success:'#0f0' };
+            b.style.display='block'; b.style.borderColor=c[st]||'#ff0'; b.style.color=c[st]||'#ff0'; b.innerText=msg;
+        }
+
+        async function scan() {
+            const now = new Date().toISOString();
+            const { data, error } = await _supabase.from('nodes').select('*').eq('status','active').gt('expires_at',now);
+            if(error){ setStatus('error','Connection issue'); return; }
+            activeMarkers.forEach(m=>m.remove());
+            activeMarkers=[];
+            if(!data||data.length===0){ setStatus('info','No active nodes nearby. Scanning...'); }
+            else { document.getElementById('status-bar').style.display='none'; }
+            data&&data.forEach(n=>{
+                const el=document.createElement('div');
+                el.className='node-marker';
+                const timeLeft=Math.max(0,Math.floor((new Date(n.expires_at)-new Date())/60000));
+                el.innerText=(n.intent||'Coffee')+' ['+timeLeft+'m]';
+                el.onclick=async()=>{
+                    if(currentN)return;
+                    currentN=n;
+                    setStatus('info','Sending request...');
+                    await _supabase.from('requests').insert([{node_id:n.id,requester_id:'SEEKER'}]);
+                    document.getElementById('terminal').style.display='flex';
+                    document.getElementById('status-bar').style.display='none';
+                    startChatSync();
+                    startOracleLive();
+                };
+                const m=new mapboxgl.Marker(el).setLngLat([parseFloat(n.lng),parseFloat(n.lat)]).addTo(map);
+                activeMarkers.push(m);
+            });
+        }
+        scan();
+        setInterval(scan,5000);
+
+        window.sendMsg=async()=>{ const val=document.getElementById('chat-in').value; if(!val.trim())return; await _supabase.from('messages').insert([{node_id:currentN.id,sender:'SEEKER',content:val}]); document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block'; };
+        function startChatSync(){ _supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id},p=>{ document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>'; document.getElementById('oracle-btn').style.display='block'; }).subscribe(); }
+
+        window.initiateOracle=async()=>{ setStatus('info','Syncing GPS...'); await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id,u2_lat:myLoc.lat,u2_lng:myLoc.lng,error_state:null},{onConflict:'bridge_id'}); };
+
+        function startOracleLive(){
+            _supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id},payload=>{
+                const s=payload.new;
+                document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase();
+                document.getElementById('oracle-ballot').style.display='block';
+                if(s.error_state){ setStatus('error',s.error_state); return; }
+                if(s.status==='matched'){ triggerSync(s); }
+                if(s.u1_confirmed&&s.u2_confirmed&&!meetRated){ startMeetTimer(s); }
+                if(s.meet_completed&&!meetRated){ showRatingPanel(); }
+            }).subscribe();
+        }
+
+        function triggerSync(s){
+            document.getElementById('terminal').style.display='none';
+            document.getElementById('sync-panel').style.display='block';
+            document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name;
+            document.getElementById('sync-confirm-btn').style.display='block';
+            document.getElementById('sync-countdown').style.display='none';
+            myConfirmed=false;
+            new mapboxgl.Marker({color:'#0f0'}).setLngLat([+s.u1_lng,+s.u1_lat]).addTo(map);
+            new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([+s.u2_lng,+s.u2_lat]).addTo(map);
+            new mapboxgl.Marker({color:'#ff0'}).setLngLat([+s.selected_lng,+s.selected_lat]).addTo(map);
+            drawRoute('rA',+s.u1_lng,+s.u1_lat,+s.selected_lng,+s.selected_lat,'#0f0');
+            drawRoute('rB',+s.u2_lng,+s.u2_lat,+s.selected_lng,+s.selected_lat,'#00ffaa');
+            map.fitBounds(new mapboxgl.LngLatBounds().extend([+s.u1_lng,+s.u1_lat]).extend([+s.u2_lng,+s.u2_lat]).extend([+s.selected_lng,+s.selected_lat]),{padding:80,duration:2000});
+        }
+
+        window.confirmProceed=async()=>{ myConfirmed=true; document.getElementById('sync-confirm-btn').style.display='none'; document.getElementById('sync-status').innerText='Waiting for other user...'; await _supabase.from('oracle_sessions').update({u2_confirmed:true}).eq('bridge_id',currentN.id); };
+
+        function startMeetTimer(s){
+            document.getElementById('sync-panel').style.display='none';
+            document.getElementById('nav-hud').style.display='block';
+            document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();
+            let remaining=MEET_DURATION_MINUTES*60;
+            meetTimerInterval=setInterval(async()=>{ remaining--; const m=Math.floor(remaining/60),sec=remaining%60; document.getElementById('meet-timer').innerText='MEET WINDOW: '+m+'m '+sec+'s'; if(remaining<=0){ clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id); } },1000);
+        }
+
+        function showRatingPanel(){ document.getElementById('nav-hud').style.display='none'; document.getElementById('rate-panel').style.display='block'; }
+
+        window.submitRating=async(rating)=>{ if(meetRated)return; meetRated=true; document.getElementById('rate-panel').style.display='none'; await _supabase.from('oracle_sessions').update({u2_rating:rating}).eq('bridge_id',currentN.id); const{data:ud}=await _supabase.from('users').select('trust_score,total_meets').eq('id',myUserId).limit(1); if(ud&&ud.length>0){ const u=ud[0]; const nt=(u.total_meets||0)+1; const ns=((u.trust_score||5.0)*(u.total_meets||0)+(rating===1?1:0))/nt; await _supabase.from('users').update({trust_score:Math.round(ns*10)/10,total_meets:nt}).eq('id',myUserId); } setStatus('success','Thanks for rating!'); setTimeout(()=>{location.reload();},3000); };
+
+        async function drawRoute(id,sLng,sLat,eLng,eLat,color){
+            try{ const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&access_token='+MAPBOX_TOKEN; const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return; if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id); map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}}); map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}}); }catch(e){}
+        }
+    </script>
+</body>
+</html>

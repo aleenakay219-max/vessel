@@ -6,21 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        body, html { margin:0; padding:0; width:100%; height:100%; background:#111; overflow:hidden; font-family:monospace; }
-        #map { height:100%; width:100%; position:absolute; top:0; z-index:1; }
-        #status-bar { display:block; position:fixed; top:10px; left:5%; width:90%; background:rgba(0,0,0,0.9); border:1px solid #ff0; z-index:3000; padding:10px; text-align:center; color:#ff0; font-size:12px; box-sizing:border-box; }
-        #terminal { display:none; opacity:0; transition:opacity 0.3s; position:fixed; bottom:10px; left:5%; width:90%; background:rgba(0,10,0,0.95); border:1px solid #0f0; z-index:2000; flex-direction:column; padding:15px; box-sizing:border-box; }
-        #msg-box { height:150px; overflow-y:auto; color:#0f0; margin-bottom:10px; border:1px solid #030; padding:5px; display:flex; flex-direction:column; }
-        #oracle-ballot { display:none; color:#0f0; border:1px solid #0f0; padding:10px; margin-bottom:10px; background:rgba(0,255,0,0.1); font-size:11px; text-align:center; }
-        #sync-panel { display:none; opacity:0; transition:opacity 0.3s; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:2px solid #0f0; z-index:5000; padding:30px; text-align:center; color:#0f0; }
-        #rate-panel { display:none; opacity:0; transition:opacity 0.3s; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(0,0,0,0.95); border:2px solid #ff0; z-index:5000; padding:30px; text-align:center; color:#ff0; }
-        #nav-hud { display:none; opacity:0; transition:opacity 0.3s; position:fixed; bottom:0; left:0; width:100%; background:rgba(0,10,0,0.95); border-top:2px solid #0f0; z-index:4000; padding:20px; text-align:center; color:#0f0; box-sizing:border-box; }
-        #instruction-banner { display:none; position:fixed; top:60px; left:5%; width:90%; background:rgba(0,0,0,0.9); border:1px solid #0ff; z-index:3500; padding:12px; text-align:center; color:#0ff; font-size:14px; box-sizing:border-box; }
-        .hud-btn { background:transparent; border:1px solid #0f0; color:#0f0; padding:12px; margin:10px 5px; cursor:pointer; font-family:monospace; text-transform:uppercase; }
-        .sync-btn { background:transparent; border:2px solid #0f0; color:#0f0; padding:15px 30px; cursor:pointer; font-family:monospace; font-size:16px; margin:10px; }
-        .rate-btn { background:transparent; border:2px solid #ff0; color:#ff0; padding:15px 25px; cursor:pointer; font-family:monospace; font-size:24px; margin:10px; }
-        .node-popup .mapboxgl-popup-content { background:#000 !important; border:1px solid #0f0 !important; color:#0f0 !important; font-family:monospace; padding:6px 10px !important; border-radius:0 !important; box-shadow:0 0 10px #0f0; }
-        .node-popup .mapboxgl-popup-tip { border-top-color:#0f0 !important; }
+        body,html{margin:0;padding:0;width:100%;height:100%;background:#111;overflow:hidden;font-family:monospace}
+        #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
+        #status-bar{display:block;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #ff0;z-index:3000;padding:10px;text-align:center;color:#ff0;font-size:12px;box-sizing:border-box}
+        #terminal{display:none;opacity:0;transition:opacity 0.3s;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #0f0;z-index:2000;flex-direction:column;padding:15px;box-sizing:border-box}
+        #msg-box{height:150px;overflow-y:auto;color:#0f0;margin-bottom:10px;border:1px solid #030;padding:5px;display:flex;flex-direction:column}
+        #oracle-ballot{display:none;color:#0f0;border:1px solid #0f0;padding:10px;margin-bottom:10px;background:rgba(0,255,0,0.1);font-size:11px;text-align:center}
+        #sync-panel{display:none;opacity:0;transition:opacity 0.3s;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #0f0;z-index:5000;padding:30px;text-align:center;color:#0f0}
+        #rate-panel{display:none;opacity:0;transition:opacity 0.3s;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #ff0;z-index:5000;padding:30px;text-align:center;color:#ff0}
+        #nav-hud{display:none;opacity:0;transition:opacity 0.3s;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #0f0;z-index:4000;padding:20px;text-align:center;color:#0f0;box-sizing:border-box}
+        #instruction-banner{display:none;position:fixed;top:60px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #0ff;z-index:3500;padding:12px;text-align:center;color:#0ff;font-size:14px;box-sizing:border-box}
+        .hud-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
+        .sync-btn{background:transparent;border:2px solid #0f0;color:#0f0;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
+        .rate-btn{background:transparent;border:2px solid #ff0;color:#ff0;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
+        .node-popup .mapboxgl-popup-content{background:#000!important;border:1px solid #0f0!important;color:#0f0!important;font-family:monospace;padding:6px 10px!important;border-radius:0!important;box-shadow:0 0 10px #0f0}
+        .node-popup .mapboxgl-popup-tip{border-top-color:#0f0!important}
     </style>
 </head>
 <body>
@@ -29,11 +29,11 @@
     <div id="instruction-banner"></div>
     <div id="terminal">
         <div id="oracle-ballot">STATUS: PENDING</div>
-        <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ SYNC GPS WITH ORACLE ]</button>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #0f0;color:#0f0;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
-        <div style="display:flex;">
-            <input type="text" id="chat-in" placeholder="TYPE..." style="flex:1; background:#000; border:1px solid #0f0; color:#0f0; padding:10px; outline:none;">
-            <button onclick="sendMsg()" style="background:#0f0; color:#000; border:none; padding:10px; margin-left:5px; cursor:pointer; font-weight:bold;">SEND</button>
+        <div style="display:flex">
+            <input type="text" id="chat-in" placeholder="TYPE..." style="flex:1;background:#000;border:1px solid #0f0;color:#0f0;padding:10px;outline:none">
+            <button onclick="sendMsg()" style="background:#0f0;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
         </div>
     </div>
     <div id="sync-panel">
@@ -51,151 +51,102 @@
     <div id="nav-hud">
         <h3 id="target-name">MATCHED</h3>
         <p id="meet-timer"></p>
-        <button class="hud-btn" id="nav-btn" onclick="startNavigation()" style="display:none;">[ NAVIGATE ]</button>
+        <button class="hud-btn" id="nav-btn" onclick="startNavigation()" style="display:none">[ NAVIGATE ]</button>
         <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
-        const supabaseUrl = 'https://rnroyhkvkmzuichysxnk.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
-        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+        mapboxgl.accessToken='pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        const supabaseUrl='https://rnroyhkvkmzuichysxnk.supabase.co',supabaseKey='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
+        const supabaseClient=supabase.createClient(supabaseUrl,supabaseKey);
+        const FAKE_LAT=25.0800,FAKE_LNG=55.1400;
+        const params=new URLSearchParams(window.location.search);
+        const MEET_DURATION_MINUTES=params.get('debug')?parseInt(params.get('debug')):25;
+        const categoryColors={social:'#FFD700',games:'#4ADE80',work:'#FF8C42',parents:'#C084FC'};
+        const categoryEmojis={social:'🍻',games:'🎮',work:'🔧',parents:'🧒'};
 
-        const FAKE_LAT = 25.0800;
-        const FAKE_LNG = 55.1400;
-        const params = new URLSearchParams(window.location.search);
-        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
+        let myUserId=localStorage.getItem('vessel_user_id')||(myUserId='u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),localStorage.setItem('vessel_user_id',myUserId),myUserId);
+        const map=new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[FAKE_LNG,FAKE_LAT],zoom:14});
+        let currentN=null,meetRated=false,myConfirmed=false,meetTimerInterval=null;
+        let navActive=false,routeSteps=[],currentStep=0,navWatchId=null,selectedVenueCoords=null;
 
-        const intentIcons = { '☕ Coffee':'☕','🚶 Walk':'🚶','🍽️ Food':'🍽️','📚 Study':'📚','🏋️ Gym':'🏋️','🍺 Drinks':'🍺','⚽ Sports':'⚽','💬 Chat':'💬' };
-        const intentColors = { '☕ Coffee':'#FFD700','🚶 Walk':'#00FF88','🍽️ Food':'#FF6B6B','📚 Study':'#6BCBFF','🏋️ Gym':'#FF8C42','🍺 Drinks':'#C084FC','⚽ Sports':'#4ADE80','💬 Chat':'#F472B6' };
-        const defaultColor = '#AAAAAA';
-
-        let myUserId = localStorage.getItem('vessel_user_id') || (myUserId='u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8), localStorage.setItem('vessel_user_id',myUserId), myUserId);
-        const map = new mapboxgl.Map({ container:'map', style:'mapbox://styles/mapbox/dark-v11', center:[FAKE_LNG,FAKE_LAT], zoom:14 });
-        let currentN = null, meetRated = false, myConfirmed = false, meetTimerInterval = null;
-        let navActive = false, routeSteps = [], currentStep = 0, navWatchId = null;
-        let selectedVenueCoords = null;
-
-        async function ensureUser(){ const {data}=await supabaseClient.from('users').select('id').eq('id',myUserId).limit(1); if(!data||data.length===0) await supabaseClient.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]); }
+        async function ensureUser(){const{data}=await supabaseClient.from('users').select('id').eq('id',myUserId).limit(1);if(!data||data.length===0)await supabaseClient.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}])}
         ensureUser();
 
-        map.on('load', () => {
-            map.addSource('nodes-source', { type:'geojson', data:{ type:'FeatureCollection', features:[] }, cluster:true, clusterMaxZoom:14, clusterRadius:50 });
+        map.on('load',()=>{
+            map.addSource('nodes-source',{type:'geojson',data:{type:'FeatureCollection',features:[]},cluster:true,clusterMaxZoom:14,clusterRadius:50});
+            map.addLayer({id:'nodes-clusters',type:'circle',source:'nodes-source',filter:['has','point_count'],paint:{'circle-color':'#111','circle-stroke-color':'#0f0','circle-stroke-width':3,'circle-radius':['step',['get','point_count'],22,10,30,30,42],'circle-opacity':0.9}});
+            map.addLayer({id:'nodes-cluster-count',type:'symbol',source:'nodes-source',filter:['has','point_count'],layout:{'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14},paint:{'text-color':'#0f0'}});
+            map.addLayer({id:'nodes-dots',type:'circle',source:'nodes-source',filter:['!',['has','point_count']],paint:{'circle-color':['get','color'],'circle-radius':10,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5}});
+            map.addLayer({id:'nodes-emoji',type:'symbol',source:'nodes-source',filter:['!',['has','point_count']],layout:{'text-field':['get','emoji'],'text-font':['Arial Unicode MS Bold'],'text-size':13,'text-allow-overlap':true},paint:{'text-color':'#000'}});
 
-            // Clusters: neon glow
-            map.addLayer({
-                id: 'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'],
-                paint: { 'circle-color':'#111', 'circle-stroke-color':'#0f0', 'circle-stroke-width':3,
-                    'circle-radius':['step',['get','point_count'],22,10,30,30,42],
-                    'circle-opacity':0.9 }
+            const popup=new mapboxgl.Popup({closeButton:false,closeOnClick:false,className:'node-popup'});
+            map.on('mouseenter','nodes-dots',(e)=>{
+                map.getCanvas().style.cursor='pointer';
+                const p=e.features[0].properties;
+                const timeLeft=Math.max(0,Math.floor((new Date(p.expires_at)-Date.now())/60000));
+                const txt=p.custom_intent?p.intent+' ('+p.custom_intent+')':p.intent;
+                popup.setLngLat(e.lngLat).setHTML(txt+' ['+timeLeft+'m]').addTo(map);
             });
-            map.addLayer({
-                id: 'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'],
-                layout: { 'text-field':'{point_count_abbreviated}', 'text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'], 'text-size':14 },
-                paint: { 'text-color':'#0f0' }
-            });
-
-            // Unclustered dots (colored)
-            map.addLayer({
-                id: 'nodes-dots', type:'circle', source:'nodes-source', filter:['!',['has','point_count']],
-                paint: { 'circle-color':['get','color'], 'circle-radius':10, 'circle-opacity':0.9, 'circle-stroke-color':'#fff', 'circle-stroke-width':1.5 }
-            });
-            // Emoji layer on top of dots
-            map.addLayer({
-                id: 'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
-                layout: { 'text-field':['get','emoji'], 'text-font':['Arial Unicode MS Bold'], 'text-size':13, 'text-allow-overlap':true },
-                paint: { 'text-color':'#000' }
-            });
-
-            // Hover popup
-            const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });
-            map.on('mouseenter', 'nodes-dots', (e) => {
-                map.getCanvas().style.cursor = 'pointer';
-                const props = e.features[0].properties;
-                const timeLeft = Math.max(0, Math.floor((new Date(props.expires_at) - Date.now()) / 60000));
-                popup.setLngLat(e.lngLat).setHTML(props.intent + ' [' + timeLeft + 'm]').addTo(map);
-            });
-            map.on('mouseleave', 'nodes-dots', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
-
-            map.on('click', 'nodes-dots', async (e) => {
-                const nodeProps = e.features[0].properties;
-                if(currentN) return;
-                currentN = nodeProps;
-                document.getElementById('status-bar').innerText = 'Sending request...'; document.getElementById('status-bar').style.display='block';
+            map.on('mouseleave','nodes-dots',()=>{map.getCanvas().style.cursor='';popup.remove()});
+            map.on('click','nodes-dots',async(e)=>{
+                const nodeProps=e.features[0].properties;
+                if(currentN)return;
+                currentN=nodeProps;
+                document.getElementById('status-bar').innerText='Sending request...';document.getElementById('status-bar').style.display='block';
                 await supabaseClient.from('requests').insert([{node_id:nodeProps.id,requester_id:'SEEKER'}]);
-                document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10);
+                document.getElementById('terminal').style.display='flex';setTimeout(()=>document.getElementById('terminal').style.opacity='1',10);
                 document.getElementById('status-bar').style.display='none';
-                startChatSync(); startOracleLive();
+                startChatSync();startOracleLive();
             });
-
-            map.on('click', 'nodes-clusters', (e) => {
-                const features = map.queryRenderedFeatures(e.point, { layers:['nodes-clusters'] });
-                const clusterId = features[0].properties.cluster_id;
-                map.getSource('nodes-source').getClusterExpansionZoom(clusterId, (err,zoom) => { if(err)return; map.easeTo({ center:features[0].geometry.coordinates, zoom }); });
+            map.on('click','nodes-clusters',(e)=>{
+                const features=map.queryRenderedFeatures(e.point,{layers:['nodes-clusters']});
+                const clusterId=features[0].properties.cluster_id;
+                map.getSource('nodes-source').getClusterExpansionZoom(clusterId,(err,zoom)=>{if(err)return;map.easeTo({center:features[0].geometry.coordinates,zoom})});
             });
-
-            document.getElementById('status-bar').innerText = 'Scanning...';
+            document.getElementById('status-bar').innerText='Scanning...';
             scan();
         });
 
         async function scan(){
-            const now = new Date().toISOString();
-            const {data,error} = await supabaseClient.from('nodes').select('*').eq('status','active').gt('expires_at',now);
-            if(error){ document.getElementById('status-bar').innerText='Connection issue'; return; }
-
-            const features = (data||[]).map(node => ({
-                type:'Feature',
-                geometry:{ type:'Point', coordinates:[parseFloat(node.lng),parseFloat(node.lat)] },
-                properties:{
-                    id:node.id,
-                    intent:node.intent||'☕ Coffee',
-                    emoji: intentIcons[node.intent] || '📍',
-                    color: intentColors[node.intent] || defaultColor,
-                    expires_at:node.expires_at
-                }
-            }));
-
-            if(map.getSource('nodes-source')){
-                map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
-            }
-
+            const now=new Date().toISOString();
+            const{data,error}=await supabaseClient.from('nodes').select('*').eq('status','active').gt('expires_at',now);
+            if(error){document.getElementById('status-bar').innerText='Connection issue';return}
+            const features=(data||[]).map(node=>({type:'Feature',geometry:{type:'Point',coordinates:[parseFloat(node.lng),parseFloat(node.lat)]},properties:{id:node.id,intent:node.intent,category:node.category||'social',custom_intent:node.custom_intent,color:categoryColors[node.category]||'#AAAAAA',emoji:categoryEmojis[node.category]||'📍',expires_at:node.expires_at}}));
+            if(map.getSource('nodes-source'))map.getSource('nodes-source').setData({type:'FeatureCollection',features});
             if(features.length===0){
-                document.getElementById('status-bar').style.display='block';
-                document.getElementById('status-bar').innerHTML = '🔍 No active nodes · <span style="opacity:0.7">0 nodes nearby</span>';
-                document.getElementById('status-bar').style.borderColor='#555'; document.getElementById('status-bar').style.color='#888';
-            } else {
-                document.getElementById('status-bar').style.display='block';
-                document.getElementById('status-bar').innerHTML = '🟢 '+features.length+' active node'+(features.length>1?'s':'')+' nearby';
-                document.getElementById('status-bar').style.borderColor='#0f0'; document.getElementById('status-bar').style.color='#0f0';
+                document.getElementById('status-bar').innerHTML='🔍 No active nodes · <span style="opacity:0.7">0 nodes nearby</span>';
+                document.getElementById('status-bar').style.borderColor='#555';document.getElementById('status-bar').style.color='#888';
+            }else{
+                document.getElementById('status-bar').innerHTML='🟢 '+features.length+' active node'+(features.length>1?'s':'')+' nearby';
+                document.getElementById('status-bar').style.borderColor='#0f0';document.getElementById('status-bar').style.color='#0f0';
             }
         }
         setInterval(scan,5000);
 
-        window.sendMsg = async function(){ const val=document.getElementById('chat-in').value; if(!val.trim())return; await supabaseClient.from('messages').insert([{node_id:currentN.id,sender:'SEEKER',content:val}]); document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block'; };
-        function startChatSync(){ supabaseClient.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id}, p=>{ document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>'; document.getElementById('oracle-btn').style.display='block'; }).subscribe(); }
-
-        window.initiateOracle = async function(){ await supabaseClient.from('oracle_sessions').upsert({bridge_id:currentN.id,u2_lat:FAKE_LAT,u2_lng:FAKE_LNG,error_state:null},{onConflict:'bridge_id'}); };
-
+        window.sendMsg=async function(){const val=document.getElementById('chat-in').value;if(!val.trim())return;await supabaseClient.from('messages').insert([{node_id:currentN.id,sender:'SEEKER',content:val}]);document.getElementById('chat-in').value='';document.getElementById('oracle-btn').style.display='block'}
+        function startChatSync(){supabaseClient.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id},p=>{document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>';document.getElementById('oracle-btn').style.display='block'}).subscribe()}
+        window.initiateOracle=async function(){await supabaseClient.from('oracle_sessions').upsert({bridge_id:currentN.id,u2_lat:FAKE_LAT,u2_lng:FAKE_LNG,error_state:null},{onConflict:'bridge_id'})}
         function startOracleLive(){
-            supabaseClient.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id}, payload=>{
+            supabaseClient.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id},payload=>{
                 const s=payload.new;
-                document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display='block';
-                if(s.error_state) return;
-                if(s.status==='matched') triggerSync(s);
-                if(s.u1_confirmed&&s.u2_confirmed&&!meetRated) startMeetTimer(s);
-                if(s.meet_completed&&!meetRated) showRatingPanel();
+                document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase();document.getElementById('oracle-ballot').style.display='block';
+                if(s.error_state)return;
+                if(s.status==='matched')triggerSync(s);
+                if(s.u1_confirmed&&s.u2_confirmed&&!meetRated)startMeetTimer(s);
+                if(s.meet_completed&&!meetRated)showRatingPanel();
             }).subscribe();
         }
 
         function triggerSync(s){
             document.getElementById('terminal').style.display='none';
-            const syncPanel = document.getElementById('sync-panel'); syncPanel.style.display='block'; setTimeout(()=>syncPanel.style.opacity='1',10);
+            const syncPanel=document.getElementById('sync-panel');syncPanel.style.display='block';setTimeout(()=>syncPanel.style.opacity='1',10);
             document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name;
             document.getElementById('sync-confirm-btn').style.display='block';
             myConfirmed=false;
-            selectedVenueCoords = {lat:+s.selected_lat, lng:+s.selected_lng};
+            selectedVenueCoords={lat:+s.selected_lat,lng:+s.selected_lng};
             const u1lat=+s.u1_lat,u1lng=+s.u1_lng,u2lat=+s.u2_lat,u2lng=+s.u2_lng,vlat=+s.selected_lat,vlng=+s.selected_lng;
             new mapboxgl.Marker({color:'#0f0'}).setLngLat([u1lng,u1lat]).addTo(map);
             new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([u2lng,u2lat]).addTo(map);
@@ -204,62 +155,15 @@
             drawRoute('rB',u2lng,u2lat,vlng,vlat,'#00ffaa',false);
             map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000});
         }
-
-        async function drawRoute(id,sLng,sLat,eLng,eLat,color,storeSteps=false){
-            try{ const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&steps=true&access_token='+mapboxgl.accessToken; const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return; if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id); map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}}); map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}}); if(storeSteps) routeSteps = r.routes[0].legs[0].steps; }catch(e){}
-        }
-
-        window.confirmProceed = async function(){ myConfirmed=true; document.getElementById('sync-confirm-btn').style.display='none'; document.getElementById('sync-status').innerText='Waiting for other user...'; await supabaseClient.from('oracle_sessions').update({u2_confirmed:true}).eq('bridge_id',currentN.id); };
-
-        function startMeetTimer(s){
-            const syncPanel = document.getElementById('sync-panel'); syncPanel.style.opacity='0'; setTimeout(()=>syncPanel.style.display='none',300);
-            const navHud = document.getElementById('nav-hud'); navHud.style.display='block'; setTimeout(()=>navHud.style.opacity='1',10);
-            document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();
-            document.getElementById('nav-btn').style.display='inline-block';
-            let remaining = MEET_DURATION_MINUTES*60;
-            meetTimerInterval = setInterval(async ()=>{ remaining--; const m=Math.floor(remaining/60),s=remaining%60; document.getElementById('meet-timer').innerText='MEET WINDOW: '+m+'m '+s+'s'; if(remaining<=0){ clearInterval(meetTimerInterval); await supabaseClient.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id); } },1000);
-        }
-
-        window.startNavigation = ()=>{
-            if(!selectedVenueCoords) return;
-            navActive = true;
-            document.getElementById('instruction-banner').style.display='block';
-            currentStep = 0; updateInstruction();
-            if(navWatchId) navigator.geolocation.clearWatch(navWatchId);
-            navWatchId = navigator.geolocation.watchPosition(pos=>{
-                if(!navActive) return;
-                map.setCenter([pos.coords.longitude, pos.coords.latitude]);
-                checkProgress(pos.coords.latitude, pos.coords.longitude);
-            }, err=>{}, {enableHighAccuracy:true});
-        };
-
-        function updateInstruction(){ if(!routeSteps.length||currentStep>=routeSteps.length)return; document.getElementById('instruction-banner').innerText=routeSteps[currentStep].maneuver.instruction; }
-
-        function haversineDistanceKm(lat1,lng1,lat2,lng2){ const R=6371; const dLat=(lat2-lat1)*Math.PI/180; const dLng=(lng2-lng1)*Math.PI/180; const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2; return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a)); }
-
-        function checkProgress(lat,lng){
-            if(!routeSteps.length||currentStep>=routeSteps.length)return;
-            const nextStep = routeSteps[currentStep];
-            const dist = haversineDistanceKm(lat,lng, nextStep.maneuver.location[1], nextStep.maneuver.location[0]);
-            if(dist<0.05 && currentStep<routeSteps.length-1){ currentStep++; updateInstruction(); }
-            const toVenue = haversineDistanceKm(lat,lng, selectedVenueCoords.lat, selectedVenueCoords.lng);
-            if(toVenue<0.05){ document.getElementById('instruction-banner').innerText='✅ You have arrived!'; setTimeout(()=>{ document.getElementById('instruction-banner').style.display='none'; navActive=false; if(navWatchId) navigator.geolocation.clearWatch(navWatchId); },3000); }
-        }
-
-        function showRatingPanel(){
-            const navHud = document.getElementById('nav-hud'); navHud.style.opacity='0'; setTimeout(()=>navHud.style.display='none',300);
-            const ratePanel = document.getElementById('rate-panel'); ratePanel.style.display='block'; setTimeout(()=>ratePanel.style.opacity='1',10);
-        }
-
-        window.submitRating = async function(rating){
-            if(meetRated) return; meetRated=true;
-            document.getElementById('rate-panel').style.display='none';
-            await supabaseClient.from('oracle_sessions').update({u2_rating:rating}).eq('bridge_id',currentN.id);
-            const {data:userData}=await supabaseClient.from('users').select('trust_score,total_meets').eq('id',myUserId).limit(1);
-            if(userData&&userData.length>0){ const u=userData[0]; const nt=(u.total_meets||0)+1; const ns=((u.trust_score||5.0)*(u.total_meets||0)+(rating===1?1:0))/nt; await supabaseClient.from('users').update({trust_score:Math.round(ns*10)/10,total_meets:nt}).eq('id',myUserId); }
-            document.getElementById('status-bar').innerText='Thanks for rating!'; document.getElementById('status-bar').style.display='block'; document.getElementById('status-bar').style.borderColor='#0f0'; document.getElementById('status-bar').style.color='#0f0';
-            setTimeout(()=>location.reload(),3000);
-        };
+        async function drawRoute(id,sLng,sLat,eLng,eLat,color,storeSteps=false){try{const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&steps=true&access_token='+mapboxgl.accessToken;const r=await(await fetch(url)).json();if(!r.routes||!r.routes[0])return;if(map.getLayer(id))map.removeLayer(id);if(map.getSource(id))map.removeSource(id);map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}});map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}});if(storeSteps)routeSteps=r.routes[0].legs[0].steps}catch(e){}}
+        window.confirmProceed=async function(){myConfirmed=true;document.getElementById('sync-confirm-btn').style.display='none';document.getElementById('sync-status').innerText='Waiting for other user...';await supabaseClient.from('oracle_sessions').update({u2_confirmed:true}).eq('bridge_id',currentN.id)}
+        function startMeetTimer(s){document.getElementById('sync-panel').style.opacity='0';setTimeout(()=>document.getElementById('sync-panel').style.display='none',300);const navHud=document.getElementById('nav-hud');navHud.style.display='block';setTimeout(()=>navHud.style.opacity='1',10);document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();document.getElementById('nav-btn').style.display='inline-block';let remaining=MEET_DURATION_MINUTES*60;meetTimerInterval=setInterval(async()=>{remaining--;const m=Math.floor(remaining/60),sec=remaining%60;document.getElementById('meet-timer').innerText='MEET WINDOW: '+m+'m '+sec+'s';if(remaining<=0){clearInterval(meetTimerInterval);await supabaseClient.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id)}},1000)}
+        window.startNavigation=()=>{if(!selectedVenueCoords)return;navActive=true;document.getElementById('instruction-banner').style.display='block';currentStep=0;updateInstruction();if(navWatchId)navigator.geolocation.clearWatch(navWatchId);navWatchId=navigator.geolocation.watchPosition(pos=>{if(!navActive)return;map.setCenter([pos.coords.longitude,pos.coords.latitude]);checkProgress(pos.coords.latitude,pos.coords.longitude)},e=>{},{enableHighAccuracy:true})}
+        function updateInstruction(){if(!routeSteps.length||currentStep>=routeSteps.length)return;document.getElementById('instruction-banner').innerText=routeSteps[currentStep].maneuver.instruction}
+        function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
+        function checkProgress(lat,lng){if(!routeSteps.length||currentStep>=routeSteps.length)return;const next=routeSteps[currentStep];const d=haversine(lat,lng,next.maneuver.location[1],next.maneuver.location[0]);if(d<0.05&&currentStep<routeSteps.length-1){currentStep++;updateInstruction()}const toVenue=haversine(lat,lng,selectedVenueCoords.lat,selectedVenueCoords.lng);if(toVenue<0.05){document.getElementById('instruction-banner').innerText='✅ You have arrived!';setTimeout(()=>{document.getElementById('instruction-banner').style.display='none';navActive=false;if(navWatchId)navigator.geolocation.clearWatch(navWatchId)},3000)}}
+        function showRatingPanel(){document.getElementById('nav-hud').style.opacity='0';setTimeout(()=>document.getElementById('nav-hud').style.display='none',300);const rp=document.getElementById('rate-panel');rp.style.display='block';setTimeout(()=>rp.style.opacity='1',10)}
+        window.submitRating=async function(r){if(meetRated)return;meetRated=true;document.getElementById('rate-panel').style.display='none';await supabaseClient.from('oracle_sessions').update({u2_rating:r}).eq('bridge_id',currentN.id);const{data:ud}=await supabaseClient.from('users').select('trust_score,total_meets').eq('id',myUserId).limit(1);if(ud&&ud.length>0){const u=ud[0];const nt=(u.total_meets||0)+1;const ns=((u.trust_score||5.0)*(u.total_meets||0)+(r===1?1:0))/nt;await supabaseClient.from('users').update({trust_score:Math.round(ns*10)/10,total_meets:nt}).eq('id',myUserId)}document.getElementById('status-bar').innerText='Thanks for rating!';document.getElementById('status-bar').style.display='block';document.getElementById('status-bar').style.borderColor='#0f0';document.getElementById('status-bar').style.color='#0f0';setTimeout(()=>location.reload(),3000)}
     </script>
 </body>
 </html>

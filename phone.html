@@ -79,7 +79,6 @@
 
         map.on('load', () => {
             map.addSource('nodes-source', { type:'geojson', data:{ type:'FeatureCollection', features:[] }, cluster:true, clusterMaxZoom:14, clusterRadius:50 });
-
             map.addLayer({ id:'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'], paint:{ 'circle-color':'#111', 'circle-stroke-color':'#0f0', 'circle-stroke-width':3, 'circle-radius':['step',['get','point_count'],22,10,30,30,42], 'circle-opacity':0.9 } });
             map.addLayer({ id:'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'], layout:{ 'text-field':'{point_count_abbreviated}', 'text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'], 'text-size':14 }, paint:{ 'text-color':'#0f0' } });
             map.addLayer({ id:'nodes-dots', type:'circle', source:'nodes-source', filter:['!',['has','point_count']], paint:{ 'circle-color':['get','color'], 'circle-radius':10, 'circle-opacity':0.9, 'circle-stroke-color':'#fff', 'circle-stroke-width':1.5 } });
@@ -98,15 +97,12 @@
             map.on('click', 'nodes-dots', async (e) => {
                 const nodeProps = e.features[0].properties;
                 if(currentN) return;
-                // Check if already rejected
                 const{data:rej}=await supabaseClient.from('rejected_requests').select('*').eq('node_id',nodeProps.id).eq('requester_id',myUserId);
                 if(rej&&rej.length>0){ setStatus('error','You were declined from this node'); setTimeout(clearStatus,2000); return; }
 
-                // For social one-on-one nodes with vibe check, show vibe popup
                 if(nodeProps.category==='social' && nodeProps.node_type==='one_on_one' && nodeProps.vibe_question){
                     showVibePopup(e.lngLat, nodeProps);
                 } else {
-                    // Group or no vibe: direct request
                     await sendRequest(nodeProps, null);
                 }
             });
@@ -124,11 +120,9 @@
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#ff0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#ff0';b.style.color=c[t]||'#ff0';b.innerText=m;}
         function clearStatus(){document.getElementById('status-bar').style.display='none';}
 
-        // Vibe popup
         function showVibePopup(lngLat, nodeProps){
             const vibeQ = nodeProps.vibe_question;
             const correctAnswer = nodeProps.vibe_answer;
-            // Determine the two options from the vibeChecks (we need a lookup; we'll embed a small map or hardcode based on intent – easier: use the stored vibe_answer to know which is a/b, but we need the text. We'll store the text options in the node? For simplicity, we'll assume the popup shows the question and two buttons "A" / "B" with labels from a quick lookup.)
             const intent = nodeProps.intent;
             const vibeMap = {
                 '☕ Coffee & Conversation': {a:'Loud & social', b:'Quiet & intimate'},
@@ -150,7 +144,6 @@
                     popup.remove();
                     if(answer !== correctAnswer){
                         setStatus('error','Not my vibe'); setTimeout(clearStatus,2000);
-                        // Record rejection so they can't reapply
                         await supabaseClient.from('rejected_requests').upsert({node_id:nodeProps.id, requester_id:myUserId},{onConflict:'node_id,requester_id'});
                         return;
                     }
@@ -161,22 +154,22 @@
 
         async function sendRequest(nodeProps, answer){
             setStatus('info','Sending request...');
-            const payload = { node_id:nodeProps.id, requester_id:'SEEKER', status:'pending' };
+            const payload = { node_id:nodeProps.id, requester_id: myUserId, status:'pending' };
             if(answer) payload.answer = answer;
-            const{error}=await supabaseClient.from('requests').insert([payload]);
+            const{error} = await supabaseClient.from('requests').insert([payload]);
             if(error){ setStatus('error','Request failed'); return; }
             setStatus('success','Request sent! Waiting for creator...');
-            currentN = nodeProps; // store for later chat if accepted
-            // Listen for acceptance
-            supabaseClient.channel('my-req-'+nodeProps.id).on('postgres_changes',{event:'UPDATE',schema:'public',table:'requests',filter:`node_id=eq.${nodeProps.id} and requester_id=eq.SEEKER`},payload=>{
-                const req=payload.new;
-                if(req.status==='accepted'){
-                    document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10);
-                    startChatSync(); startOracleLive();
-                } else if(req.status==='declined'){
-                    setStatus('error','Creator declined your request');
-                }
-            }).subscribe();
+            currentN = nodeProps;
+            supabaseClient.channel('my-req-'+nodeProps.id)
+                .on('postgres_changes',{event:'UPDATE',schema:'public',table:'requests',filter:`node_id=eq.${nodeProps.id} and requester_id=eq.${myUserId}`}, payload => {
+                    const req = payload.new;
+                    if(req.status === 'accepted'){
+                        document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10);
+                        startChatSync(); startOracleLive();
+                    } else if(req.status === 'declined'){
+                        setStatus('error','Creator declined your request');
+                    }
+                }).subscribe();
         }
 
         async function scan(){

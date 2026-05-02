@@ -114,6 +114,7 @@
         const map=new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[55.39,25.34],zoom:12});
         let currentN=null,myLoc={lat:0,lng:0},oracleProcessed=false,gpsReady=false,gpsFailures=0,meetRated=false,myConfirmed=false,meetTimerInterval=null;
         let navActive=false,routeSteps=[],currentStep=0,navWatchId=null,selectedVenueCoords=null;
+        let inboxPollInterval = null;
 
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#ff0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#ff0';b.style.color=c[t]||'#ff0';b.innerText=m}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
@@ -248,7 +249,6 @@
         window.startCreation = ()=>{
             const finalIntent = selectedIntent==='Custom'?customIntentText:selectedIntent;
             if(!finalIntent.trim()){setStatus('error','Please select or enter an intent');return}
-            // If social one-on-one vibe row is visible but no vibe selected, block
             const vibeRow = document.getElementById('vibe-row-social');
             if(vibeRow && vibeRow.style.display !== 'none' && !selectedVibeAnswer){
                 setStatus('error','Please select a vibe before dropping');
@@ -280,8 +280,17 @@
                 el.innerText=meta.emoji;
                 new mapboxgl.Marker(el).setLngLat([e.lngLat.lng,e.lngLat.lat]).addTo(map);
 
-                _supabase.channel('inbox-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id},()=>{loadInbox();}).subscribe();
+                // Realtime listener
+                _supabase.channel('inbox-'+currentN.id)
+                    .on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id},()=>{
+                        console.log('📩 Realtime event: new request');
+                        loadInbox();
+                    }).subscribe();
+
+                // Initial fetch + polling fallback
                 loadInbox();
+                if(inboxPollInterval) clearInterval(inboxPollInterval);
+                inboxPollInterval = setInterval(loadInbox, 4000);
             });
         };
 

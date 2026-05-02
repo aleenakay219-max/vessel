@@ -8,17 +8,33 @@
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; }
         #map { height: 100%; width: 100%; position: absolute; top: 0; z-index: 1; }
+        #status-bar { display: none; position: fixed; top: 10px; left: 5%; width: 90%; background: rgba(0,0,0,0.9); border: 1px solid #ff0; z-index: 3000; padding: 10px; text-align: center; color: #ff0; font-size: 12px; box-sizing: border-box; }
         #terminal { display: none; position: fixed; bottom: 10px; left: 5%; width: 90%; background: rgba(0, 10, 0, 0.95); border: 1px solid #0f0; z-index: 2000; flex-direction: column; padding: 15px; box-sizing: border-box; }
         #msg-box { height: 150px; overflow-y: auto; color:#0f0; margin-bottom: 10px; border: 1px solid #030; padding: 5px; display: flex; flex-direction: column; }
         #oracle-ballot { display: none; color:#0f0; border: 1px solid #0f0; padding: 10px; margin-bottom: 10px; background: rgba(0, 255, 0, 0.1); font-size: 11px; text-align: center; }
         #nav-hud { display: none; position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(0, 10, 0, 0.95); border-top: 2px solid #0f0; z-index: 4000; padding: 20px; text-align: center; color: #0f0; box-sizing: border-box; }
         #fab { position: absolute; bottom: 30px; right: 30px; width: 70px; height: 70px; background: #000; border: 2px solid #0f0; border-radius: 50%; color: #0f0; font-size: 35px; cursor: pointer; z-index: 2000; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px #0f0; }
+        #intent-picker { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,10,0,0.97); border: 2px solid #0f0; z-index: 5000; padding: 20px; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 320px; }
+        .intent-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 10px 15px; cursor: pointer; font-family: monospace; font-size: 13px; }
+        .intent-btn:hover { background: #0f0; color: #000; }
         .hud-btn { background: transparent; border: 1px solid #0f0; color: #0f0; padding: 12px; margin: 10px 5px; cursor: pointer; font-family: monospace; text-transform: uppercase; }
     </style>
 </head>
 <body>
     <div id="map"></div>
-    <button id="fab" onclick="startCreation()">+</button>
+    <div id="status-bar"></div>
+    <button id="fab" onclick="openIntentPicker()">+</button>
+    <div id="intent-picker">
+        <button class="intent-btn" onclick="startCreation('☕ Coffee')">☕ Coffee</button>
+        <button class="intent-btn" onclick="startCreation('🚶 Walk')">🚶 Walk</button>
+        <button class="intent-btn" onclick="startCreation('🍽️ Food')">🍽️ Food</button>
+        <button class="intent-btn" onclick="startCreation('📚 Study')">📚 Study</button>
+        <button class="intent-btn" onclick="startCreation('🏋️ Gym')">🏋️ Gym</button>
+        <button class="intent-btn" onclick="startCreation('🍺 Drinks')">🍺 Drinks</button>
+        <button class="intent-btn" onclick="startCreation('⚽ Sports')">⚽ Sports</button>
+        <button class="intent-btn" onclick="startCreation('💬 Chat')">💬 Chat</button>
+        <button class="intent-btn" onclick="document.getElementById('intent-picker').style.display='none'" style="border-color:#f00;color:#f00;">CLOSE</button>
+    </div>
     <div id="terminal">
         <div id="oracle-ballot">STATUS: PENDING</div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none; width:100%; padding:12px; background:transparent; border:1px solid #0f0; color:#0f0; margin-bottom:10px; cursor:pointer;">[ SYNC GPS WITH ORACLE ]</button>
@@ -38,14 +54,45 @@
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
         const MAX_VENUE_DISTANCE_KM = 20;
+        const NODE_EXPIRY_MINUTES = 30;
 
         const map = new mapboxgl.Map({ container: 'map', style: 'mapbox://styles/mapbox/dark-v11', center: [55.39, 25.34], zoom: 12 });
-        let currentN = null, myLoc = {lat: 0, lng: 0}, oracleProcessed = false, requestPollInterval = null;
+        let currentN = null, myLoc = {lat: 0, lng: 0}, oracleProcessed = false;
+        let gpsReady = false, gpsFailures = 0;
+        let selectedIntent = '☕ Coffee';
 
-        navigator.geolocation.watchPosition(p => { 
-            myLoc = {lat: p.coords.latitude, lng: p.coords.longitude};
-            console.log('📍 CREATOR GPS:', myLoc.lat.toFixed(5), myLoc.lng.toFixed(5));
-        }, null, {enableHighAccuracy: true});
+        function setStatus(statusType, message) {
+            const bar = document.getElementById('status-bar');
+            const colors = { info: '#ff0', warning: '#f90', error: '#f00', success: '#0f0', reconnecting: '#0ff' };
+            bar.style.display = 'block';
+            bar.style.borderColor = colors[statusType] || '#ff0';
+            bar.style.color = colors[statusType] || '#ff0';
+            bar.innerText = message;
+            console.log('[' + statusType.toUpperCase() + '] ' + message);
+        }
+
+        function clearStatus() {
+            document.getElementById('status-bar').style.display = 'none';
+        }
+
+        navigator.geolocation.watchPosition(
+            p => { 
+                myLoc = {lat: p.coords.latitude, lng: p.coords.longitude};
+                gpsReady = true;
+                gpsFailures = 0;
+                clearStatus();
+                console.log('GPS:', myLoc.lat.toFixed(5), myLoc.lng.toFixed(5));
+            }, 
+            err => {
+                gpsFailures++;
+                gpsReady = false;
+                if (gpsFailures === 1) setStatus('warning', 'GPS signal weak - searching...');
+                if (gpsFailures > 5) setStatus('error', 'GPS unavailable. Check location permissions.');
+            }, 
+            {enableHighAccuracy: true, timeout: 15000, maximumAge: 30000}
+        );
+
+        setStatus('info', 'Waiting for GPS...');
 
         function haversineDistanceKm(lat1, lng1, lat2, lng2) {
             const R = 6371;
@@ -61,35 +108,67 @@
             return `${midLng - dLng},${midLat - dLat},${midLng + dLng},${midLat + dLat}`;
         }
 
-        function openChatIfRequested() {
-            if (currentN && document.getElementById('terminal').style.display !== 'flex') {
-                _supabase.from('requests').select('*').eq('node_id', currentN.id).limit(1).then(({ data }) => {
-                    if (data && data.length > 0) {
-                        console.log('📩 Request found via poll');
-                        document.getElementById('terminal').style.display = 'flex';
-                        startChatSync(); startOracleLive();
-                        if (requestPollInterval) clearInterval(requestPollInterval);
-                    }
-                });
+        window.openIntentPicker = () => {
+            if (!gpsReady) {
+                setStatus('warning', 'GPS not ready yet. Please wait...');
+                return;
             }
-        }
+            document.getElementById('intent-picker').style.display = 'flex';
+        };
 
-        window.startCreation = () => {
+        window.startCreation = async (intent) => {
+            document.getElementById('intent-picker').style.display = 'none';
+            selectedIntent = intent;
+            setStatus('info', 'Tap anywhere on the map to drop your "' + intent + '" node');
+
             map.once('click', async (e) => {
-                const { data } = await _supabase.from('nodes').insert([{ lat: e.lngLat.lat, lng: e.lngLat.lng, intent: '☕ Coffee', status: 'active' }]).select();
+                setStatus('info', 'Creating node...');
+
+                const nodeData = {
+                    lat: e.lngLat.lat,
+                    lng: e.lngLat.lng,
+                    intent: selectedIntent,
+                    status: 'active',
+                    expires_at: new Date(Date.now() + NODE_EXPIRY_MINUTES * 60 * 1000).toISOString()
+                };
+
+                const { data, error } = await _supabase.from('nodes').insert([nodeData]).select();
+
+                if (error) {
+                    setStatus('error', 'Failed to create node. Please try again.');
+                    return;
+                }
+
                 currentN = data[0];
-                console.log('🟢 Node created:', currentN.id);
+                clearStatus();
+                setStatus('success', '"' + selectedIntent + '" node active! Expires in ' + NODE_EXPIRY_MINUTES + ' mins. Waiting for seeker...');
+
                 new mapboxgl.Marker({color: '#0f0'}).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
-                
+
                 _supabase.channel('reqs-' + currentN.id)
-                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: `node_id=eq.${currentN.id}` }, () => {
-                        console.log('📩 Request via realtime');
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: 'node_id=eq.' + currentN.id }, () => {
+                        clearStatus();
+                        setStatus('success', 'Someone wants to connect!');
                         document.getElementById('terminal').style.display = 'flex';
-                        startChatSync(); startOracleLive();
-                        if (requestPollInterval) clearInterval(requestPollInterval);
+                        startChatSync();
+                        startOracleLive();
                     }).subscribe();
 
-                requestPollInterval = setInterval(openChatIfRequested, 3000);
+                const pollInterval = setInterval(async () => {
+                    if (document.getElementById('terminal').style.display === 'flex') {
+                        clearInterval(pollInterval);
+                        return;
+                    }
+                    const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', currentN.id).limit(1);
+                    if (reqs && reqs.length > 0) {
+                        clearInterval(pollInterval);
+                        clearStatus();
+                        setStatus('success', 'Someone wants to connect!');
+                        document.getElementById('terminal').style.display = 'flex';
+                        startChatSync();
+                        startOracleLive();
+                    }
+                }, 3000);
             });
         };
 
@@ -103,34 +182,63 @@
 
         function startChatSync() {
             _supabase.channel('msgs-' + currentN.id)
-                .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`node_id=eq.${currentN.id}` }, p => {
-                    document.getElementById('msg-box').innerHTML += `<div style="color:#0f0">> ${p.new.content}</div>`;
+                .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:'node_id=eq.' + currentN.id }, p => {
+                    document.getElementById('msg-box').innerHTML += '<div style="color:#0f0">> ' + p.new.content + '</div>';
                     document.getElementById('oracle-btn').style.display = 'block';
                 }).subscribe();
         }
 
         window.initiateOracle = async () => {
-            if (!myLoc || myLoc.lat === 0) return;
-            console.log('🔮 Creator GPS for oracle:', myLoc.lat.toFixed(5), myLoc.lng.toFixed(5));
-            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' });
+            if (!gpsReady || myLoc.lat === 0) {
+                setStatus('error', 'GPS not ready. Cannot sync with Oracle.');
+                return;
+            }
+            setStatus('info', 'Syncing GPS with Oracle...');
+            await _supabase.from('oracle_sessions').upsert(
+                { bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng, error_state: null },
+                { onConflict: 'bridge_id' }
+            );
         };
 
         function startOracleLive() {
             _supabase.channel('oracle-' + currentN.id)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: `bridge_id=eq.${currentN.id}` }, async payload => {
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: 'bridge_id=eq.' + currentN.id }, async payload => {
                 const s = payload.new;
-                document.getElementById('oracle-ballot').innerText = `STATUS: ${s.status.toUpperCase()}`;
+
+                if (s.error_state) {
+                    const msgs = {
+                        'gps_timeout': 'GPS timeout - one user may be offline',
+                        'no_venues': 'No meeting spots found in range',
+                        'node_expired': 'Node expired - please create a new one',
+                        'seeker_disconnected': 'Seeker disconnected'
+                    };
+                    setStatus('error', msgs[s.error_state] || s.error_state);
+                    return;
+                }
+
+                document.getElementById('oracle-ballot').innerText = 'STATUS: ' + s.status.toUpperCase();
                 document.getElementById('oracle-ballot').style.display = 'block';
 
                 const hasGPS = (s.u1_lat && s.u1_lng && s.u2_lat && s.u2_lng && s.u1_lat !== 0 && s.u2_lat !== 0);
+
+                if (!hasGPS && s.status === 'pending') {
+                    setStatus('warning', 'Waiting for both users GPS...');
+                }
+
                 if (hasGPS && s.status === 'pending') {
+                    setStatus('info', 'Oracle calculating meeting point...');
                     await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id);
                 }
+
                 if (s.status === 'ready' && !s.options_generated && !oracleProcessed) {
                     oracleProcessed = true;
                     await runOracleBrain(s);
                 }
-                if (s.status === 'matched') triggerSync(s);
+
+                if (s.status === 'matched') {
+                    clearStatus();
+                    triggerSync(s);
+                }
             }).subscribe();
         }
 
@@ -138,7 +246,7 @@
             const midLat = (s.u1_lat + s.u2_lat) / 2;
             const midLng = (s.u1_lng + s.u2_lng) / 2;
             const dist = haversineDistanceKm(s.u1_lat, s.u1_lng, s.u2_lat, s.u2_lng);
-            console.log('🧠 Oracle — Mid:', midLat.toFixed(5), midLng.toFixed(5), 'Dist:', dist.toFixed(2), 'km');
+            console.log('Oracle - Mid:', midLat.toFixed(5), midLng.toFixed(5), 'Dist:', dist.toFixed(2), 'km');
 
             const queries = ['cafe', 'coffee shop', 'restaurant', 'starbucks', 'mall', 'costa', 'park'];
             let bestVenue = null;
@@ -147,12 +255,12 @@
                 for (const r of [3, 6, 10, 15, MAX_VENUE_DISTANCE_KM]) {
                     if (bestVenue) break;
                     const bbox = bboxFromMidpoint(midLat, midLng, r);
-                    const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}&proximity=${midLng},${midLat}&bbox=${bbox}&limit=10&language=en&access_token=${MAPBOX_TOKEN}`;
+                    const url = 'https://api.mapbox.com/search/geocode/v6/forward?q=' + encodeURIComponent(q) + '&proximity=' + midLng + ',' + midLat + '&bbox=' + bbox + '&limit=10&language=en&access_token=' + MAPBOX_TOKEN;
                     
                     try {
                         const res = await fetch(url);
                         const d = await res.json();
-                        if (d.features?.length > 0) {
+                        if (d.features && d.features.length > 0) {
                             const nearby = d.features
                                 .filter(f => f.geometry.coordinates[1] && f.geometry.coordinates[0])
                                 .map(f => ({
@@ -166,7 +274,7 @@
                             
                             if (nearby.length > 0) {
                                 bestVenue = nearby[0];
-                                console.log(`   ✅ "${q}" @${r}km → ${bestVenue.name} (${bestVenue.dist.toFixed(1)}km)`);
+                                console.log('FOUND: "' + q + '" @' + r + 'km -> ' + bestVenue.name + ' (' + bestVenue.dist.toFixed(1) + 'km)');
                             }
                         }
                     } catch(e) {}
@@ -175,15 +283,15 @@
             }
 
             if (bestVenue) {
-                console.log(`🎯 SELECTED: ${bestVenue.name}`);
+                console.log('SELECTED: ' + bestVenue.name);
                 await _supabase.from('oracle_sessions').update({ 
-                    status: 'matched', options_generated: true, 
+                    status: 'matched', options_generated: true, error_state: null,
                     selected_venue_name: bestVenue.name, selected_lat: bestVenue.lat, selected_lng: bestVenue.lng 
                 }).eq('bridge_id', currentN.id);
             } else {
-                console.log('⚠️ Fallback to midpoint');
+                console.log('Fallback to midpoint');
                 await _supabase.from('oracle_sessions').update({ 
-                    status: 'matched', options_generated: true, 
+                    status: 'matched', options_generated: true, error_state: null,
                     selected_venue_name: 'Midpoint Meeting Spot', selected_lat: midLat, selected_lng: midLng 
                 }).eq('bridge_id', currentN.id);
             }
@@ -191,11 +299,14 @@
 
         function triggerSync(s) {
             const u1lat = +s.u1_lat, u1lng = +s.u1_lng, u2lat = +s.u2_lat, u2lng = +s.u2_lng, vlat = +s.selected_lat, vlng = +s.selected_lng;
-            if (!vlat || Math.abs(vlat) > 90 || Math.abs(vlng) > 180) return;
+            if (!vlat || Math.abs(vlat) > 90 || Math.abs(vlng) > 180) {
+                setStatus('error', 'Invalid meeting coordinates');
+                return;
+            }
 
             document.getElementById('terminal').style.display = 'none';
             document.getElementById('nav-hud').style.display = 'block';
-            document.getElementById('target-name').innerText = `MEET AT: ${s.selected_venue_name.toUpperCase()}`;
+            document.getElementById('target-name').innerText = 'MEET AT: ' + s.selected_venue_name.toUpperCase();
             
             new mapboxgl.Marker({color: '#0f0'}).setLngLat([u1lng, u1lat]).addTo(map);
             new mapboxgl.Marker({color: '#00ffaa'}).setLngLat([u2lng, u2lat]).addTo(map);
@@ -209,9 +320,9 @@
 
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
             try {
-                const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`;
+                const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&overview=full&access_token=' + MAPBOX_TOKEN;
                 const r = await (await fetch(url)).json();
-                if (!r.routes?.[0]) return;
+                if (!r.routes || !r.routes[0]) return;
                 if (map.getLayer(id)) map.removeLayer(id);
                 if (map.getSource(id)) map.removeSource(id);
                 map.addSource(id, {type:'geojson', data:{type:'Feature', geometry: r.routes[0].geometry}});

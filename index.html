@@ -10,6 +10,7 @@
         #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
         #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #ff0;z-index:3000;padding:10px;text-align:center;color:#ff0;font-size:12px;box-sizing:border-box}
         #terminal{display:none;opacity:0;transition:opacity 0.3s;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #0f0;z-index:2000;flex-direction:column;padding:15px;box-sizing:border-box}
+        #inbox-panel{display:none;border:1px solid #0f0;padding:10px;margin-bottom:10px;max-height:150px;overflow-y:auto;color:#0f0}
         #msg-box{height:150px;overflow-y:auto;color:#0f0;margin-bottom:10px;border:1px solid #030;padding:5px;display:flex;flex-direction:column}
         #oracle-ballot{display:none;color:#0f0;border:1px solid #0f0;padding:10px;margin-bottom:10px;background:rgba(0,255,0,0.1);font-size:11px;text-align:center}
         #sync-panel{display:none;opacity:0;transition:opacity 0.3s;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #0f0;z-index:5000;padding:30px;text-align:center;color:#0f0}
@@ -17,7 +18,6 @@
         #nav-hud{display:none;opacity:0;transition:opacity 0.3s;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #0f0;z-index:4000;padding:20px;text-align:center;color:#0f0;box-sizing:border-box}
         #instruction-banner{display:none;position:fixed;top:60px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #0ff;z-index:3500;padding:12px;text-align:center;color:#0ff;font-size:14px;font-weight:bold;box-sizing:border-box}
         #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #0f0;border-radius:50%;color:#0f0;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #0f0}
-        /* Accordion picker */
         #intent-panel{display:none;position:fixed;bottom:110px;left:5%;width:90%;background:rgba(0,10,0,0.97);border:2px solid #0f0;z-index:5000;padding:0;box-sizing:border-box;max-height:55vh;overflow-y:auto}
         .accordion-section{border-bottom:1px solid #0f0}
         .accordion-header{width:100%;background:transparent;border:none;color:#0f0;padding:12px 15px;text-align:left;font-family:monospace;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
@@ -28,11 +28,19 @@
         .intent-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:8px 12px;cursor:pointer;font-family:monospace;font-size:12px;display:flex;align-items:center;gap:5px;white-space:nowrap}
         .intent-btn:hover,.intent-btn.selected{background:#0f0;color:#000}
         .intent-btn.custom{border-style:dashed}
+        .node-type-row{margin:8px 0;display:flex;gap:10px;align-items:center}
+        .vibe-row{margin:8px 0}
+        .vibe-option{background:transparent;border:1px solid #0f0;color:#0f0;padding:5px 10px;cursor:pointer;font-family:monospace;font-size:11px;margin-right:5px}
+        .vibe-option.selected{background:#0f0;color:#000}
         .custom-input{width:100%;padding:8px;background:#000;border:1px solid #0f0;color:#0f0;margin-top:5px;font-family:monospace;font-size:12px;display:none}
+        .done-btn{display:none;margin-top:8px;background:#0f0;color:#000;border:none;padding:8px 16px;cursor:pointer;font-family:monospace}
         .close-btn{display:block;width:100%;background:transparent;border:none;border-top:1px solid #f00;color:#f00;padding:12px;text-align:center;font-family:monospace;cursor:pointer}
         .hud-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
         .sync-btn{background:transparent;border:2px solid #0f0;color:#0f0;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
         .rate-btn{background:transparent;border:2px solid #ff0;color:#ff0;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
+        .inbox-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding:5px;border:1px solid #0f0}
+        .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #0f0;color:#0f0;cursor:pointer}
+        .inbox-dossier{font-size:10px;color:#aaa}
     </style>
 </head>
 <body>
@@ -42,6 +50,7 @@
     <button id="fab" onclick="openIntentPanel()">+</button>
     <div id="intent-panel"></div>
     <div id="terminal">
+        <div id="inbox-panel"></div>
         <div id="oracle-ballot">STATUS: PENDING</div>
         <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #0f0;color:#0f0;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
@@ -81,236 +90,250 @@
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
 
         const categoryMeta = {
-            social: {label:'🍻 Social',color:'#FFD700',emoji:'🍻',queries:['cafe','coffee shop','restaurant','rooftop lounge','park']},
-            games: {label:'⚽ Games',color:'#4ADE80',emoji:'🎮',queries:['park','sports complex','field','recreation centre']},
-            work: {label:'🔧 Work',color:'#FF8C42',emoji:'🔧',queries:['coworking space','cafe','library','community centre']},
-            parents: {label:'🧒 Parents',color:'#C084FC',emoji:'🧒',queries:['playground','family restaurant','indoor play area','park']}
+            social:{label:'🍻 Social',color:'#FFD700',emoji:'🍻',queries:['cafe','coffee shop','restaurant','rooftop lounge','park']},
+            games:{label:'⚽ Games',color:'#4ADE80',emoji:'🎮',queries:['park','sports complex','field','recreation centre']},
+            work:{label:'🔧 Work',color:'#FF8C42',emoji:'🔧',queries:['coworking space','cafe','library','community centre']},
+            parents:{label:'🧒 Parents',color:'#C084FC',emoji:'🧒',queries:['playground','family restaurant','indoor play area','park']}
         };
         const presets = {
-            social: ['☕ Coffee & Conversation','🍽️ Foodie Meetup','🌙 Night Out','🧘 Chill & Wellness'],
-            games: ['⚽ Football','🏏 Cricket','🎾 Tennis'],
-            work: ['🔨 I Can Help','☕ Co‑Working / Study','💡 Creative Collab'],
-            parents: ['🧸 Kids’ Playdate','🤱 Mum2Mum','👨 Dad’s Crew','👨‍👩‍👧 Family Hangout']
+            social:['☕ Coffee & Conversation','🍽️ Foodie Meetup','🌙 Night Out','🧘 Chill & Wellness'],
+            games:['⚽ Football','🏏 Cricket','🎾 Tennis'],
+            work:['🔨 I Can Help','☕ Co‑Working / Study','💡 Creative Collab'],
+            parents:['🧸 Kids’ Playdate','🤱 Mum2Mum','👨 Dad’s Crew','👨‍👩‍👧 Family Hangout']
+        };
+        const vibeChecks = {
+            '☕ Coffee & Conversation': {q:'What kind of coffee vibe?', a:'Loud & social', b:'Quiet & intimate'},
+            '🍽️ Foodie Meetup': {q:'What cuisine mood?', a:'Adventurous / new', b:'Comfort / familiar'},
+            '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'},
+            '🧘 Chill & Wellness': {q:'How should we chill?', a:'Silent parallel time', b:'Chat while walking'}
         };
 
-        let selectedCategory = 'social', selectedIntent = '☕ Coffee & Conversation', customIntentText = '';
-        let myUserId = localStorage.getItem('vessel_user_id') || (myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8), localStorage.setItem('vessel_user_id', myUserId), myUserId);
-        const map = new mapboxgl.Map({ container:'map', style:'mapbox://styles/mapbox/dark-v11', center:[55.39,25.34], zoom:12 });
-        let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false, gpsReady = false, gpsFailures = 0, meetRated = false, myConfirmed = false, meetTimerInterval = null;
-        let navActive = false, routeSteps = [], currentStep = 0, navWatchId = null, selectedVenueCoords = null;
+        let selectedCategory='social', selectedIntent='☕ Coffee & Conversation', customIntentText='';
+        let selectedNodeType='one_on_one', selectedMaxParticipants=null, selectedVibeAnswer=null;
+        let myUserId=localStorage.getItem('vessel_user_id')||(myUserId='u_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),localStorage.setItem('vessel_user_id',myUserId),myUserId);
+        const map=new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[55.39,25.34],zoom:12});
+        let currentN=null,myLoc={lat:0,lng:0},oracleProcessed=false,gpsReady=false,gpsFailures=0,meetRated=false,myConfirmed=false,meetTimerInterval=null;
+        let navActive=false,routeSteps=[],currentStep=0,navWatchId=null,selectedVenueCoords=null;
 
-        function setStatus(t,m) { const b = document.getElementById('status-bar'); const c = {info:'#ff0',warning:'#f90',error:'#f00',success:'#0f0'}; b.style.display='block'; b.style.borderColor = c[t] || '#ff0'; b.style.color = c[t] || '#ff0'; b.innerText = m; }
-        function clearStatus() { document.getElementById('status-bar').style.display = 'none'; }
-        navigator.geolocation.watchPosition(p => { myLoc = {lat:p.coords.latitude,lng:p.coords.longitude}; gpsReady = true; gpsFailures = 0; clearStatus(); }, e => { gpsFailures++; gpsReady = false; if(gpsFailures === 1) setStatus('warning','GPS signal weak'); if(gpsFailures > 5) setStatus('error','GPS unavailable'); }, {enableHighAccuracy:true, timeout:15000, maximumAge:30000});
+        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#ff0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#ff0';b.style.color=c[t]||'#ff0';b.innerText=m}
+        function clearStatus(){document.getElementById('status-bar').style.display='none'}
+        navigator.geolocation.watchPosition(p=>{myLoc={lat:p.coords.latitude,lng:p.coords.longitude};gpsReady=true;gpsFailures=0;clearStatus()},e=>{gpsFailures++;gpsReady=false;if(gpsFailures===1)setStatus('warning','GPS signal weak');if(gpsFailures>5)setStatus('error','GPS unavailable')},{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
         setStatus('info','Waiting for GPS...');
 
-        function haversine(lat1,lng1,lat2,lng2) { const R = 6371; const dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180; const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2; return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); }
-        function bbox(midLat,midLng,r) { const dLat = r/111.32, dLng = r/(111.32*Math.cos(midLat*Math.PI/180)); return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat); }
-        async function ensureUser() { const { data } = await _supabase.from('users').select('id').eq('id',myUserId).limit(1); if(!data || data.length === 0) await _supabase.from('users').insert([{id:myUserId, trust_score:5.0, total_meets:0}]); }
+        function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
+        function bbox(midLat,midLng,r){const dLat=r/111.32,dLng=r/(111.32*Math.cos(midLat*Math.PI/180));return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat)}
+        async function ensureUser(){const{data}=await _supabase.from('users').select('id').eq('id',myUserId).limit(1);if(!data||data.length===0)await _supabase.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]);}
         ensureUser();
 
         // Build accordion
-        function buildAccordion() {
-            const panel = document.getElementById('intent-panel');
-            panel.innerHTML = '';
-            ['social','games','work','parents'].forEach(cat => {
-                const section = document.createElement('div');
-                section.className = 'accordion-section';
-                const header = document.createElement('button');
-                header.className = 'accordion-header';
-                header.innerHTML = `<span>${categoryMeta[cat].label}</span><span>▼</span>`;
-                header.onclick = () => toggleAccordion(cat);
-                const body = document.createElement('div');
-                body.className = 'accordion-body';
-                body.id = 'body-' + cat;
-                const btnRow = document.createElement('div');
-                btnRow.className = 'btn-row';
-                presets[cat].forEach(intent => {
-                    const btn = document.createElement('button');
-                    btn.className = 'intent-btn';
-                    btn.innerText = intent;
-                    btn.onclick = (e) => { e.stopPropagation(); selectIntent(cat, intent, false); collapseAll(); closeIntentPanel(); startCreation(); };
+        function buildAccordion(){
+            const panel=document.getElementById('intent-panel');
+            panel.innerHTML='';
+            ['social','games','work','parents'].forEach(cat=>{
+                const section=document.createElement('div');
+                section.className='accordion-section';
+                const header=document.createElement('button');
+                header.className='accordion-header';
+                header.innerHTML=`<span>${categoryMeta[cat].label}</span><span>▼</span>`;
+                header.onclick=()=>toggleAccordion(cat);
+                const body=document.createElement('div');
+                body.className='accordion-body';
+                body.id='body-'+cat;
+                const btnRow=document.createElement('div');
+                btnRow.className='btn-row';
+                presets[cat].forEach(intent=>{
+                    const btn=document.createElement('button');
+                    btn.className='intent-btn';
+                    btn.innerText=intent;
+                    btn.onclick=(e)=>{e.stopPropagation();selectIntent(cat,intent,false);};
                     btnRow.appendChild(btn);
                 });
-                const customBtn = document.createElement('button');
-                customBtn.className = 'intent-btn custom';
-                customBtn.innerText = '+ Custom';
-                customBtn.onclick = (e) => { e.stopPropagation(); selectIntent(cat, null, true); openCustomInput(cat); };
+                const customBtn=document.createElement('button');
+                customBtn.className='intent-btn custom';
+                customBtn.innerText='+ Custom';
+                customBtn.onclick=(e)=>{e.stopPropagation();selectIntent(cat,null,true);};
                 btnRow.appendChild(customBtn);
-                const customInput = document.createElement('input');
-                customInput.className = 'custom-input';
-                customInput.id = 'custom-' + cat;
-                customInput.placeholder = 'Describe your ' + categoryMeta[cat].label.split(' ')[1] + ' intent...';
-                customInput.oninput = function(e) { if(selectedCategory === cat && selectedIntent === 'Custom') customIntentText = e.target.value; };
                 body.appendChild(btnRow);
+
+                // Node type
+                const typeRow=document.createElement('div');
+                typeRow.className='node-type-row';
+                typeRow.innerHTML='<span style="color:#0f0;font-size:12px">Type:</span>';
+                ['one_on_one','group'].forEach(type=>{
+                    const typeBtn=document.createElement('button');
+                    typeBtn.className='intent-btn';
+                    typeBtn.innerText=type==='one_on_one'?'🔒 1‑on‑1':'👥 Group';
+                    typeBtn.onclick=(e)=>{e.stopPropagation();selectedNodeType=type; document.querySelectorAll('#body-'+cat+' .node-type-row .intent-btn').forEach(b=>b.classList.remove('selected')); typeBtn.classList.add('selected'); if(type==='group'){ document.getElementById('max-part-'+cat).style.display='inline-block'; } else { document.getElementById('max-part-'+cat).style.display='none'; }};
+                    typeRow.appendChild(typeBtn);
+                });
+                const maxInput=document.createElement('input');
+                maxInput.type='number'; maxInput.min=2; maxInput.max=20; maxInput.placeholder='Max (opt)';
+                maxInput.className='custom-input'; maxInput.id='max-part-'+cat; maxInput.style.width='60px'; maxInput.style.display='none';
+                maxInput.onchange=()=>selectedMaxParticipants=maxInput.value?parseInt(maxInput.value):null;
+                typeRow.appendChild(maxInput);
+                body.appendChild(typeRow);
+
+                // Vibe row (social only)
+                if(cat==='social'){
+                    const vibeRow=document.createElement('div');
+                    vibeRow.className='vibe-row';
+                    vibeRow.id='vibe-row-'+cat;
+                    vibeRow.style.display='none';
+                    body.appendChild(vibeRow);
+                }
+
+                // Custom input + done
+                const customInput=document.createElement('input');
+                customInput.className='custom-input';
+                customInput.id='custom-'+cat;
+                customInput.placeholder='Describe your '+categoryMeta[cat].label.split(' ')[1]+' intent...';
+                const doneBtn=document.createElement('button');
+                doneBtn.className='done-btn';
+                doneBtn.id='done-btn-'+cat;
+                doneBtn.innerText='DONE';
+                doneBtn.onclick=()=>{ closeIntentPanel(); startCreation(); };
                 body.appendChild(customInput);
+                body.appendChild(doneBtn);
                 section.appendChild(header);
                 section.appendChild(body);
                 panel.appendChild(section);
             });
-            const closeBtn = document.createElement('button');
-            closeBtn.className = 'close-btn';
-            closeBtn.innerText = 'CLOSE';
-            closeBtn.onclick = closeIntentPanel;
+            const closeBtn=document.createElement('button');
+            closeBtn.className='close-btn';
+            closeBtn.innerText='CLOSE';
+            closeBtn.onclick=closeIntentPanel;
             panel.appendChild(closeBtn);
         }
         buildAccordion();
 
-        function toggleAccordion(cat) {
-            document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open'));
-            document.getElementById('body-' + cat).classList.toggle('open');
+        function toggleAccordion(cat){document.querySelectorAll('.accordion-body').forEach(b=>b.classList.remove('open'));document.getElementById('body-'+cat).classList.toggle('open');}
+        function collapseAll(){document.querySelectorAll('.accordion-body').forEach(b=>b.classList.remove('open'));}
+        function selectIntent(cat,intent,isCustom){
+            selectedCategory=cat;
+            if(isCustom){
+                selectedIntent='Custom'; customIntentText='';
+                document.getElementById('custom-'+cat).style.display='block'; document.getElementById('done-btn-'+cat).style.display='inline-block';
+                const vibeRow=document.getElementById('vibe-row-'+cat); if(vibeRow)vibeRow.style.display='none';
+            } else {
+                selectedIntent=intent; customIntentText='';
+                document.querySelectorAll('.custom-input').forEach(i=>i.style.display='none');
+                document.querySelectorAll('.done-btn').forEach(b=>b.style.display='none');
+                if(cat==='social' && selectedNodeType==='one_on_one' && vibeChecks[intent]){
+                    const vibeRow=document.getElementById('vibe-row-'+cat);
+                    if(vibeRow){
+                        vibeRow.style.display='block';
+                        const ck=vibeChecks[intent];
+                        vibeRow.innerHTML=`<span style="color:#0f0;font-size:12px">Vibe: ${ck.q}</span><br>
+                            <button class="vibe-option" data-vibe="a">${ck.a}</button>
+                            <button class="vibe-option" data-vibe="b">${ck.b}</button>`;
+                        vibeRow.querySelectorAll('.vibe-option').forEach(btn=>{
+                            btn.onclick=(e)=>{e.stopPropagation(); vibeRow.querySelectorAll('.vibe-option').forEach(b=>b.classList.remove('selected')); btn.classList.add('selected'); selectedVibeAnswer=btn.dataset.vibe;};
+                        });
+                    }
+                } else {
+                    const vibeRow=document.getElementById('vibe-row-'+cat); if(vibeRow)vibeRow.style.display='none';
+                    selectedVibeAnswer=null;
+                }
+                const doneBtn=document.getElementById('done-btn-'+cat); if(doneBtn)doneBtn.style.display='inline-block';
+            }
+            document.querySelectorAll('.intent-btn').forEach(b=>b.classList.remove('selected'));
+            if(!isCustom){
+                document.getElementById('body-'+cat).querySelectorAll('.intent-btn').forEach(b=>{if(b.innerText===intent)b.classList.add('selected')});
+            }
         }
-        function collapseAll() { document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open')); }
-        function selectIntent(cat, intent, isCustom) {
-            selectedCategory = cat;
-            if(isCustom) { selectedIntent = 'Custom'; customIntentText = ''; document.getElementById('custom-' + cat).style.display = 'block'; }
-            else { selectedIntent = intent; customIntentText = ''; document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none'); }
-            document.querySelectorAll('.intent-btn').forEach(b => b.classList.remove('selected'));
-            if(!isCustom) { document.getElementById('body-' + cat).querySelectorAll('.intent-btn').forEach(b => { if(b.innerText === intent) b.classList.add('selected'); }); }
-        }
-        function openCustomInput(cat) { document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none'); document.getElementById('custom-' + cat).style.display = 'block'; document.getElementById('custom-' + cat).focus(); }
-        window.openIntentPanel = () => { if(!gpsReady) { setStatus('warning','GPS not ready'); return; } document.getElementById('intent-panel').style.display = 'block'; };
-        function closeIntentPanel() { document.getElementById('intent-panel').style.display = 'none'; collapseAll(); }
+        window.openIntentPanel=()=>{if(!gpsReady){setStatus('warning','GPS not ready');return}document.getElementById('intent-panel').style.display='block';}
+        function closeIntentPanel(){document.getElementById('intent-panel').style.display='none';collapseAll();}
 
-        window.startCreation = () => {
-            const finalIntent = selectedIntent === 'Custom' ? customIntentText : selectedIntent;
-            if(!finalIntent.trim()) { setStatus('error','Please select or enter an intent'); return; }
+        // Node creation
+        window.startCreation = ()=>{
+            const finalIntent = selectedIntent==='Custom'?customIntentText:selectedIntent;
+            if(!finalIntent.trim()){setStatus('error','Please select or enter an intent');return}
             closeIntentPanel();
             setStatus('info','Tap anywhere on the map to drop your "'+finalIntent+'" node');
 
-            map.once('click', async (e) => {
+            map.once('click',async(e)=>{
                 setStatus('info','Creating node...');
-                const nodeData = {
-                    lat: e.lngLat.lat,
-                    lng: e.lngLat.lng,
-                    intent: finalIntent,
-                    category: selectedCategory,
-                    custom_intent: selectedIntent === 'Custom' ? customIntentText : null,
-                    status: 'active',
-                    user_id: myUserId,
-                    expires_at: new Date(Date.now() + NODE_EXPIRY_MINUTES * 60 * 1000).toISOString()
+                const nodeData={
+                    lat:e.lngLat.lat, lng:e.lngLat.lng, intent:finalIntent, category:selectedCategory,
+                    custom_intent:selectedIntent==='Custom'?customIntentText:null,
+                    node_type:selectedNodeType, max_participants:selectedNodeType==='group'?selectedMaxParticipants:null,
+                    status:'active', user_id:myUserId,
+                    expires_at:new Date(Date.now()+NODE_EXPIRY_MINUTES*60*1000).toISOString()
                 };
-                const { data, error } = await _supabase.from('nodes').insert([nodeData]).select();
-                if(error) { setStatus('error','Failed to create node: ' + error.message); console.error(error); return; }
-                currentN = data[0];
-                clearStatus();
-                setStatus('success','"'+finalIntent+'" node active! Expires in '+NODE_EXPIRY_MINUTES+' mins');
+                if(selectedCategory==='social' && selectedNodeType==='one_on_one' && selectedVibeAnswer && vibeChecks[selectedIntent]){
+                    nodeData.vibe_question=vibeChecks[selectedIntent].q;
+                    nodeData.vibe_answer=selectedVibeAnswer;
+                }
+                const{data,error}=await _supabase.from('nodes').insert([nodeData]).select();
+                if(error){setStatus('error','Failed to create node: '+error.message);return}
+                currentN=data[0];
+                clearStatus(); setStatus('success','"'+finalIntent+'" node active! '+NODE_EXPIRY_MINUTES+' mins.');
+                const meta=categoryMeta[selectedCategory];
+                const el=document.createElement('div');
+                el.style.cssText=`width:30px;height:30px;background:${meta.color};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;color:#000;box-shadow:0 0 12px ${meta.color}`;
+                el.innerText=meta.emoji;
+                new mapboxgl.Marker(el).setLngLat([e.lngLat.lng,e.lngLat.lat]).addTo(map);
 
-                const meta = categoryMeta[selectedCategory];
-                const el = document.createElement('div');
-                el.style.cssText = `width:30px;height:30px;background:${meta.color};border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;color:#000;box-shadow:0 0 12px ${meta.color}`;
-                el.innerText = meta.emoji;
-                new mapboxgl.Marker(el).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
-
-                _supabase.channel('reqs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id}, () => { clearStatus(); setStatus('success','Someone wants to connect!'); document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10); startChatSync(); startOracleLive(); }).subscribe();
-                const poll = setInterval(async () => { if(document.getElementById('terminal').style.display === 'flex') { clearInterval(poll); return; } const { data:reqs } = await _supabase.from('requests').select('*').eq('node_id',currentN.id).limit(1); if(reqs && reqs.length > 0) { clearInterval(poll); clearStatus(); setStatus('success','Someone wants to connect!'); document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10); startChatSync(); startOracleLive(); } }, 3000);
+                // Inbox listener
+                _supabase.channel('inbox-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id},()=>{loadInbox();}).subscribe();
+                loadInbox();
             });
         };
 
-        // ----- rest of the functions (chat, oracle, sync, rating, navigation) kept intact from previous working version -----
-        window.sendMsg = async () => { const val = document.getElementById('chat-in').value; if(!val.trim()) return; await _supabase.from('messages').insert([{node_id:currentN.id,sender:'CREATOR',content:val}]); document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block'; };
-        function startChatSync() { _supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id}, p => { document.getElementById('msg-box').innerHTML += '<div style="color:#0f0">> '+p.new.content+'</div>'; document.getElementById('oracle-btn').style.display='block'; }).subscribe(); }
-        window.initiateOracle = async () => { if(!gpsReady || myLoc.lat === 0) { setStatus('error','GPS not ready'); return; } setStatus('info','Syncing GPS with Oracle...'); await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id, u1_lat:myLoc.lat, u1_lng:myLoc.lng, error_state:null}, {onConflict:'bridge_id'}); };
-        function startOracleLive() {
-            _supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id}, async payload => {
-                const s = payload.new;
-                if(s.error_state) { setStatus('error',s.error_state); return; }
-                document.getElementById('oracle-ballot').innerText = 'STATUS: '+s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display = 'block';
-                const hasGPS = (s.u1_lat && s.u1_lng && s.u2_lat && s.u2_lng && s.u1_lat !== 0 && s.u2_lat !== 0);
-                if(!hasGPS && s.status === 'pending') setStatus('warning','Waiting for both users GPS...');
-                if(hasGPS && s.status === 'pending') { setStatus('info','Oracle calculating...'); await _supabase.from('oracle_sessions').update({status:'ready'}).eq('bridge_id',currentN.id); }
-                if(s.status === 'ready' && !s.options_generated && !oracleProcessed) { oracleProcessed = true; await runOracleBrain(s); }
-                if(s.status === 'matched') { clearStatus(); triggerSync(s); }
-                if(s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
-                if(s.meet_completed && !meetRated) showRatingPanel();
-            }).subscribe();
+        // Inbox
+        async function loadInbox(){
+            const{data,error}=await _supabase.from('requests').select('*,users!inner(trust_score,total_meets)').eq('node_id',currentN.id).eq('status','pending').order('created_at');
+            const inbox=document.getElementById('inbox-panel');
+            if(!data||data.length===0){inbox.style.display='none';return}
+            inbox.style.display='block';
+            inbox.innerHTML='<div style="color:#0f0;margin-bottom:5px">📩 Pending Requests ('+data.length+')</div>';
+            data.forEach(req=>{
+                const item=document.createElement('div'); item.className='inbox-item';
+                const dossier=document.createElement('div');
+                const trust=req.users?req.users.trust_score:'N/A'; const meets=req.users?req.users.total_meets:'N/A';
+                dossier.innerHTML=req.answer?`<span style="color:#0f0">Vibe: ${req.answer==='a'?vibeChecks[selectedIntent]?.a:vibeChecks[selectedIntent]?.b}</span><br>`:'';
+                dossier.innerHTML+=`<span class="inbox-dossier">⭐${trust} · ${meets} meets</span>`;
+                const actions=document.createElement('div'); actions.className='inbox-actions';
+                const acceptBtn=document.createElement('button'); acceptBtn.innerText='ACCEPT'; acceptBtn.onclick=()=>handleRequest(req.id,'accepted');
+                const declineBtn=document.createElement('button'); declineBtn.innerText='DECLINE'; declineBtn.onclick=()=>handleRequest(req.id,'declined');
+                actions.appendChild(acceptBtn); actions.appendChild(declineBtn);
+                item.appendChild(dossier); item.appendChild(actions);
+                inbox.appendChild(item);
+            });
         }
-        async function runOracleBrain(s) {
-            const midLat = (s.u1_lat + s.u2_lat) / 2, midLng = (s.u1_lng + s.u2_lng) / 2;
-            const queries = categoryMeta[currentN.category]?.queries || categoryMeta.social.queries;
-            let bestVenue = null;
-            for(const q of queries) {
-                for(const r of [3,6,10,15,MAX_VENUE_DISTANCE_KM]) {
-                    if(bestVenue) break;
-                    const box = bbox(midLat, midLng, r);
-                    const url = 'https://api.mapbox.com/search/geocode/v6/forward?q='+encodeURIComponent(q)+'&proximity='+midLng+','+midLat+'&bbox='+box+'&limit=10&language=en&access_token='+MAPBOX_TOKEN;
-                    try {
-                        const res = await fetch(url); const d = await res.json();
-                        if(d.features && d.features.length > 0) {
-                            const nearby = d.features.filter(f => f.geometry.coordinates[1] && f.geometry.coordinates[0]).map(f => ({
-                                name: f.properties.name || f.properties.full_address || 'Venue',
-                                lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0],
-                                dist: haversine(midLat, midLng, f.geometry.coordinates[1], f.geometry.coordinates[0])
-                            })).filter(v => v.dist <= MAX_VENUE_DISTANCE_KM).sort((a,b) => a.dist - b.dist);
-                            if(nearby.length > 0) { bestVenue = nearby[0]; }
-                        }
-                    } catch(e) {}
-                }
-                if(bestVenue) break;
-            }
-            if(bestVenue) {
-                await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:bestVenue.name,selected_lat:bestVenue.lat,selected_lng:bestVenue.lng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id);
+
+        async function handleRequest(requestId,newStatus){
+            const{data:req}=await _supabase.from('requests').select('*').eq('id',requestId).single();
+            if(!req)return;
+            if(newStatus==='declined'){
+                await _supabase.from('requests').update({status:'declined'}).eq('id',requestId);
+                await _supabase.from('rejected_requests').upsert({node_id:req.node_id,requester_id:req.requester_id},{onConflict:'node_id,requester_id'});
             } else {
-                await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:'Midpoint Meeting Spot',selected_lat:midLat,selected_lng:midLng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id);
+                await _supabase.from('requests').update({status:'accepted'}).eq('id',requestId);
+                if(currentN.node_type==='one_on_one'){
+                    await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id);
+                }
+                document.getElementById('terminal').style.display='flex'; setTimeout(()=>document.getElementById('terminal').style.opacity='1',10);
+                startChatSync(); startOracleLive();
             }
+            loadInbox();
         }
-        function triggerSync(s) {
-            document.getElementById('terminal').style.display='none';
-            const syncPanel = document.getElementById('sync-panel'); syncPanel.style.display='block'; setTimeout(()=>syncPanel.style.opacity='1',10);
-            document.getElementById('sync-venue').innerText = 'Venue: '+s.selected_venue_name;
-            document.getElementById('sync-confirm-btn').style.display='block';
-            myConfirmed = false;
-            selectedVenueCoords = {lat:+s.selected_lat, lng:+s.selected_lng};
-            const u1lat=+s.u1_lat,u1lng=+s.u1_lng,u2lat=+s.u2_lat,u2lng=+s.u2_lng,vlat=+s.selected_lat,vlng=+s.selected_lng;
-            new mapboxgl.Marker({color:'#0f0'}).setLngLat([u1lng,u1lat]).addTo(map);
-            new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([u2lng,u2lat]).addTo(map);
-            new mapboxgl.Marker({color:'#ff0'}).setLngLat([vlng,vlat]).addTo(map);
-            drawRoute('rA',u1lng,u1lat,vlng,vlat,'#0f0',true);
-            drawRoute('rB',u2lng,u2lat,vlng,vlat,'#00ffaa',false);
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000});
-        }
-        window.confirmProceed = async () => { myConfirmed = true; document.getElementById('sync-confirm-btn').style.display='none'; document.getElementById('sync-status').innerText='Waiting for other user...'; await _supabase.from('oracle_sessions').update({u1_confirmed:true}).eq('bridge_id',currentN.id); };
-        function startMeetTimer(s) {
-            document.getElementById('sync-panel').style.opacity='0'; setTimeout(()=>document.getElementById('sync-panel').style.display='none',300);
-            const navHud = document.getElementById('nav-hud'); navHud.style.display='block'; setTimeout(()=>navHud.style.opacity='1',10);
-            document.getElementById('target-name').innerText = 'MEET AT: '+s.selected_venue_name.toUpperCase();
-            document.getElementById('nav-btn').style.display='inline-block';
-            let remaining = MEET_DURATION_MINUTES * 60;
-            meetTimerInterval = setInterval(async () => {
-                remaining--; const mins = Math.floor(remaining/60), secs = remaining%60;
-                document.getElementById('meet-timer').innerText = 'MEET WINDOW: '+mins+'m '+secs+'s';
-                if(remaining <= 0) { clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id); }
-            }, 1000);
-        }
-        window.startNavigation = () => { if(!selectedVenueCoords) return; navActive = true; document.getElementById('instruction-banner').style.display='block'; currentStep=0; updateInstruction(); if(navWatchId) navigator.geolocation.clearWatch(navWatchId); navWatchId = navigator.geolocation.watchPosition(pos => { if(!navActive) return; map.setCenter([pos.coords.longitude,pos.coords.latitude]); checkProgress(pos.coords.latitude,pos.coords.longitude); }, e=>{}, {enableHighAccuracy:true}); };
-        function updateInstruction() { if(!routeSteps.length || currentStep >= routeSteps.length) return; document.getElementById('instruction-banner').innerText = routeSteps[currentStep].maneuver.instruction; }
-        function checkProgress(lat,lng) {
-            if(!routeSteps.length || currentStep >= routeSteps.length) return;
-            const next = routeSteps[currentStep]; const d = haversine(lat,lng,next.maneuver.location[1],next.maneuver.location[0]);
-            if(d < 0.05 && currentStep < routeSteps.length-1) { currentStep++; updateInstruction(); }
-            const toVenue = haversine(lat,lng,selectedVenueCoords.lat,selectedVenueCoords.lng);
-            if(toVenue < 0.05) { document.getElementById('instruction-banner').innerText = '✅ You have arrived!'; setTimeout(() => { document.getElementById('instruction-banner').style.display='none'; navActive=false; if(navWatchId) navigator.geolocation.clearWatch(navWatchId); }, 3000); }
-        }
-        function showRatingPanel() { document.getElementById('nav-hud').style.opacity='0'; setTimeout(()=>document.getElementById('nav-hud').style.display='none',300); const rp = document.getElementById('rate-panel'); rp.style.display='block'; setTimeout(()=>rp.style.opacity='1',10); }
-        window.submitRating = async (r) => {
-            if(meetRated) return; meetRated = true; document.getElementById('rate-panel').style.display='none';
-            await _supabase.from('oracle_sessions').update({u1_rating:r}).eq('bridge_id',currentN.id);
-            const { data:ud } = await _supabase.from('users').select('trust_score,total_meets').eq('id',myUserId).limit(1);
-            if(ud && ud.length > 0) { const u = ud[0]; const nt = (u.total_meets||0)+1; const ns = ((u.trust_score||5.0)*(u.total_meets||0)+(r===1?1:0))/nt; await _supabase.from('users').update({trust_score:Math.round(ns*10)/10,total_meets:nt}).eq('id',myUserId); }
-            setStatus('success','Thanks for rating!'); setTimeout(()=>location.reload(),3000);
-        };
-        async function drawRoute(id,sLng,sLat,eLng,eLat,color,storeSteps=false) {
-            try {
-                const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&steps=true&access_token='+MAPBOX_TOKEN;
-                const r = await (await fetch(url)).json();
-                if(!r.routes || !r.routes[0]) return;
-                if(map.getLayer(id)) map.removeLayer(id);
-                if(map.getSource(id)) map.removeSource(id);
-                map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}});
-                map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}});
-                if(storeSteps) routeSteps = r.routes[0].legs[0].steps;
-            } catch(e) {}
-        }
+
+        // Chat & Oracle
+        window.sendMsg=async()=>{const val=document.getElementById('chat-in').value;if(!val.trim())return;await _supabase.from('messages').insert([{node_id:currentN.id,sender:'CREATOR',content:val}]);document.getElementById('chat-in').value='';document.getElementById('oracle-btn').style.display='block';}
+        function startChatSync(){_supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id},p=>{document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>';document.getElementById('oracle-btn').style.display='block'}).subscribe();}
+        window.initiateOracle=async()=>{if(!gpsReady||myLoc.lat===0){setStatus('error','GPS not ready');return}setStatus('info','Syncing GPS...');await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id,u1_lat:myLoc.lat,u1_lng:myLoc.lng,error_state:null},{onConflict:'bridge_id'});}
+        function startOracleLive(){_supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id},async payload=>{const s=payload.new;if(s.error_state){setStatus('error',s.error_state);return}document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase();document.getElementById('oracle-ballot').style.display='block';const hasGPS=(s.u1_lat&&s.u1_lng&&s.u2_lat&&s.u2_lng&&s.u1_lat!==0&&s.u2_lat!==0);if(!hasGPS&&s.status==='pending')setStatus('warning','Waiting for both users GPS...');if(hasGPS&&s.status==='pending'){setStatus('info','Oracle calculating...');await _supabase.from('oracle_sessions').update({status:'ready'}).eq('bridge_id',currentN.id);}if(s.status==='ready'&&!s.options_generated&&!oracleProcessed){oracleProcessed=true;await runOracleBrain(s);}if(s.status==='matched'){clearStatus();triggerSync(s);}if(s.u1_confirmed&&s.u2_confirmed&&!meetRated)startMeetTimer(s);if(s.meet_completed&&!meetRated)showRatingPanel();}).subscribe();}
+        async function runOracleBrain(s){const midLat=(s.u1_lat+s.u2_lat)/2,midLng=(s.u1_lng+s.u2_lng)/2;const queries=categoryMeta[currentN.category]?.queries||categoryMeta.social.queries;let bestVenue=null;for(const q of queries){for(const r of[3,6,10,15,MAX_VENUE_DISTANCE_KM]){if(bestVenue)break;const box=bbox(midLat,midLng,r);const url='https://api.mapbox.com/search/geocode/v6/forward?q='+encodeURIComponent(q)+'&proximity='+midLng+','+midLat+'&bbox='+box+'&limit=10&language=en&access_token='+MAPBOX_TOKEN;try{const res=await fetch(url);const d=await res.json();if(d.features&&d.features.length>0){const nearby=d.features.filter(f=>f.geometry.coordinates[1]&&f.geometry.coordinates[0]).map(f=>({name:f.properties.name||f.properties.full_address||'Venue',lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0],dist:haversine(midLat,midLng,f.geometry.coordinates[1],f.geometry.coordinates[0])})).filter(v=>v.dist<=MAX_VENUE_DISTANCE_KM).sort((a,b)=>a.dist-b.dist);if(nearby.length>0){bestVenue=nearby[0]}}}catch(e){}}if(bestVenue)break;}if(bestVenue){await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:bestVenue.name,selected_lat:bestVenue.lat,selected_lng:bestVenue.lng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id);}else{await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:'Midpoint Meeting Spot',selected_lat:midLat,selected_lng:midLng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id);}}
+        function triggerSync(s){document.getElementById('terminal').style.display='none';const syncPanel=document.getElementById('sync-panel');syncPanel.style.display='block';setTimeout(()=>syncPanel.style.opacity='1',10);document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name;document.getElementById('sync-confirm-btn').style.display='block';myConfirmed=false;selectedVenueCoords={lat:+s.selected_lat,lng:+s.selected_lng};const u1lat=+s.u1_lat,u1lng=+s.u1_lng,u2lat=+s.u2_lat,u2lng=+s.u2_lng,vlat=+s.selected_lat,vlng=+s.selected_lng;new mapboxgl.Marker({color:'#0f0'}).setLngLat([u1lng,u1lat]).addTo(map);new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([u2lng,u2lat]).addTo(map);new mapboxgl.Marker({color:'#ff0'}).setLngLat([vlng,vlat]).addTo(map);drawRoute('rA',u1lng,u1lat,vlng,vlat,'#0f0',true);drawRoute('rB',u2lng,u2lat,vlng,vlat,'#00ffaa',false);map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000});}
+        window.confirmProceed=async()=>{myConfirmed=true;document.getElementById('sync-confirm-btn').style.display='none';document.getElementById('sync-status').innerText='Waiting for other user...';await _supabase.from('oracle_sessions').update({u1_confirmed:true}).eq('bridge_id',currentN.id);}
+        function startMeetTimer(s){document.getElementById('sync-panel').style.opacity='0';setTimeout(()=>document.getElementById('sync-panel').style.display='none',300);const navHud=document.getElementById('nav-hud');navHud.style.display='block';setTimeout(()=>navHud.style.opacity='1',10);document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();document.getElementById('nav-btn').style.display='inline-block';let remaining=MEET_DURATION_MINUTES*60;meetTimerInterval=setInterval(async()=>{remaining--;const mins=Math.floor(remaining/60),secs=remaining%60;document.getElementById('meet-timer').innerText='MEET WINDOW: '+mins+'m '+secs+'s';if(remaining<=0){clearInterval(meetTimerInterval);await _supabase.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id);}},1000);}
+        window.startNavigation=()=>{if(!selectedVenueCoords)return;navActive=true;document.getElementById('instruction-banner').style.display='block';currentStep=0;updateInstruction();if(navWatchId)navigator.geolocation.clearWatch(navWatchId);navWatchId=navigator.geolocation.watchPosition(pos=>{if(!navActive)return;map.setCenter([pos.coords.longitude,pos.coords.latitude]);checkProgress(pos.coords.latitude,pos.coords.longitude);},e=>{},{enableHighAccuracy:true});}
+        function updateInstruction(){if(!routeSteps.length||currentStep>=routeSteps.length)return;document.getElementById('instruction-banner').innerText=routeSteps[currentStep].maneuver.instruction;}
+        function checkProgress(lat,lng){if(!routeSteps.length||currentStep>=routeSteps.length)return;const next=routeSteps[currentStep];const d=haversine(lat,lng,next.maneuver.location[1],next.maneuver.location[0]);if(d<0.05&&currentStep<routeSteps.length-1){currentStep++;updateInstruction();}const toVenue=haversine(lat,lng,selectedVenueCoords.lat,selectedVenueCoords.lng);if(toVenue<0.05){document.getElementById('instruction-banner').innerText='✅ You have arrived!';setTimeout(()=>{document.getElementById('instruction-banner').style.display='none';navActive=false;if(navWatchId)navigator.geolocation.clearWatch(navWatchId);},3000);}}
+        function showRatingPanel(){document.getElementById('nav-hud').style.opacity='0';setTimeout(()=>document.getElementById('nav-hud').style.display='none',300);const rp=document.getElementById('rate-panel');rp.style.display='block';setTimeout(()=>rp.style.opacity='1',10);}
+        window.submitRating=async(r)=>{if(meetRated)return;meetRated=true;document.getElementById('rate-panel').style.display='none';await _supabase.from('oracle_sessions').update({u1_rating:r}).eq('bridge_id',currentN.id);const{data:ud}=await _supabase.from('users').select('trust_score,total_meets').eq('id',myUserId).limit(1);if(ud&&ud.length>0){const u=ud[0];const nt=(u.total_meets||0)+1;const ns=((u.trust_score||5.0)*(u.total_meets||0)+(r===1?1:0))/nt;await _supabase.from('users').update({trust_score:Math.round(ns*10)/10,total_meets:nt}).eq('id',myUserId);}setStatus('success','Thanks for rating!');setTimeout(()=>location.reload(),3000);}
+        async function drawRoute(id,sLng,sLat,eLng,eLat,color,storeSteps=false){try{const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&overview=full&steps=true&access_token='+MAPBOX_TOKEN;const r=await(await fetch(url)).json();if(!r.routes||!r.routes[0])return;if(map.getLayer(id))map.removeLayer(id);if(map.getSource(id))map.removeSource(id);map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}});map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}});if(storeSteps)routeSteps=r.routes[0].legs[0].steps;}catch(e){}}
     </script>
 </body>
 </html>

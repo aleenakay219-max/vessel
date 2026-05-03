@@ -8,32 +8,32 @@
     <style>
         body,html{margin:0;padding:0;width:100%;height:100%;background:#111;overflow:hidden;font-family:monospace}
         #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
-        #status-bar{display:block;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #0f0;z-index:3000;padding:10px;text-align:center;color:#0f0;font-size:12px;box-sizing:border-box}
-        #terminal{display:none;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #0f0;z-index:2000;flex-direction:column;padding:15px;box-sizing:border-box}
-        #msg-box{height:150px;overflow-y:auto;color:#0f0;margin-bottom:10px;border:1px solid #030;padding:5px;display:flex;flex-direction:column}
+        #status-bar{display:block;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #FFD700;z-index:3000;padding:10px;text-align:center;color:#FFD700;font-size:12px;box-sizing:border-box}
+        #terminal{display:none;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #FFD700;z-index:2000;flex-direction:column;padding:15px;box-sizing:border-box}
+        #msg-box{height:150px;overflow-y:auto;color:#FFD700;margin-bottom:10px;border:1px solid #332200;padding:5px;display:flex;flex-direction:column}
         .chat-msg{max-width:80%;padding:8px 12px;margin:4px 0;border-radius:8px;word-wrap:break-word;font-size:13px;line-height:1.4}
-        .msg-left{align-self:flex-start;background:#111;border:1px solid #0f0;color:#0f0}
-        .msg-right{align-self:flex-end;background:#0f0;color:#000;border:1px solid #0f0}
-        #oracle-ballot{display:none;color:#0f0;border:1px solid #0f0;padding:10px;margin-bottom:10px;background:rgba(0,255,0,0.1);font-size:11px;text-align:center}
-        #sync-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #0f0;z-index:5000;padding:30px;text-align:center;color:#0f0}
-        #rate-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #ff0;z-index:5000;padding:30px;text-align:center;color:#ff0}
-        #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #0f0;z-index:4000;padding:20px;text-align:center;color:#0f0;box-sizing:border-box}
-        .hud-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
-        .sync-btn{background:transparent;border:2px solid #0f0;color:#0f0;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
-        .rate-btn{background:transparent;border:2px solid #ff0;color:#ff0;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
-        .node-popup .mapboxgl-popup-content{background:#000!important;border:1px solid #0f0!important;color:#0f0!important;font-family:monospace;padding:6px 10px!important;border-radius:0!important;box-shadow:0 0 10px #0f0}
-        .node-popup .mapboxgl-popup-tip{border-top-color:#0f0!important}
-        #profile-card{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.97);border-top:2px solid #0f0;z-index:4500;padding:20px;color:#0f0;box-sizing:border-box;max-height:55vh;overflow-y:auto}
+        .msg-left{align-self:flex-start;background:#111;border:1px solid #FFD700;color:#FFD700}
+        .msg-right{align-self:flex-end;background:#FFD700;color:#000;border:1px solid #FFD700}
+        #oracle-ballot{display:none;color:#FFD700;border:1px solid #FFD700;padding:10px;margin-bottom:10px;background:rgba(255,215,0,0.1);font-size:11px;text-align:center}
+        #sync-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #FFD700;z-index:5000;padding:30px;text-align:center;color:#FFD700}
+        #rate-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #FFD700;z-index:5000;padding:30px;text-align:center;color:#FFD700}
+        #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #FFD700;z-index:4000;padding:20px;text-align:center;color:#FFD700;box-sizing:border-box}
+        .hud-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
+        .sync-btn{background:transparent;border:2px solid #FFD700;color:#FFD700;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
+        .rate-btn{background:transparent;border:2px solid #FFD700;color:#FFD700;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
+        .node-popup .mapboxgl-popup-content{background:#000!important;border:1px solid #FFD700!important;color:#FFD700!important;font-family:monospace;padding:6px 10px!important;border-radius:0!important;box-shadow:0 0 10px #FFD700}
+        .node-popup .mapboxgl-popup-tip{border-top-color:#FFD700!important}
+        #profile-card{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.97);border-top:2px solid #FFD700;z-index:4500;padding:20px;color:#FFD700;box-sizing:border-box;max-height:55vh;overflow-y:auto}
         #profile-card .emoji{font-size:40px;text-align:center}
         #profile-card .name{font-size:18px;text-align:center;margin:5px 0}
         #profile-card .stats{text-align:center;font-size:12px;color:#aaa;margin-bottom:10px}
         #profile-card .row{display:flex;justify-content:space-between;font-size:13px;margin:4px 0}
         #profile-card .tags{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
-        #profile-card .tag{background:rgba(0,255,0,0.15);border:1px solid #0f0;padding:3px 8px;font-size:11px}
-        #profile-card .vibe-section{margin-top:12px;border-top:1px solid #0f0;padding-top:10px}
-        #profile-card .vibe-opt{background:transparent;border:1px solid #0f0;color:#0f0;padding:8px 15px;cursor:pointer;font-family:monospace;font-size:12px;margin:5px}
-        #profile-card .vibe-opt.selected{background:#0f0;color:#000}
-        #profile-card .send-btn{display:block;width:100%;margin-top:15px;background:#0f0;color:#000;border:none;padding:12px;cursor:pointer;font-family:monospace;font-size:15px;font-weight:bold}
+        #profile-card .tag{background:rgba(255,215,0,0.15);border:1px solid #FFD700;padding:3px 8px;font-size:11px}
+        #profile-card .vibe-section{margin-top:12px;border-top:1px solid #FFD700;padding-top:10px}
+        #profile-card .vibe-opt{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 15px;cursor:pointer;font-family:monospace;font-size:12px;margin:5px}
+        #profile-card .vibe-opt.selected{background:#FFD700;color:#000}
+        #profile-card .send-btn{display:block;width:100%;margin-top:15px;background:#FFD700;color:#000;border:none;padding:12px;cursor:pointer;font-family:monospace;font-size:15px;font-weight:bold}
         #profile-card .close-card{display:block;width:100%;margin-top:8px;background:transparent;border:1px solid #f00;color:#f00;padding:10px;cursor:pointer;font-family:monospace}
     </style>
 </head>
@@ -54,11 +54,11 @@
     </div>
     <div id="terminal">
         <div id="oracle-ballot">STATUS: PENDING</div>
-        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #0f0;color:#0f0;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #FFD700;color:#FFD700;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
         <div id="chat-controls" style="display:flex">
-            <input type="text" id="chat-in" placeholder="TYPE..." style="flex:1;background:#000;border:1px solid #0f0;color:#0f0;padding:10px;outline:none">
-            <button id="send-btn" style="background:#0f0;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
+            <input type="text" id="chat-in" placeholder="TYPE..." style="flex:1;background:#000;border:1px solid #FFD700;color:#FFD700;padding:10px;outline:none">
+            <button id="send-btn" style="background:#FFD700;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
         </div>
     </div>
     <div id="sync-panel">
@@ -129,7 +129,7 @@
             return 1;
         };
 
-        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#0f0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#0f0';b.style.color=c[t]||'#0f0';b.innerText=m;}
+        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;}
         function clearStatus(){document.getElementById('status-bar').style.display='none';}
 
         async function ensureUser(){
@@ -201,7 +201,6 @@
                         document.getElementById('terminal').style.display = 'flex';
                         document.getElementById('oracle-btn').style.display = 'block';
                         startChatSync(); startMsgPolling(); startOracleLive();
-                        // Manual Oracle – NOT auto-triggered
                     } else if (status === 'declined') { clearInterval(pollInterval); setStatus('error','Creator declined'); currentN = null; }
                 }
             }, 2000);
@@ -236,18 +235,18 @@
         // Oracle, sync, timer, rating
         window.initiateOracle = async function(){ await supabaseClient.from('oracle_sessions').upsert({bridge_id:currentN.id, u2_lat:FAKE_LAT, u2_lng:FAKE_LNG},{onConflict:'bridge_id'}); };
         function startOracleLive(){ supabaseClient.channel('oracle-'+currentN.id).on('postgres_changes', {event:'*', schema:'public', table:'oracle_sessions', filter:'bridge_id=eq.'+currentN.id}, payload => { const s=payload.new; document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display='block'; if(s.error_state) return; if(s.status==='matched') triggerSync(s); if(s.u1_confirmed&&s.u2_confirmed&&!meetRated) startMeetTimer(s); if(s.meet_completed&&!meetRated) showRatingPanel(); }).subscribe(); }
-        function triggerSync(s){ document.getElementById('terminal').style.display='none'; const syncPanel=document.getElementById('sync-panel'); syncPanel.style.display='block'; setTimeout(()=>syncPanel.style.opacity='1',10); document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name; document.getElementById('sync-confirm-btn').style.display='block'; myConfirmed=false; selectedVenueCoords={lat:+s.selected_lat, lng:+s.selected_lng}; const u1lat=+s.u1_lat,u1lng=+s.u1_lng,u2lat=+s.u2_lat,u2lng=+s.u2_lng,vlat=+s.selected_lat,vlng=+s.selected_lng; new mapboxgl.Marker({color:'#0f0'}).setLngLat([u1lng,u1lat]).addTo(map); new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([u2lng,u2lat]).addTo(map); new mapboxgl.Marker({color:'#ff0'}).setLngLat([vlng,vlat]).addTo(map); drawRoute('rA',u1lng,u1lat,vlng,vlat,'#0f0'); drawRoute('rB',u2lng,u2lat,vlng,vlat,'#00ffaa'); map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000}); }
+        function triggerSync(s){ document.getElementById('terminal').style.display='none'; const syncPanel=document.getElementById('sync-panel'); syncPanel.style.display='block'; setTimeout(()=>syncPanel.style.opacity='1',10); document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name; document.getElementById('sync-confirm-btn').style.display='block'; myConfirmed=false; selectedVenueCoords={lat:+s.selected_lat, lng:+s.selected_lng}; const u1lat=+s.u1_lat,u1lng=+s.u1_lng,u2lat=+s.u2_lat,u2lng=+s.u2_lng,vlat=+s.selected_lat,vlng=+s.selected_lng; new mapboxgl.Marker({color:'#FFD700'}).setLngLat([u1lng,u1lat]).addTo(map); new mapboxgl.Marker({color:'#e6b800'}).setLngLat([u2lng,u2lat]).addTo(map); new mapboxgl.Marker({color:'#fff'}).setLngLat([vlng,vlat]).addTo(map); drawRoute('rA',u1lng,u1lat,vlng,vlat,'#FFD700'); drawRoute('rB',u2lng,u2lat,vlng,vlat,'#e6b800'); map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000}); }
         window.confirmProceed=async function(){ myConfirmed=true; document.getElementById('sync-confirm-btn').style.display='none'; document.getElementById('sync-status').innerText='Waiting for other user...'; await supabaseClient.from('oracle_sessions').update({u2_confirmed:true}).eq('bridge_id',currentN.id); };
         function startMeetTimer(s){ document.getElementById('sync-panel').style.opacity='0'; setTimeout(()=>document.getElementById('sync-panel').style.display='none',300); const navHud=document.getElementById('nav-hud'); navHud.style.display='block'; setTimeout(()=>navHud.style.opacity='1',10); document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase(); let remaining=MEET_DURATION_MINUTES*60; meetTimerInterval=setInterval(async()=>{ remaining--; const mins=Math.floor(remaining/60),secs=remaining%60; document.getElementById('meet-timer').innerText='MEET WINDOW: '+mins+'m '+secs+'s'; if(remaining<=0){clearInterval(meetTimerInterval); await supabaseClient.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id);} },1000); }
         function showRatingPanel(){ document.getElementById('nav-hud').style.opacity='0'; setTimeout(()=>document.getElementById('nav-hud').style.display='none',300); const rp=document.getElementById('rate-panel'); rp.style.display='block'; setTimeout(()=>rp.style.opacity='1',10); }
         window.submitRating=async function(r){ if(meetRated)return; meetRated=true; document.getElementById('rate-panel').style.display='none'; await supabaseClient.from('oracle_sessions').update({u2_rating:r}).eq('bridge_id',currentN.id); setStatus('success','Thanks for rating!'); setTimeout(()=>location.reload(),3000); };
         async function drawRoute(id,sLng,sLat,eLng,eLat,color){ try{ const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&access_token='+mapboxgl.accessToken; const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return; if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id); map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}}); map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}}); }catch(e){} }
 
-        // Map setup & scanning
+        // Map setup
         map.on('load', () => {
             map.addSource('nodes-source', { type: 'geojson', data: { type: 'FeatureCollection', features: [] }, cluster: true, clusterMaxZoom: 14, clusterRadius: 50 });
-            map.addLayer({ id:'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'], paint:{ 'circle-color':'#111','circle-stroke-color':'#0f0','circle-stroke-width':2,'circle-radius':['step',['get','point_count'],20,10,25,30,35],'circle-opacity':0.9 } });
-            map.addLayer({ id:'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'], layout:{ 'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14 }, paint:{ 'text-color':'#0f0' } });
+            map.addLayer({ id:'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'], paint:{ 'circle-color':'#111','circle-stroke-color':'#FFD700','circle-stroke-width':2,'circle-radius':['step',['get','point_count'],20,10,25,30,35],'circle-opacity':0.9 } });
+            map.addLayer({ id:'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'], layout:{ 'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14 }, paint:{ 'text-color':'#FFD700' } });
             map.addLayer({ id:'nodes-unclustered', type:'circle', source:'nodes-source', filter:['!',['has','point_count']], paint:{ 'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5 } });
             map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']], layout:{ 'text-field':['get','emoji'], 'text-font':['Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Arial Unicode MS Bold'], 'text-size':16, 'text-allow-overlap':true }, paint:{ 'text-color':'#fff', 'text-halo-color':'#000', 'text-halo-width':1 } });
             const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });

@@ -113,7 +113,7 @@
             });
             map.on('mouseleave', 'nodes-unclustered', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
 
-            // CLICK ON NODE: send request, then poll for acceptance
+            // CLICK ON NODE
             map.on('click', 'nodes-unclustered', async (e) => {
                 const nodeProps = e.features[0].properties;
                 if (currentN) return;
@@ -130,17 +130,18 @@
                         .eq('node_id', nodeProps.id)
                         .eq('requester_id', 'SEEKER')
                         .limit(1);
-                    console.log('Polling request status:', data, error);
                     if (error) return;
                     if (data && data.length > 0) {
                         const status = data[0].status;
                         if (status === 'accepted') {
                             clearInterval(pollInterval);
-                            console.log('Request accepted, opening chat and initiating Oracle...');
+                            console.log('Request accepted, opening chat and starting Oracle...');
                             document.getElementById('terminal').style.display = 'flex';
                             document.getElementById('oracle-btn').style.display = 'block';
                             startChatSync();
-                            // Auto-initiate Oracle so the venue search starts without needing manual click
+                            // Start listening to Oracle updates
+                            startOracleLive();
+                            // Auto‑send GPS to Oracle
                             initiateOracle();
                         } else if (status === 'declined') {
                             clearInterval(pollInterval);

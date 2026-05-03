@@ -139,7 +139,6 @@
         }
         ensureUser();
 
-        // Open profile card
         async function openProfileCard(nodeProps) {
             pendingNodeProps = nodeProps;
             selectedVibeAnswer = null;
@@ -196,7 +195,6 @@
             selectedVibeAnswer = null;
         }
 
-        // Send request from profile card
         async function sendRequestFromCard() {
             if (!pendingNodeProps) return;
             const nodeProps = pendingNodeProps;
@@ -252,7 +250,6 @@
             }, 2000);
         }
 
-        // Chat rendering with left/right alignment
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div');
             msgDiv.className = 'chat-msg';
@@ -387,9 +384,10 @@
                 paint:{ 'text-color':'#0f0' } });
             map.addLayer({ id:'nodes-unclustered', type:'circle', source:'nodes-source', filter:['!',['has','point_count']],
                 paint:{ 'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5 } });
+            // Adjust emoji layer: larger size, white color, slight halo
             map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
-                layout:{ 'text-field':['get','emoji'],'text-font':['Arial Unicode MS Bold'],'text-size':12,'text-allow-overlap':true },
-                paint:{ 'text-color':'#000' } });
+                layout:{ 'text-field':['get','emoji'], 'text-font':['Arial Unicode MS Bold'], 'text-size':14, 'text-allow-overlap':true },
+                paint:{ 'text-color':'#fff', 'text-halo-color':'#000', 'text-halo-width':1 } });
 
             const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });
             map.on('mouseenter', 'nodes-unclustered', (e) => {

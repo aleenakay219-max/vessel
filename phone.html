@@ -82,8 +82,177 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        // ... (all previous seeker code unchanged, just chat rendering updated)
-        // The key change: the function addMessageToChat() is defined, and both realtime and polling use it.
+        mapboxgl.accessToken = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        const supabaseUrl = 'https://rnroyhkvkmzuichysxnk.supabase.co', supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
+        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+        const FAKE_LAT = 25.0800, FAKE_LNG = 55.1400;
+        const params = new URLSearchParams(window.location.search);
+        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
+
+        const intentColors = {
+            '☕ Coffee':'#FFD700','🚶 Walk':'#00FF88','🍽️ Food':'#FF6B6B','📚 Study':'#6BCBFF',
+            '🏋️ Gym':'#FF8C42','🍺 Drinks':'#C084FC','⚽ Sports':'#4ADE80','💬 Chat':'#F472B6',
+            '☕ Coffee & Conversation':'#FFD700','🍽️ Foodie Meetup':'#FF6B6B',
+            '🌙 Night Out':'#C084FC','🧘 Chill & Wellness':'#6BCBFF',
+            '⚽ Football':'#4ADE80','🏏 Cricket':'#4ADE80','🎾 Tennis':'#4ADE80',
+            '🔨 I Can Help':'#FF8C42','☕ Co‑Working / Study':'#FF8C42','💡 Creative Collab':'#FF8C42',
+            '🧸 Kids’ Playdate':'#C084FC','🤱 Mum2Mum':'#C084FC','👨 Dad’s Crew':'#C084FC','👨‍👩‍👧 Family Hangout':'#C084FC'
+        };
+        const intentEmojis = {
+            '☕ Coffee':'☕','🚶 Walk':'🚶','🍽️ Food':'🍽️','📚 Study':'📚','🏋️ Gym':'🏋️',
+            '🍺 Drinks':'🍺','⚽ Sports':'⚽','💬 Chat':'💬',
+            '☕ Coffee & Conversation':'☕','🍽️ Foodie Meetup':'🍽️','🌙 Night Out':'🌙','🧘 Chill & Wellness':'🧘',
+            '⚽ Football':'⚽','🏏 Cricket':'🏏','🎾 Tennis':'🎾',
+            '🔨 I Can Help':'🔧','☕ Co‑Working / Study':'☕','💡 Creative Collab':'💡',
+            '🧸 Kids’ Playdate':'🧒','🤱 Mum2Mum':'🤱','👨 Dad’s Crew':'👨','👨‍👩‍👧 Family Hangout':'👨‍👩‍👧'
+        };
+        const defaultColor = '#AAAAAA';
+        const vibeChecks = {
+            '☕ Coffee & Conversation': {q:'What kind of coffee vibe?', a:'Loud & social', b:'Quiet & intimate'},
+            '🍽️ Foodie Meetup': {q:'What cuisine mood?', a:'Adventurous / new', b:'Comfort / familiar'},
+            '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'},
+            '🧘 Chill & Wellness': {q:'How should we chill?', a:'Silent parallel time', b:'Chat while walking'}
+        };
+
+        let myUserId = localStorage.getItem('vessel_user_id');
+        if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
+
+        const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[FAKE_LNG,FAKE_LAT],zoom:14});
+        let currentN = null, meetRated = false, myConfirmed = false, meetTimerInterval = null;
+        let selectedVenueCoords = null;
+        let pollInterval = null, msgPollInterval = null, lastMsgId = 0;
+        let pendingNodeProps = null, selectedVibeAnswer = null;
+
+        navigator.geolocation.watchPosition = function(success){
+            success({coords:{latitude:FAKE_LAT,longitude:FAKE_LNG,accuracy:5}});
+            return 1;
+        };
+
+        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#ff0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#ff0';b.style.color=c[t]||'#ff0';b.innerText=m;}
+
+        async function ensureUser(){
+            const { data } = await supabaseClient.from('users').select('id').eq('id', myUserId).limit(1);
+            if (!data || data.length === 0) {
+                await supabaseClient.from('users').insert([{ id: myUserId, trust_score: 5.0, total_meets: 0 }]);
+            }
+        }
+        ensureUser();
+
+        // Open profile card
+        async function openProfileCard(nodeProps) {
+            pendingNodeProps = nodeProps;
+            selectedVibeAnswer = null;
+            const card = document.getElementById('profile-card');
+            const { data: user } = await supabaseClient.from('users')
+                .select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets')
+                .eq('id', nodeProps.user_id)
+                .single();
+            const emoji = user?.avatar_emoji || '🤖';
+            const name = user?.display_name || 'Unknown';
+            const trust = user?.trust_score || 5.0;
+            const meets = user?.total_meets || 0;
+            document.getElementById('card-emoji').innerText = emoji;
+            document.getElementById('card-name').innerText = name;
+            document.getElementById('card-stats').innerHTML = `⭐${trust.toFixed(1)} · ${meets} meets`;
+            document.getElementById('card-age').innerText = user?.age || 'N/A';
+            document.getElementById('card-nationality').innerText = user?.nationality || 'N/A';
+            document.getElementById('card-profession').innerText = user?.profession || 'N/A';
+            const tagsDiv = document.getElementById('card-tags');
+            tagsDiv.innerHTML = '';
+            if (user?.vibe_tags && user.vibe_tags.length > 0) {
+                user.vibe_tags.forEach(tag => {
+                    const span = document.createElement('span');
+                    span.className = 'tag';
+                    span.innerText = tag;
+                    tagsDiv.appendChild(span);
+                });
+            }
+            const vibeDiv = document.getElementById('card-vibe');
+            if (nodeProps.category === 'social' && nodeProps.node_type === 'one_on_one' && nodeProps.vibe_question) {
+                vibeDiv.style.display = 'block';
+                const ck = vibeChecks[nodeProps.intent];
+                if (ck) {
+                    vibeDiv.innerHTML = `<p>${ck.q}</p>
+                        <button class="vibe-opt" data-vibe="a">${ck.a}</button>
+                        <button class="vibe-opt" data-vibe="b">${ck.b}</button>`;
+                    vibeDiv.querySelectorAll('.vibe-opt').forEach(btn => {
+                        btn.onclick = (e) => {
+                            vibeDiv.querySelectorAll('.vibe-opt').forEach(b => b.classList.remove('selected'));
+                            btn.classList.add('selected');
+                            selectedVibeAnswer = btn.dataset.vibe;
+                        };
+                    });
+                }
+            } else {
+                vibeDiv.style.display = 'none';
+            }
+            card.style.display = 'block';
+        }
+
+        function closeProfileCard() {
+            document.getElementById('profile-card').style.display = 'none';
+            pendingNodeProps = null;
+            selectedVibeAnswer = null;
+        }
+
+        // Send request from profile card
+        async function sendRequestFromCard() {
+            if (!pendingNodeProps) return;
+            const nodeProps = pendingNodeProps;
+            if (nodeProps.category === 'social' && nodeProps.node_type === 'one_on_one' && nodeProps.vibe_question) {
+                if (!selectedVibeAnswer) {
+                    setStatus('error', 'Please choose a vibe');
+                    return;
+                }
+                if (selectedVibeAnswer !== nodeProps.vibe_answer) {
+                    setStatus('error', 'Not my vibe');
+                    closeProfileCard();
+                    return;
+                }
+            }
+            closeProfileCard();
+            await sendRequest(nodeProps, selectedVibeAnswer);
+        }
+
+        document.getElementById('card-send-btn').addEventListener('click', sendRequestFromCard);
+
+        async function sendRequest(nodeProps, answer_given){
+            setStatus('info','Sending request...');
+            const payload = { node_id: nodeProps.id, requester_id: myUserId, status: 'pending' };
+            if (answer_given) payload.answer_given = answer_given;
+            const { error } = await supabaseClient.from('requests').insert([payload]);
+            if (error) { setStatus('error','Request failed: ' + error.message); return; }
+            setStatus('success','Request sent. Waiting for creator...');
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(async () => {
+                const { data, error } = await supabaseClient.from('requests')
+                    .select('status')
+                    .eq('node_id', nodeProps.id)
+                    .eq('requester_id', myUserId)
+                    .limit(1);
+                if (error) return;
+                if (data && data.length > 0) {
+                    const status = data[0].status;
+                    if (status === 'accepted') {
+                        clearInterval(pollInterval);
+                        currentN = { id: nodeProps.id, intent: nodeProps.intent, category: nodeProps.category, node_type: nodeProps.node_type };
+                        document.getElementById('terminal').style.display = 'flex';
+                        document.getElementById('oracle-btn').style.display = 'block';
+                        startChatSync();
+                        startMsgPolling();
+                        startOracleLive();
+                        initiateOracle();
+                    } else if (status === 'declined') {
+                        clearInterval(pollInterval);
+                        setStatus('error','Creator declined');
+                        currentN = null;
+                    }
+                }
+            }, 2000);
+        }
+
+        // Chat rendering with left/right alignment
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div');
             msgDiv.className = 'chat-msg';
@@ -97,7 +266,180 @@
             document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
             document.getElementById('oracle-btn').style.display = 'block';
         }
-        // ... existing send/fetch logic now calls addMessageToChat instead of innerHTML.
+
+        function startMsgPolling() {
+            if (msgPollInterval) clearInterval(msgPollInterval);
+            msgPollInterval = setInterval(async () => {
+                if (!currentN) return;
+                const { data, error } = await supabaseClient.from('messages')
+                    .select('*')
+                    .eq('node_id', currentN.id)
+                    .order('id', { ascending: true })
+                    .gt('id', lastMsgId);
+                if (error) return;
+                if (data && data.length > 0) {
+                    data.forEach(msg => {
+                        addMessageToChat(msg);
+                        lastMsgId = msg.id;
+                    });
+                }
+            }, 2000);
+        }
+
+        document.getElementById('send-btn').addEventListener('click', async () => {
+            const val = document.getElementById('chat-in').value;
+            if (!val.trim()) return;
+            if (!currentN || !currentN.id) { setStatus('error','No active chat'); return; }
+            const { error } = await supabaseClient.from('messages').insert([{
+                node_id: currentN.id,
+                sender: 'SEEKER',
+                content: val
+            }]);
+            if (error) { console.error('Send failed', error); setStatus('error','Message failed'); return; }
+            document.getElementById('chat-in').value = '';
+        });
+
+        function startChatSync(){
+            supabaseClient.channel('msgs-'+currentN.id)
+                .on('postgres_changes', {event:'INSERT', schema:'public', table:'messages', filter:'node_id=eq.'+currentN.id}, p => {
+                    if (p.new.id > lastMsgId) {
+                        addMessageToChat(p.new);
+                        lastMsgId = p.new.id;
+                    }
+                }).subscribe();
+        }
+
+        window.initiateOracle=async function(){
+            await supabaseClient.from('oracle_sessions').upsert({bridge_id:currentN.id, u2_lat:FAKE_LAT, u2_lng:FAKE_LNG},{onConflict:'bridge_id'});
+        };
+        function startOracleLive(){
+            supabaseClient.channel('oracle-'+currentN.id)
+                .on('postgres_changes', {event:'*', schema:'public', table:'oracle_sessions', filter:'bridge_id=eq.'+currentN.id}, payload => {
+                    const s=payload.new;
+                    document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase();
+                    document.getElementById('oracle-ballot').style.display='block';
+                    if(s.error_state) return;
+                    if(s.status==='matched') triggerSync(s);
+                    if(s.u1_confirmed&&s.u2_confirmed&&!meetRated) startMeetTimer(s);
+                    if(s.meet_completed&&!meetRated) showRatingPanel();
+                }).subscribe();
+        }
+        function triggerSync(s){
+            document.getElementById('terminal').style.display='none';
+            const syncPanel=document.getElementById('sync-panel'); syncPanel.style.display='block'; setTimeout(()=>syncPanel.style.opacity='1',10);
+            document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name;
+            document.getElementById('sync-confirm-btn').style.display='block';
+            myConfirmed=false;
+            selectedVenueCoords={lat:+s.selected_lat, lng:+s.selected_lng};
+            const u1lat=+s.u1_lat,u1lng=+s.u1_lng,u2lat=+s.u2_lat,u2lng=+s.u2_lng,vlat=+s.selected_lat,vlng=+s.selected_lng;
+            new mapboxgl.Marker({color:'#0f0'}).setLngLat([u1lng,u1lat]).addTo(map);
+            new mapboxgl.Marker({color:'#00ffaa'}).setLngLat([u2lng,u2lat]).addTo(map);
+            new mapboxgl.Marker({color:'#ff0'}).setLngLat([vlng,vlat]).addTo(map);
+            drawRoute('rA',u1lng,u1lat,vlng,vlat,'#0f0');
+            drawRoute('rB',u2lng,u2lat,vlng,vlat,'#00ffaa');
+            map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000});
+        }
+        window.confirmProceed=async function(){
+            myConfirmed=true; document.getElementById('sync-confirm-btn').style.display='none';
+            document.getElementById('sync-status').innerText='Waiting for other user...';
+            await supabaseClient.from('oracle_sessions').update({u2_confirmed:true}).eq('bridge_id',currentN.id);
+        };
+        function startMeetTimer(s){
+            document.getElementById('sync-panel').style.opacity='0'; setTimeout(()=>document.getElementById('sync-panel').style.display='none',300);
+            const navHud=document.getElementById('nav-hud'); navHud.style.display='block'; setTimeout(()=>navHud.style.opacity='1',10);
+            document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();
+            let remaining=MEET_DURATION_MINUTES*60;
+            meetTimerInterval=setInterval(async()=>{ remaining--; const mins=Math.floor(remaining/60),secs=remaining%60;
+                document.getElementById('meet-timer').innerText='MEET WINDOW: '+mins+'m '+secs+'s';
+                if(remaining<=0){clearInterval(meetTimerInterval); await supabaseClient.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id);}
+            },1000);
+        }
+        function showRatingPanel(){
+            document.getElementById('nav-hud').style.opacity='0'; setTimeout(()=>document.getElementById('nav-hud').style.display='none',300);
+            const rp=document.getElementById('rate-panel'); rp.style.display='block'; setTimeout(()=>rp.style.opacity='1',10);
+        }
+        window.submitRating=async function(r){
+            if(meetRated)return; meetRated=true; document.getElementById('rate-panel').style.display='none';
+            await supabaseClient.from('oracle_sessions').update({u2_rating:r}).eq('bridge_id',currentN.id);
+            setStatus('success','Thanks for rating!'); setTimeout(()=>location.reload(),3000);
+        };
+        async function drawRoute(id,sLng,sLat,eLng,eLat,color){
+            try{
+                const url='https://api.mapbox.com/directions/v5/mapbox/driving/'+sLng+','+sLat+';'+eLng+','+eLat+'?geometries=geojson&access_token='+mapboxgl.accessToken;
+                const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0])return;
+                if(map.getLayer(id))map.removeLayer(id); if(map.getSource(id))map.removeSource(id);
+                map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}});
+                map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}});
+            }catch(e){}
+        }
+
+        map.on('load', () => {
+            map.addSource('nodes-source', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] },
+                cluster: true, clusterMaxZoom: 14, clusterRadius: 50
+            });
+            map.addLayer({ id:'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'],
+                paint:{ 'circle-color':'#111','circle-stroke-color':'#0f0','circle-stroke-width':2,
+                    'circle-radius':['step',['get','point_count'],20,10,25,30,35],'circle-opacity':0.9 } });
+            map.addLayer({ id:'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'],
+                layout:{ 'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14 },
+                paint:{ 'text-color':'#0f0' } });
+            map.addLayer({ id:'nodes-unclustered', type:'circle', source:'nodes-source', filter:['!',['has','point_count']],
+                paint:{ 'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5 } });
+            map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
+                layout:{ 'text-field':['get','emoji'],'text-font':['Arial Unicode MS Bold'],'text-size':12,'text-allow-overlap':true },
+                paint:{ 'text-color':'#000' } });
+
+            const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });
+            map.on('mouseenter', 'nodes-unclustered', (e) => {
+                map.getCanvas().style.cursor = 'pointer';
+                const props = e.features[0].properties;
+                const timeLeft = Math.max(0, Math.floor((new Date(props.expires_at) - Date.now()) / 60000));
+                popup.setLngLat(e.lngLat).setHTML(props.intent + ' [' + timeLeft + 'm]').addTo(map);
+            });
+            map.on('mouseleave', 'nodes-unclustered', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
+
+            map.on('click', 'nodes-unclustered', async (e) => {
+                const nodeProps = e.features[0].properties;
+                if (currentN) return;
+                openProfileCard(nodeProps);
+            });
+
+            map.on('click', 'nodes-clusters', (e) => {
+                const features = map.queryRenderedFeatures(e.point, { layers:['nodes-clusters'] });
+                const clusterId = features[0].properties.cluster_id;
+                map.getSource('nodes-source').getClusterExpansionZoom(clusterId, (err, zoom) => { if (err) return; map.easeTo({ center:features[0].geometry.coordinates, zoom }); });
+            });
+
+            document.getElementById('status-bar').innerText = 'Scanning...';
+            scan();
+        });
+
+        async function scan(){
+            const now = new Date().toISOString();
+            const { data, error } = await supabaseClient.from('nodes').select('*').eq('status','active').gt('expires_at',now);
+            if (error) { setStatus('error','Connection issue'); return; }
+            const features = (data || []).map(node => ({
+                type: 'Feature',
+                geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
+                properties: {
+                    id: node.id, intent: node.intent || 'Coffee',
+                    category: node.category || 'social',
+                    node_type: node.node_type || 'one_on_one',
+                    vibe_question: node.vibe_question,
+                    vibe_answer: node.vibe_answer,
+                    user_id: node.user_id,
+                    color: intentColors[node.intent] || defaultColor,
+                    emoji: intentEmojis[node.intent] || '📍',
+                    expires_at: node.expires_at
+                }
+            }));
+            if (map.getSource('nodes-source')) map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
+            if (features.length === 0) setStatus('info','No active nodes. Scanning...');
+            else document.getElementById('status-bar').style.display='none';
+        }
+        setInterval(scan, 5000);
     </script>
 </body>
 </html>

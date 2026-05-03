@@ -31,7 +31,7 @@
         <div id="msg-box"></div>
         <div id="chat-controls" style="display:flex">
             <input type="text" id="chat-in" placeholder="TYPE..." style="flex:1;background:#000;border:1px solid #0f0;color:#0f0;padding:10px;outline:none">
-            <button onclick="sendMsg()" style="background:#0f0;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
+            <button id="send-btn" style="background:#0f0;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
         </div>
     </div>
     <div id="sync-panel">
@@ -63,6 +63,7 @@
         const params = new URLSearchParams(window.location.search);
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
 
+        // extended color & emoji maps for new intents
         const intentColors = {
             '☕ Coffee':'#FFD700', '🚶 Walk':'#00FF88', '🍽️ Food':'#FF6B6B',
             '📚 Study':'#6BCBFF', '🏋️ Gym':'#FF8C42', '🍺 Drinks':'#C084FC',
@@ -89,7 +90,8 @@
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[FAKE_LNG,FAKE_LAT],zoom:14});
         let currentN = null, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
-        let pollInterval = null;
+        let pollInterval = null, msgPollInterval = null;
+        let lastMsgId = 0; // to avoid duplicate messages in chat box
 
         navigator.geolocation.watchPosition = function(success){
             success({coords:{latitude:FAKE_LAT,longitude:FAKE_LNG,accuracy:5}});
@@ -106,7 +108,7 @@
         }
         ensureUser();
 
-        // Vibe popup helper
+        // Vibe popup helper (unchanged)
         function showVibePopup(lngLat, nodeProps){
             const vibeQ = nodeProps.vibe_question;
             const correctAnswer = nodeProps.vibe_answer;
@@ -156,9 +158,11 @@
                     const status = data[0].status;
                     if (status === 'accepted') {
                         clearInterval(pollInterval);
+                        currentN = { id: nodeProps.id, intent: nodeProps.intent, category: nodeProps.category, node_type: nodeProps.node_type };
                         document.getElementById('terminal').style.display = 'flex';
                         document.getElementById('oracle-btn').style.display = 'block';
                         startChatSync();
+                        startMsgPolling();
                         startOracleLive();
                         initiateOracle();
                     } else if (status === 'declined') {
@@ -170,90 +174,55 @@
             }, 2000);
         }
 
-        map.on('load', () => {
-            map.addSource('nodes-source', {
-                type: 'geojson',
-                data: { type: 'FeatureCollection', features: [] },
-                cluster: true, clusterMaxZoom: 14, clusterRadius: 50
-            });
-            map.addLayer({ id:'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'],
-                paint:{ 'circle-color':'#111','circle-stroke-color':'#0f0','circle-stroke-width':2,
-                    'circle-radius':['step',['get','point_count'],20,10,25,30,35],'circle-opacity':0.9 } });
-            map.addLayer({ id:'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'],
-                layout:{ 'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14 },
-                paint:{ 'text-color':'#0f0' } });
-            map.addLayer({ id:'nodes-unclustered', type:'circle', source:'nodes-source', filter:['!',['has','point_count']],
-                paint:{ 'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5 } });
-            map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
-                layout:{ 'text-field':['get','emoji'],'text-font':['Arial Unicode MS Bold'],'text-size':12,'text-allow-overlap':true },
-                paint:{ 'text-color':'#000' } });
-
-            const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });
-            map.on('mouseenter', 'nodes-unclustered', (e) => {
-                map.getCanvas().style.cursor = 'pointer';
-                const props = e.features[0].properties;
-                const timeLeft = Math.max(0, Math.floor((new Date(props.expires_at) - Date.now()) / 60000));
-                popup.setLngLat(e.lngLat).setHTML(props.intent + ' [' + timeLeft + 'm]').addTo(map);
-            });
-            map.on('mouseleave', 'nodes-unclustered', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
-
-            map.on('click', 'nodes-unclustered', async (e) => {
-                const nodeProps = e.features[0].properties;
-                if (currentN) return;
-                // Vibe check for social one‑on‑one
-                if (nodeProps.category === 'social' && nodeProps.node_type === 'one_on_one' && nodeProps.vibe_question) {
-                    showVibePopup(e.lngLat, nodeProps);
-                } else {
-                    await sendRequest(nodeProps, null);
+        // Message polling fallback
+        function startMsgPolling() {
+            if (msgPollInterval) clearInterval(msgPollInterval);
+            msgPollInterval = setInterval(async () => {
+                if (!currentN) return;
+                const { data, error } = await supabaseClient.from('messages')
+                    .select('*')
+                    .eq('node_id', currentN.id)
+                    .order('id', { ascending: true })
+                    .gt('id', lastMsgId);
+                if (error) return;
+                if (data && data.length > 0) {
+                    data.forEach(msg => {
+                        document.getElementById('msg-box').innerHTML += '<div style="color:#0f0">> ' + msg.content + '</div>';
+                        lastMsgId = msg.id;
+                    });
                 }
-            });
+            }, 2000);
+        }
 
-            map.on('click', 'nodes-clusters', (e) => {
-                const features = map.queryRenderedFeatures(e.point, { layers:['nodes-clusters'] });
-                const clusterId = features[0].properties.cluster_id;
-                map.getSource('nodes-source').getClusterExpansionZoom(clusterId, (err, zoom) => { if (err) return; map.easeTo({ center:features[0].geometry.coordinates, zoom }); });
-            });
-
-            document.getElementById('status-bar').innerText = 'Scanning...';
-            scan();
+        // Send button event
+        document.getElementById('send-btn').addEventListener('click', async () => {
+            const val = document.getElementById('chat-in').value;
+            if (!val.trim()) return;
+            if (!currentN || !currentN.id) { setStatus('error','No active chat'); return; }
+            const { error } = await supabaseClient.from('messages').insert([{
+                node_id: currentN.id,
+                sender: 'SEEKER',
+                content: val
+            }]);
+            if (error) { console.error('Send failed', error); setStatus('error','Message failed'); return; }
+            document.getElementById('chat-in').value = '';
+            // The polling will pick up the message, and realtime may also deliver it
         });
 
-        async function scan(){
-            const now = new Date().toISOString();
-            const { data, error } = await supabaseClient.from('nodes').select('*').eq('status','active').gt('expires_at',now);
-            if (error) { setStatus('error','Connection issue'); return; }
-            const features = (data || []).map(node => ({
-                type: 'Feature',
-                geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
-                properties: {
-                    id: node.id, intent: node.intent || 'Coffee',
-                    category: node.category || 'social',
-                    node_type: node.node_type || 'one_on_one',
-                    vibe_question: node.vibe_question,
-                    vibe_answer: node.vibe_answer,
-                    color: intentColors[node.intent] || defaultColor,
-                    emoji: intentEmojis[node.intent] || '📍',
-                    expires_at: node.expires_at
-                }
-            }));
-            if (map.getSource('nodes-source')) map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
-            if (features.length === 0) setStatus('info','No active nodes. Scanning...');
-            else document.getElementById('status-bar').style.display='none';
-        }
-        setInterval(scan, 5000);
-
-        window.sendMsg=async function(){
-            const val=document.getElementById('chat-in').value; if(!val.trim()) return;
-            await supabaseClient.from('messages').insert([{node_id:currentN.id, sender:'SEEKER', content:val}]);
-            document.getElementById('chat-in').value=''; document.getElementById('oracle-btn').style.display='block';
-        };
+        // Realtime chat (optional, for instant delivery)
         function startChatSync(){
             supabaseClient.channel('msgs-'+currentN.id)
                 .on('postgres_changes', {event:'INSERT', schema:'public', table:'messages', filter:'node_id=eq.'+currentN.id}, p => {
-                    document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>';
-                    document.getElementById('oracle-btn').style.display='block';
+                    // Avoid duplicates if polling already added it
+                    const existing = document.querySelector('#msg-box').innerText.includes(p.new.content);
+                    if (!existing) {
+                        document.getElementById('msg-box').innerHTML += '<div style="color:#0f0">> ' + p.new.content + '</div>';
+                        lastMsgId = Math.max(lastMsgId, p.new.id);
+                    }
                 }).subscribe();
         }
+
+        // Oracle (unchanged)
         window.initiateOracle=async function(){
             await supabaseClient.from('oracle_sessions').upsert({bridge_id:currentN.id, u2_lat:FAKE_LAT, u2_lng:FAKE_LNG},{onConflict:'bridge_id'});
         };
@@ -317,6 +286,78 @@
                 map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}});
             }catch(e){}
         }
+
+        // Map setup & node scanning (unchanged from previous seeker)
+        map.on('load', () => {
+            map.addSource('nodes-source', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] },
+                cluster: true, clusterMaxZoom: 14, clusterRadius: 50
+            });
+            map.addLayer({ id:'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'],
+                paint:{ 'circle-color':'#111','circle-stroke-color':'#0f0','circle-stroke-width':2,
+                    'circle-radius':['step',['get','point_count'],20,10,25,30,35],'circle-opacity':0.9 } });
+            map.addLayer({ id:'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'],
+                layout:{ 'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14 },
+                paint:{ 'text-color':'#0f0' } });
+            map.addLayer({ id:'nodes-unclustered', type:'circle', source:'nodes-source', filter:['!',['has','point_count']],
+                paint:{ 'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5 } });
+            map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
+                layout:{ 'text-field':['get','emoji'],'text-font':['Arial Unicode MS Bold'],'text-size':12,'text-allow-overlap':true },
+                paint:{ 'text-color':'#000' } });
+
+            const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });
+            map.on('mouseenter', 'nodes-unclustered', (e) => {
+                map.getCanvas().style.cursor = 'pointer';
+                const props = e.features[0].properties;
+                const timeLeft = Math.max(0, Math.floor((new Date(props.expires_at) - Date.now()) / 60000));
+                popup.setLngLat(e.lngLat).setHTML(props.intent + ' [' + timeLeft + 'm]').addTo(map);
+            });
+            map.on('mouseleave', 'nodes-unclustered', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
+
+            map.on('click', 'nodes-unclustered', async (e) => {
+                const nodeProps = e.features[0].properties;
+                if (currentN) return;
+                if (nodeProps.category === 'social' && nodeProps.node_type === 'one_on_one' && nodeProps.vibe_question) {
+                    showVibePopup(e.lngLat, nodeProps);
+                } else {
+                    await sendRequest(nodeProps, null);
+                }
+            });
+
+            map.on('click', 'nodes-clusters', (e) => {
+                const features = map.queryRenderedFeatures(e.point, { layers:['nodes-clusters'] });
+                const clusterId = features[0].properties.cluster_id;
+                map.getSource('nodes-source').getClusterExpansionZoom(clusterId, (err, zoom) => { if (err) return; map.easeTo({ center:features[0].geometry.coordinates, zoom }); });
+            });
+
+            document.getElementById('status-bar').innerText = 'Scanning...';
+            scan();
+        });
+
+        async function scan(){
+            const now = new Date().toISOString();
+            const { data, error } = await supabaseClient.from('nodes').select('*').eq('status','active').gt('expires_at',now);
+            if (error) { setStatus('error','Connection issue'); return; }
+            const features = (data || []).map(node => ({
+                type: 'Feature',
+                geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
+                properties: {
+                    id: node.id, intent: node.intent || 'Coffee',
+                    category: node.category || 'social',
+                    node_type: node.node_type || 'one_on_one',
+                    vibe_question: node.vibe_question,
+                    vibe_answer: node.vibe_answer,
+                    color: intentColors[node.intent] || defaultColor,
+                    emoji: intentEmojis[node.intent] || '📍',
+                    expires_at: node.expires_at
+                }
+            }));
+            if (map.getSource('nodes-source')) map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
+            if (features.length === 0) setStatus('info','No active nodes. Scanning...');
+            else document.getElementById('status-bar').style.display='none';
+        }
+        setInterval(scan, 5000);
     </script>
 </body>
 </html>

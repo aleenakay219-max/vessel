@@ -66,13 +66,25 @@
         const intentColors = {
             '☕ Coffee':'#FFD700', '🚶 Walk':'#00FF88', '🍽️ Food':'#FF6B6B',
             '📚 Study':'#6BCBFF', '🏋️ Gym':'#FF8C42', '🍺 Drinks':'#C084FC',
-            '⚽ Sports':'#4ADE80', '💬 Chat':'#F472B6'
+            '⚽ Sports':'#4ADE80', '💬 Chat':'#F472B6',
+            '☕ Coffee & Conversation':'#FFD700', '🍽️ Foodie Meetup':'#FF6B6B',
+            '🌙 Night Out':'#C084FC', '🧘 Chill & Wellness':'#6BCBFF',
+            '⚽ Football':'#4ADE80', '🏏 Cricket':'#4ADE80', '🎾 Tennis':'#4ADE80',
+            '🔨 I Can Help':'#FF8C42', '☕ Co‑Working / Study':'#FF8C42', '💡 Creative Collab':'#FF8C42',
+            '🧸 Kids’ Playdate':'#C084FC', '🤱 Mum2Mum':'#C084FC', '👨 Dad’s Crew':'#C084FC', '👨‍👩‍👧 Family Hangout':'#C084FC'
         };
         const intentEmojis = {
             '☕ Coffee':'☕','🚶 Walk':'🚶','🍽️ Food':'🍽️','📚 Study':'📚',
-            '🏋️ Gym':'🏋️','🍺 Drinks':'🍺','⚽ Sports':'⚽','💬 Chat':'💬'
+            '🏋️ Gym':'🏋️','🍺 Drinks':'🍺','⚽ Sports':'⚽','💬 Chat':'💬',
+            '☕ Coffee & Conversation':'☕','🍽️ Foodie Meetup':'🍽️','🌙 Night Out':'🌙','🧘 Chill & Wellness':'🧘',
+            '⚽ Football':'⚽','🏏 Cricket':'🏏','🎾 Tennis':'🎾',
+            '🔨 I Can Help':'🔧','☕ Co‑Working / Study':'☕','💡 Creative Collab':'💡',
+            '🧸 Kids’ Playdate':'🧒','🤱 Mum2Mum':'🤱','👨 Dad’s Crew':'👨','👨‍👩‍👧 Family Hangout':'👨‍👩‍👧'
         };
         const defaultColor = '#AAAAAA';
+
+        let myUserId = localStorage.getItem('vessel_user_id');
+        if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
 
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[FAKE_LNG,FAKE_LAT],zoom:14});
         let currentN = null, meetRated = false, myConfirmed = false, meetTimerInterval = null;
@@ -85,6 +97,78 @@
         };
 
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#ff0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#ff0';b.style.color=c[t]||'#ff0';b.innerText=m;}
+
+        async function ensureUser(){
+            const { data } = await supabaseClient.from('users').select('id').eq('id', myUserId).limit(1);
+            if (!data || data.length === 0) {
+                await supabaseClient.from('users').insert([{ id: myUserId, trust_score: 5.0, total_meets: 0 }]);
+            }
+        }
+        ensureUser();
+
+        // Vibe popup helper
+        function showVibePopup(lngLat, nodeProps){
+            const vibeQ = nodeProps.vibe_question;
+            const correctAnswer = nodeProps.vibe_answer;
+            const intent = nodeProps.intent;
+            const vibeMap = {
+                '☕ Coffee & Conversation': {a:'Loud & social', b:'Quiet & intimate'},
+                '🍽️ Foodie Meetup': {a:'Adventurous / new', b:'Comfort / familiar'},
+                '🌙 Night Out': {a:'Dancing & energy', b:'Deep talk over drinks'},
+                '🧘 Chill & Wellness': {a:'Silent parallel time', b:'Chat while walking'}
+            };
+            const options = vibeMap[intent] || {a:'Option A', b:'Option B'};
+            const content = document.createElement('div');
+            content.style.cssText = 'background:#000;border:2px solid #0f0;color:#0f0;padding:15px;font-family:monospace;text-align:center';
+            content.innerHTML = `<p>${vibeQ}</p>
+                <button class="vibe-opt" data-answer="a" style="margin:5px;padding:8px 15px;background:transparent;border:1px solid #0f0;color:#0f0;cursor:pointer">${options.a}</button>
+                <button class="vibe-opt" data-answer="b" style="margin:5px;padding:8px 15px;background:transparent;border:1px solid #0f0;color:#0f0;cursor:pointer">${options.b}</button>`;
+            const popup = new mapboxgl.Popup({closeButton:true, closeOnClick:false}).setLngLat(lngLat).setDOMContent(content).addTo(map);
+            content.querySelectorAll('.vibe-opt').forEach(btn => {
+                btn.onclick = async (e) => {
+                    const answer = e.target.dataset.answer;
+                    popup.remove();
+                    if (answer !== correctAnswer) {
+                        setStatus('error','Not my vibe'); setTimeout(()=>document.getElementById('status-bar').style.display='none',2000);
+                        return;
+                    }
+                    await sendRequest(nodeProps, answer);
+                };
+            });
+        }
+
+        async function sendRequest(nodeProps, answer_given){
+            setStatus('info','Sending request...');
+            const payload = { node_id: nodeProps.id, requester_id: myUserId, status: 'pending' };
+            if (answer_given) payload.answer_given = answer_given;
+            const { error } = await supabaseClient.from('requests').insert([payload]);
+            if (error) { setStatus('error','Request failed: ' + error.message); return; }
+            setStatus('success','Request sent. Waiting for creator...');
+            if (pollInterval) clearInterval(pollInterval);
+            pollInterval = setInterval(async () => {
+                const { data, error } = await supabaseClient.from('requests')
+                    .select('status')
+                    .eq('node_id', nodeProps.id)
+                    .eq('requester_id', myUserId)
+                    .limit(1);
+                if (error) return;
+                if (data && data.length > 0) {
+                    const status = data[0].status;
+                    if (status === 'accepted') {
+                        clearInterval(pollInterval);
+                        document.getElementById('terminal').style.display = 'flex';
+                        document.getElementById('oracle-btn').style.display = 'block';
+                        startChatSync();
+                        startOracleLive();
+                        initiateOracle();
+                    } else if (status === 'declined') {
+                        clearInterval(pollInterval);
+                        setStatus('error','Creator declined');
+                        currentN = null;
+                    }
+                }
+            }, 2000);
+        }
 
         map.on('load', () => {
             map.addSource('nodes-source', {
@@ -113,43 +197,15 @@
             });
             map.on('mouseleave', 'nodes-unclustered', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
 
-            // CLICK ON NODE
             map.on('click', 'nodes-unclustered', async (e) => {
                 const nodeProps = e.features[0].properties;
                 if (currentN) return;
-                currentN = { id: nodeProps.id, intent: nodeProps.intent, status: 'active' };
-                setStatus('info','Sending request...');
-                const { error } = await supabaseClient.from('requests').insert([{node_id:nodeProps.id, requester_id:'SEEKER', status:'pending'}]);
-                if (error) { setStatus('error','Request failed: ' + error.message); return; }
-                setStatus('success','Request sent. Waiting for creator...');
-
-                if (pollInterval) clearInterval(pollInterval);
-                pollInterval = setInterval(async () => {
-                    const { data, error } = await supabaseClient.from('requests')
-                        .select('status')
-                        .eq('node_id', nodeProps.id)
-                        .eq('requester_id', 'SEEKER')
-                        .limit(1);
-                    if (error) return;
-                    if (data && data.length > 0) {
-                        const status = data[0].status;
-                        if (status === 'accepted') {
-                            clearInterval(pollInterval);
-                            console.log('Request accepted, opening chat and starting Oracle...');
-                            document.getElementById('terminal').style.display = 'flex';
-                            document.getElementById('oracle-btn').style.display = 'block';
-                            startChatSync();
-                            // Start listening to Oracle updates
-                            startOracleLive();
-                            // Auto‑send GPS to Oracle
-                            initiateOracle();
-                        } else if (status === 'declined') {
-                            clearInterval(pollInterval);
-                            setStatus('error','Creator declined');
-                            currentN = null;
-                        }
-                    }
-                }, 2000);
+                // Vibe check for social one‑on‑one
+                if (nodeProps.category === 'social' && nodeProps.node_type === 'one_on_one' && nodeProps.vibe_question) {
+                    showVibePopup(e.lngLat, nodeProps);
+                } else {
+                    await sendRequest(nodeProps, null);
+                }
             });
 
             map.on('click', 'nodes-clusters', (e) => {
@@ -171,6 +227,10 @@
                 geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
                 properties: {
                     id: node.id, intent: node.intent || 'Coffee',
+                    category: node.category || 'social',
+                    node_type: node.node_type || 'one_on_one',
+                    vibe_question: node.vibe_question,
+                    vibe_answer: node.vibe_answer,
                     color: intentColors[node.intent] || defaultColor,
                     emoji: intentEmojis[node.intent] || '📍',
                     expires_at: node.expires_at

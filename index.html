@@ -10,22 +10,19 @@
         #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
         #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #ff0;z-index:3000;padding:10px;text-align:center;color:#ff0;font-size:12px;box-sizing:border-box}
         #terminal{display:none;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #0f0;z-index:2000;flex-direction:column;padding:15px;box-sizing:border-box}
-        #inbox-panel{display:none;border:1px solid #0f0;padding:10px;margin-bottom:10px;max-height:150px;overflow-y:auto;color:#0f0}
+        #inbox-panel{display:none;border:1px solid #0f0;padding:10px;margin-bottom:10px;max-height:200px;overflow-y:auto;color:#0f0}
         #msg-box{height:150px;overflow-y:auto;color:#0f0;margin-bottom:10px;border:1px solid #030;padding:5px;display:flex;flex-direction:column}
         #oracle-ballot{display:none;color:#0f0;border:1px solid #0f0;padding:10px;margin-bottom:10px;background:rgba(0,255,0,0.1);font-size:11px;text-align:center}
         #sync-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #0f0;z-index:5000;padding:30px;text-align:center;color:#0f0}
         #rate-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #ff0;z-index:5000;padding:30px;text-align:center;color:#ff0}
         #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #0f0;z-index:4000;padding:20px;text-align:center;color:#0f0;box-sizing:border-box}
         #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #0f0;border-radius:50%;color:#0f0;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #0f0}
-        /* Profile gear icon */
         #profile-gear{position:absolute;top:20px;left:20px;width:36px;height:36px;background:#000;border:2px solid #0f0;border-radius:50%;color:#0f0;font-size:20px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #0f0}
-        /* Profile editor panel */
         #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #0f0;z-index:6000;padding:20px;color:#0f0;width:85%;max-width:320px;box-sizing:border-box}
         #profile-panel label{display:block;margin:10px 0 4px;font-size:12px}
         #profile-panel input, #profile-panel select{width:100%;padding:8px;background:#000;border:1px solid #0f0;color:#0f0;font-family:monospace;margin-bottom:5px}
         .profile-save-btn{background:#0f0;color:#000;border:none;padding:10px;margin-top:10px;width:100%;cursor:pointer;font-family:monospace}
         .profile-close-btn{background:transparent;border:1px solid #f00;color:#f00;padding:8px;margin-top:8px;width:100%;cursor:pointer;font-family:monospace}
-        /* Accordion picker */
         #intent-panel{display:none;position:fixed;bottom:110px;left:5%;width:90%;background:rgba(0,10,0,0.97);border:2px solid #0f0;z-index:5000;padding:0;box-sizing:border-box;max-height:60vh;overflow-y:auto}
         .accordion-section{border-bottom:1px solid #0f0}
         .accordion-header{width:100%;background:transparent;border:none;color:#0f0;padding:12px 15px;text-align:left;font-family:monospace;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
@@ -46,9 +43,12 @@
         .hud-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
         .sync-btn{background:transparent;border:2px solid #0f0;color:#0f0;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
         .rate-btn{background:transparent;border:2px solid #ff0;color:#ff0;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
-        .inbox-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;padding:5px;border:1px solid #0f0}
-        .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #0f0;color:#0f0;cursor:pointer}
-        .inbox-dossier{font-size:10px;color:#aaa}
+        .inbox-item{display:flex;align-items:center;margin-bottom:8px;padding:8px;border:1px solid #0f0}
+        .inbox-item .avatar{font-size:28px;margin-right:10px}
+        .inbox-item .info{flex:1;font-size:12px}
+        .inbox-item .info .name{color:#0f0;font-size:14px}
+        .inbox-item .info .detail{color:#aaa}
+        .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #0f0;color:#0f0;cursor:pointer;padding:5px 10px}
     </style>
 </head>
 <body>
@@ -148,7 +148,7 @@
         function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
         function bbox(midLat,midLng,r){const dLat=r/111.32,dLng=r/(111.32*Math.cos(midLat*Math.PI/180));return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat)}
 
-        // Profile panel functions
+        // Profile panel functions (unchanged)
         window.openProfilePanel = async () => {
             document.getElementById('profile-panel').style.display = 'block';
             const { data, error } = await _supabase
@@ -165,11 +165,7 @@
                 document.getElementById('prof-tags').value = (data.vibe_tags || []).join(', ');
             }
         };
-
-        function closeProfilePanel() {
-            document.getElementById('profile-panel').style.display = 'none';
-        }
-
+        function closeProfilePanel() { document.getElementById('profile-panel').style.display = 'none'; }
         window.saveProfile = async () => {
             const displayName = document.getElementById('prof-name').value.trim();
             const avatarEmoji = document.getElementById('prof-emoji').value.trim() || '🤖';
@@ -202,7 +198,7 @@
             }
         };
 
-        // Build accordion
+        // Build accordion (same as before)
         function buildAccordion(){
             const panel = document.getElementById('intent-panel');
             panel.innerHTML = '';
@@ -422,6 +418,7 @@
             });
         };
 
+        // ** UPGRADED INBOX **
         async function loadInbox(){
             if(!currentN) return;
             const{data:requests} = await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
@@ -429,23 +426,48 @@
             if(!requests||requests.length===0){inbox.style.display='none';return;}
             inbox.style.display='block';
             inbox.innerHTML = '<div style="color:#0f0;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
-            for(let req of requests){
-                const{data:userData} = await _supabase.from('users').select('trust_score,total_meets').eq('id',req.requester_id).single();
-                const trust = userData ? userData.trust_score : 'N/A';
-                const meets = userData ? userData.total_meets : 'N/A';
 
+            for(let req of requests){
+                // Fetch requester's full profile
+                const{data:user} = await _supabase.from('users')
+                    .select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets')
+                    .eq('id', req.requester_id)
+                    .single();
+
+                const emoji = user?.avatar_emoji || '🤖';
+                const name = user?.display_name || 'Unknown';
+                const trust = user?.trust_score || 5.0;
+                const meets = user?.total_meets || 0;
+                const age = user?.age || 'N/A';
+                const tags = user?.vibe_tags || [];
+
+                // Build item
                 const item = document.createElement('div'); item.className='inbox-item';
-                let dossierHtml = '';
+
+                const avatarDiv = document.createElement('div'); avatarDiv.className='avatar'; avatarDiv.innerText = emoji;
+                const infoDiv = document.createElement('div'); infoDiv.className='info';
+                infoDiv.innerHTML = `
+                    <div class="name">${name}</div>
+                    <div class="detail">⭐${trust.toFixed(1)} · ${meets} meets · Age ${age}</div>
+                    <div class="detail">${user?.nationality||''} ${user?.profession?'· '+user.profession:''}</div>
+                    <div class="tags" style="margin-top:4px">${tags.map(t=>`<span style="background:rgba(0,255,0,0.15);border:1px solid #0f0;padding:2px 6px;font-size:10px;margin-right:4px">${t}</span>`).join('')}</div>
+                `;
                 if(req.answer_given){
                     const vibeLabel = req.answer_given === 'a' ? (vibeChecks[currentN.intent]?.a || 'Option A') : (vibeChecks[currentN.intent]?.b || 'Option B');
-                    dossierHtml += `<span style="color:#0f0">Vibe: ${vibeLabel}</span><br>`;
+                    infoDiv.innerHTML += `<div style="color:#0f0;margin-top:3px">Vibe: ${vibeLabel}</div>`;
                 }
-                dossierHtml += `<span class="inbox-dossier">⭐${trust} · ${meets} meets</span>`;
-                item.innerHTML = `<div>${dossierHtml}</div>
-                    <div class="inbox-actions">
-                        <button onclick="handleRequest(${req.id},'accepted')">ACCEPT</button>
-                        <button onclick="handleRequest(${req.id},'declined')">DECLINE</button>
-                    </div>`;
+
+                const actionsDiv = document.createElement('div'); actionsDiv.className='inbox-actions';
+                const acceptBtn = document.createElement('button'); acceptBtn.innerText='ACCEPT';
+                acceptBtn.onclick=()=>handleRequest(req.id,'accepted');
+                const declineBtn = document.createElement('button'); declineBtn.innerText='DECLINE';
+                declineBtn.onclick=()=>handleRequest(req.id,'declined');
+                actionsDiv.appendChild(acceptBtn);
+                actionsDiv.appendChild(declineBtn);
+
+                item.appendChild(avatarDiv);
+                item.appendChild(infoDiv);
+                item.appendChild(actionsDiv);
                 inbox.appendChild(item);
             }
         }

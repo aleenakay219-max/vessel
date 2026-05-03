@@ -139,6 +139,7 @@
         }
         ensureUser();
 
+        // Open profile card when tapping a node
         async function openProfileCard(nodeProps) {
             pendingNodeProps = nodeProps;
             selectedVibeAnswer = null;
@@ -240,7 +241,7 @@
                         startChatSync();
                         startMsgPolling();
                         startOracleLive();
-                        initiateOracle();
+                        // NOTE: initiateOracle() removed so that seeker must manually click the Oracle button
                     } else if (status === 'declined') {
                         clearInterval(pollInterval);
                         setStatus('error','Creator declined');
@@ -250,6 +251,7 @@
             }, 2000);
         }
 
+        // Chat left/right alignment
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div');
             msgDiv.className = 'chat-msg';
@@ -384,7 +386,7 @@
                 paint:{ 'text-color':'#0f0' } });
             map.addLayer({ id:'nodes-unclustered', type:'circle', source:'nodes-source', filter:['!',['has','point_count']],
                 paint:{ 'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5 } });
-            // Emoji layer – now with emoji‑capable font stack
+            // Emoji layer with proper font stack
             map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
                 layout:{ 'text-field':['get','emoji'], 'text-font':['Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Arial Unicode MS Bold'], 'text-size':16, 'text-allow-overlap':true },
                 paint:{ 'text-color':'#fff', 'text-halo-color':'#000', 'text-halo-width':1 } });

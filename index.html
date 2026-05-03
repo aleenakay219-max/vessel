@@ -117,16 +117,16 @@
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
 
         const categories = {
-            social: { label:'🍻 Social', presets:['☕ Coffee & Conversation','🍽️ Foodie Meetup','🌙 Night Out','🧘 Chill & Wellness'] },
+            social: { label:'🍻 Social', presets:['☕ Coffee & Conversation','🍽️ Foodie Meetup','🌙 Night Out','💬 Social Collab'] },
             games: { label:'⚽ Games', presets:['⚽ Football','🏏 Cricket','🎾 Tennis'] },
-            work: { label:'🔧 Work', presets:['🔨 I Can Help','☕ Co‑Working / Study','💡 Creative Collab'] },
+            work: { label:'🔧 Work', presets:['🔨 I Can Help','☕ Co‑Working / Study'] },
             parents: { label:'🧒 Parents', presets:['🧸 Kids’ Playdate','🤱 Mum2Mum','👨 Dad’s Crew','👨‍👩‍👧 Family Hangout'] }
         };
         const vibeChecks = {
             '☕ Coffee & Conversation': {q:'What kind of coffee vibe?', a:'Loud & social', b:'Quiet & intimate'},
             '🍽️ Foodie Meetup': {q:'What cuisine mood?', a:'Adventurous / new', b:'Comfort / familiar'},
-            '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'},
-            '🧘 Chill & Wellness': {q:'How should we chill?', a:'Silent parallel time', b:'Chat while walking'}
+            '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'}
+            // No vibe for Social Collab (group-oriented)
         };
 
         let selectedCategory = 'social';
@@ -151,7 +151,7 @@
         function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
         function bbox(midLat,midLng,r){const dLat=r/111.32,dLng=r/(111.32*Math.cos(midLat*Math.PI/180));return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat)}
 
-        // Profile functions
+        // Profile functions (unchanged)
         window.openProfilePanel = async () => {
             document.getElementById('profile-panel').style.display = 'block';
             const { data, error } = await _supabase
@@ -201,7 +201,7 @@
             }
         };
 
-        // Build accordion
+        // Build accordion (FIXED)
         function buildAccordion(){
             const panel = document.getElementById('intent-panel');
             panel.innerHTML = '';
@@ -225,12 +225,9 @@
                     btn.onclick = (e) => {
                         e.stopPropagation();
                         selectIntent(cat, intent, false);
-                        if (cat === 'social' && selectedNodeType === 'one_on_one' && vibeChecks[intent]) {
-                            document.getElementById('done-btn-' + cat).style.display = 'inline-block';
-                        } else {
-                            closeIntentPanel();
-                            startCreation();
-                        }
+                        // Show DONE button after selection
+                        document.getElementById('done-btn-' + cat).style.display = 'inline-block';
+                        // (no vibe row handling here; selectIntent handles it)
                     };
                     btnRow.appendChild(btn);
                 });
@@ -246,6 +243,7 @@
                 btnRow.appendChild(customBtn);
                 body.appendChild(btnRow);
 
+                // Node type toggle
                 const typeRow = document.createElement('div');
                 typeRow.className = 'node-type-row';
                 typeRow.innerHTML = '<span style="color:#0f0;font-size:12px">Type:</span>';
@@ -264,6 +262,7 @@
                             if (vibeRow) vibeRow.style.display = 'none';
                         } else {
                             document.getElementById('max-part-' + cat).style.display = 'none';
+                            // re‑evaluate vibe visibility if social preset and one‑on‑one
                             if (cat === 'social' && selectedIntent !== 'Custom' && vibeChecks[selectedIntent]) {
                                 const vibeRow = document.getElementById('vibe-row-' + cat);
                                 if (vibeRow) vibeRow.style.display = 'block';
@@ -279,6 +278,7 @@
                 typeRow.appendChild(maxInput);
                 body.appendChild(typeRow);
 
+                // Vibe row (only for social)
                 if (cat === 'social') {
                     const vibeRow = document.createElement('div');
                     vibeRow.className = 'vibe-row';
@@ -287,6 +287,7 @@
                     body.appendChild(vibeRow);
                 }
 
+                // Custom input + DONE button
                 const customInput = document.createElement('input');
                 customInput.className = 'custom-input';
                 customInput.id = 'custom-' + cat;
@@ -325,6 +326,11 @@
             if (isCustom) {
                 selectedIntent = 'Custom';
                 customIntentText = '';
+                document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none');
+                document.getElementById('custom-' + cat).style.display = 'block';
+                const vibeRow = document.getElementById('vibe-row-' + cat);
+                if (vibeRow) vibeRow.style.display = 'none';
+                selectedVibeAnswer = null;
             } else {
                 selectedIntent = intent;
                 customIntentText = '';
@@ -364,6 +370,7 @@
         };
         function closeIntentPanel() { document.getElementById('intent-panel').style.display = 'none'; collapseAll(); }
 
+        // Node creation with vibe validation
         window.startCreation = () => {
             const finalIntent = selectedIntent === 'Custom' ? customIntentText : selectedIntent;
             if (!finalIntent.trim()) { setStatus('error', 'Please select or enter an intent'); return; }
@@ -418,7 +425,7 @@
             });
         };
 
-        // Upgraded inbox with profile
+        // Inbox (unchanged)
         async function loadInbox(){
             if(!currentN) return;
             const{data:requests} = await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
@@ -471,12 +478,12 @@
                 }
                 startChatSync();
                 startOracleLive();
-                // Removed auto-initiateOracle(); – creator must click the Oracle button manually
+                // Oracle must be manually triggered via button
             }
             loadInbox();
         }
 
-        // Chat with left/right alignment
+        // Chat left/right alignment
         let lastMsgId = 0;
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div');
@@ -510,12 +517,12 @@
                 }).subscribe();
         }
 
+        // Oracle, sync, timer, rating (unchanged)
         window.initiateOracle = async () => {
             if (!gpsReady || myLoc.lat === 0) { setStatus('error', 'GPS not ready'); return; }
             setStatus('info', 'Syncing GPS...');
             await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' });
         };
-
         function startOracleLive() {
             _supabase.channel('oracle-' + currentN.id)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: 'bridge_id=eq.' + currentN.id }, async payload => {
@@ -538,7 +545,6 @@
                     if (s.meet_completed && !meetRated) showRatingPanel();
                 }).subscribe();
         }
-
         async function runOracleBrain(s) {
             const midLat = (s.u1_lat + s.u2_lat) / 2, midLng = (s.u1_lng + s.u2_lng) / 2;
             const queries = ['cafe', 'coffee shop', 'restaurant', 'mall', 'park'];
@@ -576,7 +582,6 @@
                 }).eq('bridge_id', currentN.id);
             }
         }
-
         function triggerSync(s) {
             document.getElementById('terminal').style.display = 'none';
             const syncPanel = document.getElementById('sync-panel'); syncPanel.style.display = 'block'; setTimeout(() => syncPanel.style.opacity = '1', 10);
@@ -592,14 +597,12 @@
             drawRoute('rB', u2lng, u2lat, vlng, vlat, '#00ffaa');
             map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng, u1lat]).extend([u2lng, u2lat]).extend([vlng, vlat]), { padding: 80, duration: 2000 });
         }
-
         window.confirmProceed = async () => {
             myConfirmed = true;
             document.getElementById('sync-confirm-btn').style.display = 'none';
             document.getElementById('sync-status').innerText = 'Waiting for other user...';
             await _supabase.from('oracle_sessions').update({ u1_confirmed: true }).eq('bridge_id', currentN.id);
         };
-
         function startMeetTimer(s) {
             document.getElementById('sync-panel').style.opacity = '0'; setTimeout(() => document.getElementById('sync-panel').style.display = 'none', 300);
             const navHud = document.getElementById('nav-hud'); navHud.style.display = 'block'; setTimeout(() => navHud.style.opacity = '1', 10);
@@ -611,12 +614,10 @@
                 if (remaining <= 0) { clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({ meet_completed: true }).eq('bridge_id', currentN.id); }
             }, 1000);
         }
-
         function showRatingPanel() {
             document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300);
             const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10);
         }
-
         window.submitRating = async (r) => {
             if (meetRated) return;
             meetRated = true;
@@ -624,7 +625,6 @@
             await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id);
             setStatus('success', 'Thanks for rating!'); setTimeout(() => location.reload(), 3000);
         };
-
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
             try {
                 const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN;

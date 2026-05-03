@@ -101,13 +101,12 @@
         };
 
         let selectedCategory = 'social';
-        let selectedIntent = '☕ Coffee & Conversation'; // preset or 'Custom'
+        let selectedIntent = '☕ Coffee & Conversation';
         let customIntentText = '';
         let selectedNodeType = 'one_on_one';
         let selectedMaxParticipants = null;
-        let selectedVibeAnswer = null; // 'a' or 'b'
+        let selectedVibeAnswer = null;
 
-        // User identity for tracking
         let myUserId = localStorage.getItem('vessel_user_id');
         if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
 
@@ -123,7 +122,6 @@
         function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
         function bbox(midLat,midLng,r){const dLat=r/111.32,dLng=r/(111.32*Math.cos(midLat*Math.PI/180));return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat)}
 
-        // Ensure user exists in users table
         async function ensureUser(){
             const { data } = await _supabase.from('users').select('id').eq('id', myUserId).limit(1);
             if (!data || data.length === 0) {
@@ -153,11 +151,19 @@
                     const btn = document.createElement('button');
                     btn.className = 'intent-btn';
                     btn.innerText = intent;
+                    // ** FIXED ONCLICK **
                     btn.onclick = (e) => {
                         e.stopPropagation();
                         selectIntent(cat, intent, false);
-                        closeIntentPanel();
-                        startCreation();
+                        // If social + one‑on‑one + vibe exists, stay open for vibe selection
+                        if (cat === 'social' && selectedNodeType === 'one_on_one' && vibeChecks[intent]) {
+                            document.getElementById('done-btn-' + cat).style.display = 'inline-block';
+                            // do not close panel, do not start creation yet
+                        } else {
+                            // immediate drop for group or non‑vibe presets
+                            closeIntentPanel();
+                            startCreation();
+                        }
                     };
                     btnRow.appendChild(btn);
                 });
@@ -188,8 +194,16 @@
                         typeBtn.classList.add('selected');
                         if (type === 'group') {
                             document.getElementById('max-part-' + cat).style.display = 'inline-block';
+                            // Hide vibe row if switching to group (since vibe only for one‑on‑one)
+                            const vibeRow = document.getElementById('vibe-row-' + cat);
+                            if (vibeRow) vibeRow.style.display = 'none';
                         } else {
                             document.getElementById('max-part-' + cat).style.display = 'none';
+                            // If a social preset is selected, re‑evaluate vibe visibility
+                            if (cat === 'social' && selectedIntent !== 'Custom' && vibeChecks[selectedIntent]) {
+                                const vibeRow = document.getElementById('vibe-row-' + cat);
+                                if (vibeRow) vibeRow.style.display = 'block';
+                            }
                         }
                     };
                     typeRow.appendChild(typeBtn);
@@ -201,7 +215,7 @@
                 typeRow.appendChild(maxInput);
                 body.appendChild(typeRow);
 
-                // Vibe row (only for social one‑on‑one)
+                // Vibe row (only for social)
                 if (cat === 'social') {
                     const vibeRow = document.createElement('div');
                     vibeRow.className = 'vibe-row';
@@ -253,8 +267,7 @@
                 selectedIntent = intent;
                 customIntentText = '';
                 document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none');
-                document.querySelectorAll('.done-btn').forEach(b => b.style.display = 'none');
-                // Show vibe row if social one‑on‑one and preset has vibe
+                // Do NOT hide the done button here; we control it in onclick
                 if (cat === 'social' && selectedNodeType === 'one_on_one' && vibeChecks[intent]) {
                     const vibeRow = document.getElementById('vibe-row-' + cat);
                     if (vibeRow) {
@@ -297,7 +310,6 @@
         window.startCreation = () => {
             const finalIntent = selectedIntent === 'Custom' ? customIntentText : selectedIntent;
             if (!finalIntent.trim()) { setStatus('error', 'Please select or enter an intent'); return; }
-            // If social one‑on‑one vibe row is visible but no vibe selected, block
             const vibeRow = document.getElementById('vibe-row-social');
             if (selectedCategory === 'social' && selectedNodeType === 'one_on_one' && vibeRow && vibeRow.style.display !== 'none' && !selectedVibeAnswer) {
                 setStatus('error', 'Please select a vibe before dropping');
@@ -319,7 +331,6 @@
                     user_id: myUserId,
                     expires_at: new Date(Date.now() + NODE_EXPIRY_MINUTES * 60 * 1000).toISOString()
                 };
-                // Add vibe if social one‑on‑one
                 if (selectedCategory === 'social' && selectedNodeType === 'one_on_one' && selectedVibeAnswer && vibeChecks[selectedIntent]) {
                     nodeData.vibe_question = vibeChecks[selectedIntent].q;
                     nodeData.vibe_answer = selectedVibeAnswer;
@@ -359,7 +370,6 @@
             inbox.style.display='block';
             inbox.innerHTML = '<div style="color:#0f0;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
             for(let req of requests){
-                // Fetch requester's trust score
                 const{data:userData} = await _supabase.from('users').select('trust_score,total_meets').eq('id',req.requester_id).single();
                 const trust = userData ? userData.trust_score : 'N/A';
                 const meets = userData ? userData.total_meets : 'N/A';
@@ -384,7 +394,6 @@
             await _supabase.from('requests').update({status:newStatus}).eq('id',requestId);
             if(newStatus==='accepted'){
                 document.getElementById('inbox-panel').style.display='none';
-                // Lock node if one‑on‑one
                 if(currentN.node_type === 'one_on_one'){
                     await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id);
                 }

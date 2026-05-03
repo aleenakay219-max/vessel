@@ -125,12 +125,421 @@
         const vibeChecks = {
             '☕ Coffee & Conversation': {q:'What kind of coffee vibe?', a:'Loud & social', b:'Quiet & intimate'},
             '🍽️ Foodie Meetup': {q:'What cuisine mood?', a:'Adventurous / new', b:'Comfort / familiar'},
-            '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'}
-            // Note: Chill & Wellness was removed earlier, but we are reverting to stable version, so it's back
+            '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'},
+            '🧘 Chill & Wellness': {q:'How should we chill?', a:'Silent parallel time', b:'Chat while walking'}
         };
 
-        // ... (rest of the script is identical to the last known stable version with accordion fix and manual Oracle)
-        // For brevity, I'm not including the entire script here, but the file above is complete with all working functions.
+        let selectedCategory = 'social';
+        let selectedIntent = '☕ Coffee & Conversation';
+        let customIntentText = '';
+        let selectedNodeType = 'one_on_one';
+        let selectedMaxParticipants = null;
+        let selectedVibeAnswer = null;
+
+        let myUserId = localStorage.getItem('vessel_user_id');
+        if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
+
+        const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[55.39,25.34],zoom:12});
+        let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false, gpsReady = false, gpsFailures = 0, meetRated = false, myConfirmed = false, meetTimerInterval = null;
+        let selectedVenueCoords = null;
+
+        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#0f0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#0f0';b.style.color=c[t]||'#0f0';b.innerText=m}
+        function clearStatus(){document.getElementById('status-bar').style.display='none'}
+        navigator.geolocation.watchPosition(p=>{myLoc={lat:p.coords.latitude,lng:p.coords.longitude};gpsReady=true;gpsFailures=0;clearStatus()},e=>{gpsFailures++;gpsReady=false;if(gpsFailures===1)setStatus('warning','GPS signal weak');if(gpsFailures>5)setStatus('error','GPS unavailable')},{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+        setStatus('info','Waiting for GPS...');
+
+        function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
+        function bbox(midLat,midLng,r){const dLat=r/111.32,dLng=r/(111.32*Math.cos(midLat*Math.PI/180));return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat)}
+        async function ensureUser(){const{data}=await _supabase.from('users').select('id').eq('id',myUserId).limit(1);if(!data||data.length===0)await _supabase.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]);}
+        ensureUser();
+
+        // Profile functions
+        window.openProfilePanel = async () => {
+            document.getElementById('profile-panel').style.display = 'block';
+            const { data, error } = await _supabase.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags').eq('id', myUserId).single();
+            if (data) {
+                document.getElementById('prof-name').value = data.display_name || '';
+                document.getElementById('prof-emoji').value = data.avatar_emoji || '🤖';
+                document.getElementById('prof-age').value = data.age || '';
+                document.getElementById('prof-nationality').value = data.nationality || '';
+                document.getElementById('prof-profession').value = data.profession || '';
+                document.getElementById('prof-tags').value = (data.vibe_tags || []).join(', ');
+            }
+        };
+        function closeProfilePanel() { document.getElementById('profile-panel').style.display = 'none'; }
+        window.saveProfile = async () => {
+            const displayName = document.getElementById('prof-name').value.trim();
+            const avatarEmoji = document.getElementById('prof-emoji').value.trim() || '🤖';
+            const age = parseInt(document.getElementById('prof-age').value) || null;
+            const nationality = document.getElementById('prof-nationality').value.trim();
+            const profession = document.getElementById('prof-profession').value.trim();
+            const tagsRaw = document.getElementById('prof-tags').value;
+            const vibeTags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+
+            const { error } = await _supabase.from('users').upsert({
+                id: myUserId,
+                display_name: displayName,
+                avatar_emoji: avatarEmoji,
+                age: age,
+                nationality: nationality || null,
+                profession: profession || null,
+                vibe_tags: vibeTags,
+                trust_score: 5.0,
+                total_meets: 0
+            }, { onConflict: 'id' });
+
+            if (error) { alert('Failed to save profile: ' + error.message); }
+            else { closeProfilePanel(); setStatus('success', 'Profile updated!'); setTimeout(() => clearStatus(), 2000); }
+        };
+
+        // Build accordion (ALL presets require DONE button)
+        function buildAccordion(){
+            const panel = document.getElementById('intent-panel');
+            panel.innerHTML = '';
+            Object.keys(categories).forEach(cat => {
+                const section = document.createElement('div');
+                section.className = 'accordion-section';
+                const header = document.createElement('button');
+                header.className = 'accordion-header';
+                header.innerHTML = `<span>${categories[cat].label}</span><span>▼</span>`;
+                header.onclick = () => toggleAccordion(cat);
+                const body = document.createElement('div');
+                body.className = 'accordion-body';
+                body.id = 'body-' + cat;
+
+                const btnRow = document.createElement('div');
+                btnRow.className = 'btn-row';
+                categories[cat].presets.forEach(intent => {
+                    const btn = document.createElement('button');
+                    btn.className = 'intent-btn';
+                    btn.innerText = intent;
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        selectIntent(cat, intent, false);
+                        document.getElementById('done-btn-' + cat).style.display = 'inline-block';
+                    };
+                    btnRow.appendChild(btn);
+                });
+                const customBtn = document.createElement('button');
+                customBtn.className = 'intent-btn custom';
+                customBtn.innerText = '+ Custom';
+                customBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    selectIntent(cat, null, true);
+                    document.getElementById('custom-' + cat).style.display = 'block';
+                    document.getElementById('done-btn-' + cat).style.display = 'inline-block';
+                };
+                btnRow.appendChild(customBtn);
+                body.appendChild(btnRow);
+
+                const typeRow = document.createElement('div');
+                typeRow.className = 'node-type-row';
+                typeRow.innerHTML = '<span style="color:#0f0;font-size:12px">Type:</span>';
+                ['one_on_one','group'].forEach(type => {
+                    const typeBtn = document.createElement('button');
+                    typeBtn.className = 'intent-btn';
+                    typeBtn.innerText = type === 'one_on_one' ? '🔒 1‑on‑1' : '👥 Group';
+                    typeBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        selectedNodeType = type;
+                        document.querySelectorAll('#body-' + cat + ' .node-type-row .intent-btn').forEach(b => b.classList.remove('selected'));
+                        typeBtn.classList.add('selected');
+                        if (type === 'group') {
+                            document.getElementById('max-part-' + cat).style.display = 'inline-block';
+                            const vibeRow = document.getElementById('vibe-row-' + cat);
+                            if (vibeRow) vibeRow.style.display = 'none';
+                        } else {
+                            document.getElementById('max-part-' + cat).style.display = 'none';
+                            if (cat === 'social' && selectedIntent !== 'Custom' && vibeChecks[selectedIntent]) {
+                                const vibeRow = document.getElementById('vibe-row-' + cat);
+                                if (vibeRow) vibeRow.style.display = 'block';
+                            }
+                        }
+                    };
+                    typeRow.appendChild(typeBtn);
+                });
+                const maxInput = document.createElement('input');
+                maxInput.type = 'number'; maxInput.min = 2; maxInput.max = 20; maxInput.placeholder = 'Max (opt)';
+                maxInput.className = 'custom-input'; maxInput.id = 'max-part-' + cat; maxInput.style.width = '60px'; maxInput.style.display = 'none';
+                maxInput.onchange = () => selectedMaxParticipants = maxInput.value ? parseInt(maxInput.value) : null;
+                typeRow.appendChild(maxInput);
+                body.appendChild(typeRow);
+
+                if (cat === 'social') {
+                    const vibeRow = document.createElement('div');
+                    vibeRow.className = 'vibe-row';
+                    vibeRow.id = 'vibe-row-' + cat;
+                    vibeRow.style.display = 'none';
+                    body.appendChild(vibeRow);
+                }
+
+                const customInput = document.createElement('input');
+                customInput.className = 'custom-input';
+                customInput.id = 'custom-' + cat;
+                customInput.placeholder = 'Describe your ' + categories[cat].label.split(' ')[1] + ' intent...';
+                customInput.oninput = (e) => { customIntentText = e.target.value; };
+                const doneBtn = document.createElement('button');
+                doneBtn.className = 'done-btn';
+                doneBtn.id = 'done-btn-' + cat;
+                doneBtn.innerText = 'DONE';
+                doneBtn.onclick = () => { closeIntentPanel(); startCreation(); };
+                body.appendChild(customInput);
+                body.appendChild(doneBtn);
+                section.appendChild(header);
+                section.appendChild(body);
+                panel.appendChild(section);
+            });
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'close-btn';
+            closeBtn.innerText = 'CLOSE';
+            closeBtn.onclick = closeIntentPanel;
+            panel.appendChild(closeBtn);
+        }
+        buildAccordion();
+
+        function toggleAccordion(cat) {
+            document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open'));
+            document.getElementById('body-' + cat).classList.toggle('open');
+        }
+        function collapseAll() { document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open')); }
+
+        function selectIntent(cat, intent, isCustom) {
+            selectedCategory = cat;
+            if (isCustom) {
+                selectedIntent = 'Custom';
+                customIntentText = '';
+                document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none');
+                document.getElementById('custom-' + cat).style.display = 'block';
+                const vibeRow = document.getElementById('vibe-row-' + cat);
+                if (vibeRow) vibeRow.style.display = 'none';
+                selectedVibeAnswer = null;
+            } else {
+                selectedIntent = intent;
+                customIntentText = '';
+                document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none');
+                if (cat === 'social' && selectedNodeType === 'one_on_one' && vibeChecks[intent]) {
+                    const vibeRow = document.getElementById('vibe-row-' + cat);
+                    if (vibeRow) {
+                        vibeRow.style.display = 'block';
+                        const ck = vibeChecks[intent];
+                        vibeRow.innerHTML = `<span style="color:#0f0;font-size:12px">Vibe: ${ck.q}</span><br>
+                            <button class="vibe-option" data-vibe="a">${ck.a}</button>
+                            <button class="vibe-option" data-vibe="b">${ck.b}</button>`;
+                        vibeRow.querySelectorAll('.vibe-option').forEach(btn => {
+                            btn.onclick = (e) => {
+                                e.stopPropagation();
+                                vibeRow.querySelectorAll('.vibe-option').forEach(b => b.classList.remove('selected'));
+                                btn.classList.add('selected');
+                                selectedVibeAnswer = btn.dataset.vibe;
+                            };
+                        });
+                    }
+                } else {
+                    const vibeRow = document.getElementById('vibe-row-' + cat);
+                    if (vibeRow) vibeRow.style.display = 'none';
+                    selectedVibeAnswer = null;
+                }
+            }
+            document.querySelectorAll('.intent-btn').forEach(b => b.classList.remove('selected'));
+            if (!isCustom) {
+                document.getElementById('body-' + cat).querySelectorAll('.intent-btn').forEach(b => { if (b.innerText === intent) b.classList.add('selected'); });
+            }
+        }
+
+        window.openIntentPanel = () => {
+            if (!gpsReady) { setStatus('warning', 'GPS not ready'); return; }
+            document.getElementById('intent-panel').style.display = 'block';
+        };
+        function closeIntentPanel() { document.getElementById('intent-panel').style.display = 'none'; collapseAll(); }
+
+        // Node creation with vibe validation
+        window.startCreation = () => {
+            const finalIntent = selectedIntent === 'Custom' ? customIntentText : selectedIntent;
+            if (!finalIntent.trim()) { setStatus('error', 'Please select or enter an intent'); return; }
+            const vibeRow = document.getElementById('vibe-row-social');
+            if (selectedCategory === 'social' && selectedNodeType === 'one_on_one' && vibeRow && vibeRow.style.display !== 'none' && !selectedVibeAnswer) {
+                setStatus('error', 'Please select a vibe before dropping');
+                return;
+            }
+            closeIntentPanel();
+            setStatus('info', 'Tap anywhere on the map to drop your "' + finalIntent + '" node');
+
+            map.once('click', async (e) => {
+                setStatus('info', 'Creating node...');
+                const nodeData = {
+                    lat: e.lngLat.lat, lng: e.lngLat.lng, intent: finalIntent, category: selectedCategory,
+                    node_type: selectedNodeType, max_participants: selectedNodeType === 'group' ? selectedMaxParticipants : null,
+                    status: 'active', user_id: myUserId,
+                    expires_at: new Date(Date.now() + NODE_EXPIRY_MINUTES * 60 * 1000).toISOString()
+                };
+                if (selectedCategory === 'social' && selectedNodeType === 'one_on_one' && selectedVibeAnswer && vibeChecks[selectedIntent]) {
+                    nodeData.vibe_question = vibeChecks[selectedIntent].q;
+                    nodeData.vibe_answer = selectedVibeAnswer;
+                }
+                const { data, error } = await _supabase.from('nodes').insert([nodeData]).select();
+                if (error) { setStatus('error', 'Failed to create node: ' + error.message); return; }
+                currentN = data[0];
+                clearStatus(); setStatus('success', '"' + finalIntent + '" node active! ' + NODE_EXPIRY_MINUTES + ' mins.');
+                new mapboxgl.Marker({ color: '#0f0' }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
+
+                _supabase.channel('reqs-' + currentN.id)
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: 'node_id=eq.' + currentN.id }, () => {
+                        clearStatus(); setStatus('success', 'Someone wants to connect!');
+                        document.getElementById('terminal').style.display = 'flex';
+                        loadInbox();
+                    }).subscribe();
+
+                const poll = setInterval(async () => {
+                    if (document.getElementById('terminal').style.display === 'flex') { clearInterval(poll); return; }
+                    const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', currentN.id).limit(1);
+                    if (reqs && reqs.length > 0) {
+                        clearInterval(poll); clearStatus(); setStatus('success', 'Someone wants to connect!');
+                        document.getElementById('terminal').style.display = 'flex';
+                        loadInbox();
+                    }
+                }, 3000);
+            });
+        };
+
+        // Inbox with profile
+        async function loadInbox(){
+            if(!currentN) return;
+            const{data:requests} = await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
+            const inbox = document.getElementById('inbox-panel');
+            if(!requests||requests.length===0){inbox.style.display='none';return;}
+            inbox.style.display='block';
+            inbox.innerHTML = '<div style="color:#0f0;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
+            for(let req of requests){
+                const{data:user} = await _supabase.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets').eq('id',req.requester_id).single();
+                const emoji = user?.avatar_emoji || '🤖';
+                const name = user?.display_name || 'Unknown';
+                const trust = user?.trust_score || 5.0;
+                const meets = user?.total_meets || 0;
+                const age = user?.age || 'N/A';
+                const tags = user?.vibe_tags || [];
+
+                const item = document.createElement('div'); item.className='inbox-item';
+                const avatarDiv = document.createElement('div'); avatarDiv.className='avatar'; avatarDiv.innerText = emoji;
+                const infoDiv = document.createElement('div'); infoDiv.className='info';
+                infoDiv.innerHTML = `<div class="name">${name}</div><div class="detail">⭐${trust.toFixed(1)} · ${meets} meets · Age ${age}</div><div class="detail">${user?.nationality||''} ${user?.profession?'· '+user.profession:''}</div><div class="tags" style="margin-top:4px">${tags.map(t=>`<span style="background:rgba(0,255,0,0.15);border:1px solid #0f0;padding:2px 6px;font-size:10px;margin-right:4px">${t}</span>`).join('')}</div>`;
+                if(req.answer_given){
+                    const vibeLabel = req.answer_given === 'a' ? (vibeChecks[currentN.intent]?.a || 'Option A') : (vibeChecks[currentN.intent]?.b || 'Option B');
+                    infoDiv.innerHTML += `<div style="color:#0f0;margin-top:3px">Vibe: ${vibeLabel}</div>`;
+                }
+                const actionsDiv = document.createElement('div'); actionsDiv.className='inbox-actions';
+                const acceptBtn = document.createElement('button'); acceptBtn.innerText='ACCEPT'; acceptBtn.onclick=()=>handleRequest(req.id,'accepted');
+                const declineBtn = document.createElement('button'); declineBtn.innerText='DECLINE'; declineBtn.onclick=()=>handleRequest(req.id,'declined');
+                actionsDiv.appendChild(acceptBtn); actionsDiv.appendChild(declineBtn);
+                item.appendChild(avatarDiv); item.appendChild(infoDiv); item.appendChild(actionsDiv);
+                inbox.appendChild(item);
+            }
+        }
+
+        async function handleRequest(requestId,newStatus){
+            await _supabase.from('requests').update({status:newStatus}).eq('id',requestId);
+            if(newStatus==='accepted'){
+                document.getElementById('inbox-panel').style.display='none';
+                if(currentN.node_type === 'one_on_one'){ await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id); }
+                startChatSync();
+                startOracleLive();
+                // Oracle must be manually triggered via the button
+            }
+            loadInbox();
+        }
+
+        // Chat
+        let lastMsgId = 0;
+        function addMessageToChat(msg) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-msg';
+            if (msg.sender === 'CREATOR') { msgDiv.classList.add('msg-right'); }
+            else { msgDiv.classList.add('msg-left'); }
+            msgDiv.innerText = msg.content;
+            document.getElementById('msg-box').appendChild(msgDiv);
+            document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
+            document.getElementById('oracle-btn').style.display = 'block';
+        }
+        window.sendMsg = async () => {
+            const val = document.getElementById('chat-in').value;
+            if (!val.trim()) return;
+            const { error } = await _supabase.from('messages').insert([{node_id: currentN.id, sender: 'CREATOR', content: val}]);
+            if (error) { setStatus('error', 'Failed to send'); return; }
+            document.getElementById('chat-in').value = '';
+        };
+        function startChatSync() {
+            _supabase.channel('msgs-' + currentN.id)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'node_id=eq.' + currentN.id }, p => {
+                    if (p.new.id > lastMsgId) { addMessageToChat(p.new); lastMsgId = p.new.id; }
+                }).subscribe();
+        }
+
+        // Oracle, sync, timer, rating
+        window.initiateOracle = async () => {
+            if (!gpsReady || myLoc.lat === 0) { setStatus('error', 'GPS not ready'); return; }
+            setStatus('info', 'Syncing GPS...');
+            await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' });
+        };
+        function startOracleLive() {
+            _supabase.channel('oracle-' + currentN.id)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: 'bridge_id=eq.' + currentN.id }, async payload => {
+                    const s = payload.new;
+                    if (s.error_state) { setStatus('error', s.error_state); return; }
+                    document.getElementById('oracle-ballot').innerText = 'STATUS: ' + s.status.toUpperCase();
+                    document.getElementById('oracle-ballot').style.display = 'block';
+                    const hasGPS = (s.u1_lat && s.u1_lng && s.u2_lat && s.u2_lng && s.u1_lat !== 0 && s.u2_lat !== 0);
+                    if (!hasGPS && s.status === 'pending') setStatus('warning', 'Waiting for both users GPS...');
+                    if (hasGPS && s.status === 'pending') { setStatus('info', 'Oracle calculating...'); await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id); }
+                    if (s.status === 'ready' && !s.options_generated && !oracleProcessed) { oracleProcessed = true; await runOracleBrain(s); }
+                    if (s.status === 'matched') { clearStatus(); triggerSync(s); }
+                    if (s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
+                    if (s.meet_completed && !meetRated) showRatingPanel();
+                }).subscribe();
+        }
+        async function runOracleBrain(s) {
+            const midLat = (s.u1_lat + s.u2_lat) / 2, midLng = (s.u1_lng + s.u2_lng) / 2;
+            const queries = ['cafe', 'coffee shop', 'restaurant', 'mall', 'park'];
+            let bestVenue = null;
+            for (const q of queries) { for (const r of [3, 6, 10, 15, MAX_VENUE_DISTANCE_KM]) { if (bestVenue) break;
+                const box = bbox(midLat, midLng, r);
+                const url = 'https://api.mapbox.com/search/geocode/v6/forward?q=' + encodeURIComponent(q) + '&proximity=' + midLng + ',' + midLat + '&bbox=' + box + '&limit=10&access_token=' + MAPBOX_TOKEN;
+                try { const res = await fetch(url); const d = await res.json();
+                    if (d.features && d.features.length > 0) { const nearby = d.features.filter(f => f.geometry.coordinates[1] && f.geometry.coordinates[0]).map(f => ({ name: f.properties.name || f.properties.full_address || 'Venue', lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], dist: haversine(midLat, midLng, f.geometry.coordinates[1], f.geometry.coordinates[0]) })).filter(v => v.dist <= MAX_VENUE_DISTANCE_KM).sort((a, b) => a.dist - b.dist);
+                        if (nearby.length > 0) { bestVenue = nearby[0]; } }
+                } catch (e) { } }
+                if (bestVenue) break;
+            }
+            if (bestVenue) { await _supabase.from('oracle_sessions').update({ status: 'matched', options_generated: true, error_state: null, selected_venue_name: bestVenue.name, selected_lat: bestVenue.lat, selected_lng: bestVenue.lng, meet_expires_at: new Date(Date.now() + MEET_DURATION_MINUTES * 60 * 1000).toISOString() }).eq('bridge_id', currentN.id); }
+            else { await _supabase.from('oracle_sessions').update({ status: 'matched', options_generated: true, error_state: null, selected_venue_name: 'Midpoint Meeting Spot', selected_lat: midLat, selected_lng: midLng, meet_expires_at: new Date(Date.now() + MEET_DURATION_MINUTES * 60 * 1000).toISOString() }).eq('bridge_id', currentN.id); }
+        }
+        function triggerSync(s) {
+            document.getElementById('terminal').style.display = 'none';
+            const syncPanel = document.getElementById('sync-panel'); syncPanel.style.display = 'block'; setTimeout(() => syncPanel.style.opacity = '1', 10);
+            document.getElementById('sync-venue').innerText = 'Venue: ' + s.selected_venue_name;
+            document.getElementById('sync-confirm-btn').style.display = 'block';
+            myConfirmed = false;
+            selectedVenueCoords = { lat: +s.selected_lat, lng: +s.selected_lng };
+            const u1lat = +s.u1_lat, u1lng = +s.u1_lng, u2lat = +s.u2_lat, u2lng = +s.u2_lng, vlat = +s.selected_lat, vlng = +s.selected_lng;
+            new mapboxgl.Marker({ color: '#0f0' }).setLngLat([u1lng, u1lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#00ffaa' }).setLngLat([u2lng, u2lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#ff0' }).setLngLat([vlng, vlat]).addTo(map);
+            drawRoute('rA', u1lng, u1lat, vlng, vlat, '#0f0');
+            drawRoute('rB', u2lng, u2lat, vlng, vlat, '#00ffaa');
+            map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng, u1lat]).extend([u2lng, u2lat]).extend([vlng, vlat]), { padding: 80, duration: 2000 });
+        }
+        window.confirmProceed = async () => { myConfirmed = true; document.getElementById('sync-confirm-btn').style.display = 'none'; document.getElementById('sync-status').innerText = 'Waiting for other user...'; await _supabase.from('oracle_sessions').update({ u1_confirmed: true }).eq('bridge_id', currentN.id); };
+        function startMeetTimer(s) {
+            document.getElementById('sync-panel').style.opacity = '0'; setTimeout(() => document.getElementById('sync-panel').style.display = 'none', 300);
+            const navHud = document.getElementById('nav-hud'); navHud.style.display = 'block'; setTimeout(() => navHud.style.opacity = '1', 10);
+            document.getElementById('target-name').innerText = 'MEET AT: ' + s.selected_venue_name.toUpperCase();
+            let remaining = MEET_DURATION_MINUTES * 60;
+            meetTimerInterval = setInterval(async () => { remaining--; const mins = Math.floor(remaining / 60), secs = remaining % 60;
+                document.getElementById('meet-timer').innerText = 'MEET WINDOW: ' + mins + 'm ' + secs + 's';
+                if (remaining <= 0) { clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({ meet_completed: true }).eq('bridge_id', currentN.id); }
+            }, 1000);
+        }
+        function showRatingPanel() { document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300); const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10); }
+        window.submitRating = async (r) => { if (meetRated) return; meetRated = true; document.getElementById('rate-panel').style.display = 'none'; await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id); setStatus('success', 'Thanks for rating!'); setTimeout(() => location.reload(), 3000); };
+        async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
     </script>
 </body>
 </html>

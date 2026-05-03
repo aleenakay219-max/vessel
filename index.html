@@ -17,9 +17,20 @@
         #rate-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #ff0;z-index:5000;padding:30px;text-align:center;color:#ff0}
         #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #0f0;z-index:4000;padding:20px;text-align:center;color:#0f0;box-sizing:border-box}
         #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #0f0;border-radius:50%;color:#0f0;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #0f0}
-        #intent-picker{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #0f0;z-index:5000;padding:20px;flex-wrap:wrap;gap:10px;justify-content:center;max-width:320px}
-        .intent-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:10px 15px;cursor:pointer;font-family:monospace;font-size:13px}
-        .intent-btn:hover{background:#0f0;color:#000}
+        /* Accordion picker */
+        #intent-panel{display:none;position:fixed;bottom:110px;left:5%;width:90%;background:rgba(0,10,0,0.97);border:2px solid #0f0;z-index:5000;padding:0;box-sizing:border-box;max-height:55vh;overflow-y:auto}
+        .accordion-section{border-bottom:1px solid #0f0}
+        .accordion-header{width:100%;background:transparent;border:none;color:#0f0;padding:12px 15px;text-align:left;font-family:monospace;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+        .accordion-header:hover{background:rgba(0,255,0,0.05)}
+        .accordion-body{display:none;padding:0 15px 12px}
+        .accordion-body.open{display:block}
+        .btn-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+        .intent-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:8px 12px;cursor:pointer;font-family:monospace;font-size:12px;display:flex;align-items:center;gap:5px;white-space:nowrap}
+        .intent-btn:hover,.intent-btn.selected{background:#0f0;color:#000}
+        .intent-btn.custom{border-style:dashed}
+        .custom-input{width:100%;padding:8px;background:#000;border:1px solid #0f0;color:#0f0;margin-top:5px;font-family:monospace;font-size:12px;display:none}
+        .done-btn{display:none;margin-top:8px;background:#0f0;color:#000;border:none;padding:8px 16px;cursor:pointer;font-family:monospace}
+        .close-btn{display:block;width:100%;background:transparent;border:none;border-top:1px solid #f00;color:#f00;padding:12px;text-align:center;font-family:monospace;cursor:pointer}
         .hud-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
         .sync-btn{background:transparent;border:2px solid #0f0;color:#0f0;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
         .rate-btn{background:transparent;border:2px solid #ff0;color:#ff0;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
@@ -30,18 +41,8 @@
 <body>
     <div id="map"></div>
     <div id="status-bar"></div>
-    <button id="fab" onclick="openIntentPicker()">+</button>
-    <div id="intent-picker">
-        <button class="intent-btn" onclick="startCreation('☕ Coffee')">☕ Coffee</button>
-        <button class="intent-btn" onclick="startCreation('🚶 Walk')">🚶 Walk</button>
-        <button class="intent-btn" onclick="startCreation('🍽️ Food')">🍽️ Food</button>
-        <button class="intent-btn" onclick="startCreation('📚 Study')">📚 Study</button>
-        <button class="intent-btn" onclick="startCreation('🏋️ Gym')">🏋️ Gym</button>
-        <button class="intent-btn" onclick="startCreation('🍺 Drinks')">🍺 Drinks</button>
-        <button class="intent-btn" onclick="startCreation('⚽ Sports')">⚽ Sports</button>
-        <button class="intent-btn" onclick="startCreation('💬 Chat')">💬 Chat</button>
-        <button class="intent-btn" onclick="document.getElementById('intent-picker').style.display='none'" style="border-color:#f00;color:#f00;">CLOSE</button>
-    </div>
+    <button id="fab" onclick="openIntentPanel()">+</button>
+    <div id="intent-panel"></div>
     <div id="terminal">
         <div id="inbox-panel"></div>
         <div id="oracle-ballot">STATUS: PENDING</div>
@@ -81,10 +82,33 @@
         const params = new URLSearchParams(window.location.search);
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
 
+        // Category definitions for accordion
+        const categories = {
+            social: {
+                label: '🍻 Social',
+                presets: ['☕ Coffee & Conversation', '🍽️ Foodie Meetup', '🌙 Night Out', '🧘 Chill & Wellness']
+            },
+            games: {
+                label: '⚽ Games',
+                presets: ['⚽ Football', '🏏 Cricket', '🎾 Tennis']
+            },
+            work: {
+                label: '🔧 Work',
+                presets: ['🔨 I Can Help', '☕ Co‑Working / Study', '💡 Creative Collab']
+            },
+            parents: {
+                label: '🧒 Parents',
+                presets: ['🧸 Kids’ Playdate', '🤱 Mum2Mum', '👨 Dad’s Crew', '👨‍👩‍👧 Family Hangout']
+            }
+        };
+
+        let selectedCategory = 'social';
+        let selectedIntent = '☕ Coffee & Conversation'; // preset or 'Custom'
+        let customIntentText = '';
+
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[55.39,25.34],zoom:12});
         let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false, gpsReady = false, gpsFailures = 0, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
-        let inboxPollInterval = null;
 
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#ff0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#ff0';b.style.color=c[t]||'#ff0';b.innerText=m}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
@@ -94,44 +118,165 @@
         function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
         function bbox(midLat,midLng,r){const dLat=r/111.32,dLng=r/(111.32*Math.cos(midLat*Math.PI/180));return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat)}
 
-        window.openIntentPicker = ()=>{
-            if(!gpsReady){setStatus('warning','GPS not ready');return}
-            document.getElementById('intent-picker').style.display='flex';
-        };
+        // Build accordion
+        function buildAccordion(){
+            const panel = document.getElementById('intent-panel');
+            panel.innerHTML = '';
+            Object.keys(categories).forEach(cat => {
+                const section = document.createElement('div');
+                section.className = 'accordion-section';
 
-        window.startCreation = async (intent)=>{
-            document.getElementById('intent-picker').style.display='none';
-            setStatus('info','Tap anywhere on the map to drop your "'+intent+'" node');
+                const header = document.createElement('button');
+                header.className = 'accordion-header';
+                header.innerHTML = `<span>${categories[cat].label}</span><span>▼</span>`;
+                header.onclick = () => toggleAccordion(cat);
 
-            map.once('click',async(e)=>{
-                setStatus('info','Creating node...');
-                const nodeData = {
-                    lat:e.lngLat.lat, lng:e.lngLat.lng, intent: intent,
-                    status:'active', user_id: localStorage.getItem('vessel_user_id') || 'anon',
-                    expires_at: new Date(Date.now()+NODE_EXPIRY_MINUTES*60*1000).toISOString()
+                const body = document.createElement('div');
+                body.className = 'accordion-body';
+                body.id = 'body-' + cat;
+
+                const btnRow = document.createElement('div');
+                btnRow.className = 'btn-row';
+
+                categories[cat].presets.forEach(intent => {
+                    const btn = document.createElement('button');
+                    btn.className = 'intent-btn';
+                    btn.innerText = intent;
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        selectIntent(cat, intent, false);
+                        closeIntentPanel();
+                        startCreation(); // immediately start
+                    };
+                    btnRow.appendChild(btn);
+                });
+
+                // Custom button
+                const customBtn = document.createElement('button');
+                customBtn.className = 'intent-btn custom';
+                customBtn.innerText = '+ Custom';
+                customBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    selectIntent(cat, null, true);
+                    // show input and done button
+                    document.getElementById('custom-' + cat).style.display = 'block';
+                    document.getElementById('done-btn-' + cat).style.display = 'inline-block';
                 };
-                const{data,error}=await _supabase.from('nodes').insert([nodeData]).select();
-                if(error){setStatus('error','Failed to create node');return}
+                btnRow.appendChild(customBtn);
+
+                // Custom input
+                const customInput = document.createElement('input');
+                customInput.className = 'custom-input';
+                customInput.id = 'custom-' + cat;
+                customInput.placeholder = 'Describe your ' + categories[cat].label.split(' ')[1] + ' intent...';
+                customInput.oninput = function(e) {
+                    customIntentText = e.target.value;
+                };
+                // Done button for custom
+                const doneBtn = document.createElement('button');
+                doneBtn.className = 'done-btn';
+                doneBtn.id = 'done-btn-' + cat;
+                doneBtn.innerText = 'DONE';
+                doneBtn.onclick = () => {
+                    closeIntentPanel();
+                    startCreation();
+                };
+
+                body.appendChild(btnRow);
+                body.appendChild(customInput);
+                body.appendChild(doneBtn);
+                section.appendChild(header);
+                section.appendChild(body);
+                panel.appendChild(section);
+            });
+
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'close-btn';
+            closeBtn.innerText = 'CLOSE';
+            closeBtn.onclick = closeIntentPanel;
+            panel.appendChild(closeBtn);
+        }
+        buildAccordion();
+
+        function toggleAccordion(cat) {
+            document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open'));
+            document.getElementById('body-' + cat).classList.toggle('open');
+        }
+        function collapseAll() { document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open')); }
+
+        function selectIntent(cat, intent, isCustom) {
+            selectedCategory = cat;
+            if (isCustom) {
+                selectedIntent = 'Custom';
+                customIntentText = '';
+            } else {
+                selectedIntent = intent;
+                customIntentText = '';
+                document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none');
+                document.querySelectorAll('.done-btn').forEach(b => b.style.display = 'none');
+            }
+            // Highlight preset buttons (optional visual)
+            document.querySelectorAll('.intent-btn').forEach(b => b.classList.remove('selected'));
+            if (!isCustom) {
+                const btns = document.getElementById('body-' + cat).querySelectorAll('.intent-btn');
+                btns.forEach(b => { if (b.innerText === intent) b.classList.add('selected'); });
+            }
+        }
+
+        window.openIntentPanel = () => {
+            if (!gpsReady) { setStatus('warning', 'GPS not ready'); return; }
+            document.getElementById('intent-panel').style.display = 'block';
+        };
+        function closeIntentPanel() {
+            document.getElementById('intent-panel').style.display = 'none';
+            collapseAll();
+        }
+
+        // Node creation (unchanged from anchor, uses selectedIntent/customIntentText)
+        window.startCreation = () => {
+            const finalIntent = selectedIntent === 'Custom' ? customIntentText : selectedIntent;
+            if (!finalIntent.trim()) { setStatus('error', 'Please select or enter an intent'); return; }
+            closeIntentPanel();
+            setStatus('info', 'Tap anywhere on the map to drop your "' + finalIntent + '" node');
+
+            map.once('click', async (e) => {
+                setStatus('info', 'Creating node...');
+                const nodeData = {
+                    lat: e.lngLat.lat,
+                    lng: e.lngLat.lng,
+                    intent: finalIntent,
+                    status: 'active',
+                    user_id: localStorage.getItem('vessel_user_id') || 'anon',
+                    expires_at: new Date(Date.now() + NODE_EXPIRY_MINUTES * 60 * 1000).toISOString()
+                };
+                const { data, error } = await _supabase.from('nodes').insert([nodeData]).select();
+                if (error) { setStatus('error', 'Failed to create node: ' + error.message); return; }
                 currentN = data[0];
-                clearStatus(); setStatus('success','"'+intent+'" node active! '+NODE_EXPIRY_MINUTES+' mins.');
-                new mapboxgl.Marker({color:'#0f0'}).setLngLat([e.lngLat.lng,e.lngLat.lat]).addTo(map);
+                clearStatus();
+                setStatus('success', '"' + finalIntent + '" node active! ' + NODE_EXPIRY_MINUTES + ' mins.');
+                new mapboxgl.Marker({ color: '#0f0' }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
 
                 // Listen for requests
-                _supabase.channel('reqs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id}, ()=>{
-                    clearStatus(); setStatus('success','Someone wants to connect!');
-                    document.getElementById('terminal').style.display='flex';
-                    loadInbox();
-                }).subscribe();
+                _supabase.channel('reqs-' + currentN.id)
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: 'node_id=eq.' + currentN.id }, () => {
+                        clearStatus(); setStatus('success', 'Someone wants to connect!');
+                        document.getElementById('terminal').style.display = 'flex';
+                        loadInbox();
+                    }).subscribe();
 
-                const poll = setInterval(async()=>{
-                    if(document.getElementById('terminal').style.display==='flex'){clearInterval(poll);return}
-                    const{data:reqs}=await _supabase.from('requests').select('*').eq('node_id',currentN.id).limit(1);
-                    if(reqs&&reqs.length>0){clearInterval(poll);clearStatus();setStatus('success','Someone wants to connect!');document.getElementById('terminal').style.display='flex';loadInbox();}
-                },3000);
+                const poll = setInterval(async () => {
+                    if (document.getElementById('terminal').style.display === 'flex') { clearInterval(poll); return; }
+                    const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', currentN.id).limit(1);
+                    if (reqs && reqs.length > 0) {
+                        clearInterval(poll); clearStatus(); setStatus('success', 'Someone wants to connect!');
+                        document.getElementById('terminal').style.display = 'flex';
+                        loadInbox();
+                    }
+                }, 3000);
             });
         };
 
-        // Simple inbox
+        // Inbox (unchanged)
         async function loadInbox(){
             if(!currentN) return;
             const{data:requests} = await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
@@ -159,6 +304,7 @@
             loadInbox();
         }
 
+        // Chat, Oracle, Sync, Rating (exactly as anchor)
         window.sendMsg=async()=>{const val=document.getElementById('chat-in').value;if(!val.trim())return;await _supabase.from('messages').insert([{node_id:currentN.id,sender:'CREATOR',content:val}]);document.getElementById('chat-in').value='';document.getElementById('oracle-btn').style.display='block';}
         function startChatSync(){_supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id},p=>{document.getElementById('msg-box').innerHTML+='<div style="color:#0f0">> '+p.new.content+'</div>';document.getElementById('oracle-btn').style.display='block'}).subscribe();}
         window.initiateOracle=async()=>{if(!gpsReady||myLoc.lat===0){setStatus('error','GPS not ready');return}setStatus('info','Syncing GPS...');await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id,u1_lat:myLoc.lat,u1_lng:myLoc.lng},{onConflict:'bridge_id'});}

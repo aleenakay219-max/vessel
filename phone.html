@@ -113,33 +113,37 @@
             });
             map.on('mouseleave', 'nodes-unclustered', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
 
-            // CLICK ON NODE: send request, then start polling for acceptance
+            // CLICK: send request, then poll with logs
             map.on('click', 'nodes-unclustered', async (e) => {
                 const nodeProps = e.features[0].properties;
                 if (currentN) return;
                 currentN = { id: nodeProps.id, intent: nodeProps.intent, status: 'active' };
                 setStatus('info','Sending request...');
                 const { error } = await supabaseClient.from('requests').insert([{node_id:nodeProps.id, requester_id:'SEEKER', status:'pending'}]);
-                if (error) { setStatus('error','Request failed'); return; }
+                if (error) { setStatus('error','Request failed: ' + error.message); return; }
                 setStatus('success','Request sent. Waiting for creator...');
 
-                // Poll for acceptance every 2 seconds
                 if (pollInterval) clearInterval(pollInterval);
                 pollInterval = setInterval(async () => {
                     const { data, error } = await supabaseClient.from('requests')
                         .select('status')
                         .eq('node_id', nodeProps.id)
                         .eq('requester_id', 'SEEKER')
-                        .maybeSingle();
-                    if (error) return;
-                    if (data && data.status === 'accepted') {
-                        clearInterval(pollInterval);
-                        document.getElementById('terminal').style.display = 'flex';
-                        startChatSync();
-                    } else if (data && data.status === 'declined') {
-                        clearInterval(pollInterval);
-                        setStatus('error','Creator declined');
-                        currentN = null;
+                        .limit(1);
+                    console.log('Polling request status:', data, error);
+                    if (error) { console.error('Poll error:', error); return; }
+                    if (data && data.length > 0) {
+                        const status = data[0].status;
+                        if (status === 'accepted') {
+                            clearInterval(pollInterval);
+                            console.log('Request accepted, opening chat...');
+                            document.getElementById('terminal').style.display = 'flex';
+                            startChatSync();
+                        } else if (status === 'declined') {
+                            clearInterval(pollInterval);
+                            setStatus('error','Creator declined');
+                            currentN = null;
+                        }
                     }
                 }, 2000);
             });

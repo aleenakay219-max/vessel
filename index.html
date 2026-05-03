@@ -8,50 +8,50 @@
     <style>
         body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
         #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
-        #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #0f0;z-index:3000;padding:10px;text-align:center;color:#0f0;font-size:12px;box-sizing:border-box}
-        #terminal{display:none;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #0f0;z-index:2000;flex-direction:column;padding:15px;box-sizing:border-box}
-        #inbox-panel{display:none;border:1px solid #0f0;padding:10px;margin-bottom:10px;max-height:200px;overflow-y:auto;color:#0f0}
-        #msg-box{height:150px;overflow-y:auto;color:#0f0;margin-bottom:10px;border:1px solid #030;padding:5px;display:flex;flex-direction:column}
+        #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #FFD700;z-index:3000;padding:10px;text-align:center;color:#FFD700;font-size:12px;box-sizing:border-box}
+        #terminal{display:none;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #FFD700;z-index:2000;flex-direction:column;padding:15px;box-sizing:border-box}
+        #inbox-panel{display:none;border:1px solid #FFD700;padding:10px;margin-bottom:10px;max-height:200px;overflow-y:auto;color:#FFD700}
+        #msg-box{height:150px;overflow-y:auto;color:#FFD700;margin-bottom:10px;border:1px solid #332200;padding:5px;display:flex;flex-direction:column}
         .chat-msg{max-width:80%;padding:8px 12px;margin:4px 0;border-radius:8px;word-wrap:break-word;font-size:13px;line-height:1.4}
-        .msg-left{align-self:flex-start;background:#111;border:1px solid #0f0;color:#0f0}
-        .msg-right{align-self:flex-end;background:#0f0;color:#000;border:1px solid #0f0}
-        #oracle-ballot{display:none;color:#0f0;border:1px solid #0f0;padding:10px;margin-bottom:10px;background:rgba(0,255,0,0.1);font-size:11px;text-align:center}
-        #sync-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #0f0;z-index:5000;padding:30px;text-align:center;color:#0f0}
-        #rate-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #ff0;z-index:5000;padding:30px;text-align:center;color:#ff0}
-        #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #0f0;z-index:4000;padding:20px;text-align:center;color:#0f0;box-sizing:border-box}
-        #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #0f0;border-radius:50%;color:#0f0;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #0f0}
-        #profile-gear{position:absolute;top:20px;left:20px;width:36px;height:36px;background:#000;border:2px solid #0f0;border-radius:50%;color:#0f0;font-size:20px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #0f0}
-        #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #0f0;z-index:6000;padding:20px;color:#0f0;width:85%;max-width:320px;box-sizing:border-box}
+        .msg-left{align-self:flex-start;background:#111;border:1px solid #FFD700;color:#FFD700}
+        .msg-right{align-self:flex-end;background:#FFD700;color:#000;border:1px solid #FFD700}
+        #oracle-ballot{display:none;color:#FFD700;border:1px solid #FFD700;padding:10px;margin-bottom:10px;background:rgba(255,215,0,0.1);font-size:11px;text-align:center}
+        #sync-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #FFD700;z-index:5000;padding:30px;text-align:center;color:#FFD700}
+        #rate-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #FFD700;z-index:5000;padding:30px;text-align:center;color:#FFD700}
+        #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #FFD700;z-index:4000;padding:20px;text-align:center;color:#FFD700;box-sizing:border-box}
+        #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #FFD700}
+        #profile-gear{position:absolute;top:20px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:20px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
+        #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:6000;padding:20px;color:#FFD700;width:85%;max-width:320px;box-sizing:border-box}
         #profile-panel label{display:block;margin:10px 0 4px;font-size:12px}
-        #profile-panel input, #profile-panel select{width:100%;padding:8px;background:#000;border:1px solid #0f0;color:#0f0;font-family:monospace;margin-bottom:5px}
-        .profile-save-btn{background:#0f0;color:#000;border:none;padding:10px;margin-top:10px;width:100%;cursor:pointer;font-family:monospace}
+        #profile-panel input, #profile-panel select{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;font-family:monospace;margin-bottom:5px}
+        .profile-save-btn{background:#FFD700;color:#000;border:none;padding:10px;margin-top:10px;width:100%;cursor:pointer;font-family:monospace}
         .profile-close-btn{background:transparent;border:1px solid #f00;color:#f00;padding:8px;margin-top:8px;width:100%;cursor:pointer;font-family:monospace}
-        #intent-panel{display:none;position:fixed;bottom:110px;left:5%;width:90%;background:rgba(0,10,0,0.97);border:2px solid #0f0;z-index:5000;padding:0;box-sizing:border-box;max-height:60vh;overflow-y:auto}
-        .accordion-section{border-bottom:1px solid #0f0}
-        .accordion-header{width:100%;background:transparent;border:none;color:#0f0;padding:12px 15px;text-align:left;font-family:monospace;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
-        .accordion-header:hover{background:rgba(0,255,0,0.05)}
+        #intent-panel{display:none;position:fixed;bottom:110px;left:5%;width:90%;background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:5000;padding:0;box-sizing:border-box;max-height:60vh;overflow-y:auto}
+        .accordion-section{border-bottom:1px solid #FFD700}
+        .accordion-header{width:100%;background:transparent;border:none;color:#FFD700;padding:12px 15px;text-align:left;font-family:monospace;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+        .accordion-header:hover{background:rgba(255,215,0,0.05)}
         .accordion-body{display:none;padding:0 15px 12px}
         .accordion-body.open{display:block}
         .btn-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-        .intent-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:8px 12px;cursor:pointer;font-family:monospace;font-size:12px;display:flex;align-items:center;gap:5px;white-space:nowrap}
-        .intent-btn:hover,.intent-btn.selected{background:#0f0;color:#000}
+        .intent-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 12px;cursor:pointer;font-family:monospace;font-size:12px;display:flex;align-items:center;gap:5px;white-space:nowrap}
+        .intent-btn:hover,.intent-btn.selected{background:#FFD700;color:#000}
         .intent-btn.custom{border-style:dashed}
         .node-type-row{margin:8px 0;display:flex;gap:10px;align-items:center}
         .vibe-row{margin:8px 0}
-        .vibe-option{background:transparent;border:1px solid #0f0;color:#0f0;padding:5px 10px;cursor:pointer;font-family:monospace;font-size:11px;margin-right:5px}
-        .vibe-option.selected{background:#0f0;color:#000}
-        .custom-input{width:100%;padding:8px;background:#000;border:1px solid #0f0;color:#0f0;margin-top:5px;font-family:monospace;font-size:12px;display:none}
-        .done-btn{display:none;margin-top:8px;background:#0f0;color:#000;border:none;padding:8px 16px;cursor:pointer;font-family:monospace}
+        .vibe-option{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:5px 10px;cursor:pointer;font-family:monospace;font-size:11px;margin-right:5px}
+        .vibe-option.selected{background:#FFD700;color:#000}
+        .custom-input{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;margin-top:5px;font-family:monospace;font-size:12px;display:none}
+        .done-btn{display:none;margin-top:8px;background:#FFD700;color:#000;border:none;padding:8px 16px;cursor:pointer;font-family:monospace}
         .close-btn{display:block;width:100%;background:transparent;border:none;border-top:1px solid #f00;color:#f00;padding:12px;text-align:center;font-family:monospace;cursor:pointer}
-        .hud-btn{background:transparent;border:1px solid #0f0;color:#0f0;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
-        .sync-btn{background:transparent;border:2px solid #0f0;color:#0f0;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
-        .rate-btn{background:transparent;border:2px solid #ff0;color:#ff0;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
-        .inbox-item{display:flex;align-items:center;margin-bottom:8px;padding:8px;border:1px solid #0f0}
+        .hud-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase}
+        .sync-btn{background:transparent;border:2px solid #FFD700;color:#FFD700;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px}
+        .rate-btn{background:transparent;border:2px solid #FFD700;color:#FFD700;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px}
+        .inbox-item{display:flex;align-items:center;margin-bottom:8px;padding:8px;border:1px solid #FFD700}
         .inbox-item .avatar{font-size:28px;margin-right:10px}
         .inbox-item .info{flex:1;font-size:12px}
-        .inbox-item .info .name{color:#0f0;font-size:14px}
+        .inbox-item .info .name{color:#FFD700;font-size:14px}
         .inbox-item .info .detail{color:#aaa}
-        .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #0f0;color:#0f0;cursor:pointer;padding:5px 10px}
+        .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #FFD700;color:#FFD700;cursor:pointer;padding:5px 10px}
     </style>
 </head>
 <body>
@@ -80,11 +80,11 @@
     <div id="terminal">
         <div id="inbox-panel"></div>
         <div id="oracle-ballot">STATUS: PENDING</div>
-        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #0f0;color:#0f0;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #FFD700;color:#FFD700;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex">
-            <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter')sendMsg()" style="flex:1;background:#000;border:1px solid #0f0;color:#0f0;padding:10px;outline:none">
-            <button onclick="sendMsg()" style="background:#0f0;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
+            <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter')sendMsg()" style="flex:1;background:#000;border:1px solid #FFD700;color:#FFD700;padding:10px;outline:none">
+            <button onclick="sendMsg()" style="background:#FFD700;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
         </div>
     </div>
     <div id="sync-panel">
@@ -143,7 +143,7 @@
         let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false, gpsReady = false, gpsFailures = 0, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
 
-        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#0f0',warning:'#f90',error:'#f00',success:'#0f0'};b.style.display='block';b.style.borderColor=c[t]||'#0f0';b.style.color=c[t]||'#0f0';b.innerText=m}
+        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
         navigator.geolocation.watchPosition(p=>{myLoc={lat:p.coords.latitude,lng:p.coords.longitude};gpsReady=true;gpsFailures=0;clearStatus()},e=>{gpsFailures++;gpsReady=false;if(gpsFailures===1)setStatus('warning','GPS signal weak');if(gpsFailures>5)setStatus('error','GPS unavailable')},{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
         setStatus('info','Waiting for GPS...');
@@ -192,7 +192,7 @@
             else { closeProfilePanel(); setStatus('success', 'Profile updated!'); setTimeout(() => clearStatus(), 2000); }
         };
 
-        // Build accordion (ALL presets require DONE button)
+        // Build accordion
         function buildAccordion(){
             const panel = document.getElementById('intent-panel');
             panel.innerHTML = '';
@@ -234,7 +234,7 @@
 
                 const typeRow = document.createElement('div');
                 typeRow.className = 'node-type-row';
-                typeRow.innerHTML = '<span style="color:#0f0;font-size:12px">Type:</span>';
+                typeRow.innerHTML = '<span style="color:#FFD700;font-size:12px">Type:</span>';
                 ['one_on_one','group'].forEach(type => {
                     const typeBtn = document.createElement('button');
                     typeBtn.className = 'intent-btn';
@@ -322,7 +322,7 @@
                     if (vibeRow) {
                         vibeRow.style.display = 'block';
                         const ck = vibeChecks[intent];
-                        vibeRow.innerHTML = `<span style="color:#0f0;font-size:12px">Vibe: ${ck.q}</span><br>
+                        vibeRow.innerHTML = `<span style="color:#FFD700;font-size:12px">Vibe: ${ck.q}</span><br>
                             <button class="vibe-option" data-vibe="a">${ck.a}</button>
                             <button class="vibe-option" data-vibe="b">${ck.b}</button>`;
                         vibeRow.querySelectorAll('.vibe-option').forEach(btn => {
@@ -352,7 +352,6 @@
         };
         function closeIntentPanel() { document.getElementById('intent-panel').style.display = 'none'; collapseAll(); }
 
-        // Node creation with vibe validation
         window.startCreation = () => {
             const finalIntent = selectedIntent === 'Custom' ? customIntentText : selectedIntent;
             if (!finalIntent.trim()) { setStatus('error', 'Please select or enter an intent'); return; }
@@ -380,7 +379,7 @@
                 if (error) { setStatus('error', 'Failed to create node: ' + error.message); return; }
                 currentN = data[0];
                 clearStatus(); setStatus('success', '"' + finalIntent + '" node active! ' + NODE_EXPIRY_MINUTES + ' mins.');
-                new mapboxgl.Marker({ color: '#0f0' }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
+                new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
 
                 _supabase.channel('reqs-' + currentN.id)
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: 'node_id=eq.' + currentN.id }, () => {
@@ -408,7 +407,7 @@
             const inbox = document.getElementById('inbox-panel');
             if(!requests||requests.length===0){inbox.style.display='none';return;}
             inbox.style.display='block';
-            inbox.innerHTML = '<div style="color:#0f0;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
+            inbox.innerHTML = '<div style="color:#FFD700;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
             for(let req of requests){
                 const{data:user} = await _supabase.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets').eq('id',req.requester_id).single();
                 const emoji = user?.avatar_emoji || '🤖';
@@ -421,10 +420,10 @@
                 const item = document.createElement('div'); item.className='inbox-item';
                 const avatarDiv = document.createElement('div'); avatarDiv.className='avatar'; avatarDiv.innerText = emoji;
                 const infoDiv = document.createElement('div'); infoDiv.className='info';
-                infoDiv.innerHTML = `<div class="name">${name}</div><div class="detail">⭐${trust.toFixed(1)} · ${meets} meets · Age ${age}</div><div class="detail">${user?.nationality||''} ${user?.profession?'· '+user.profession:''}</div><div class="tags" style="margin-top:4px">${tags.map(t=>`<span style="background:rgba(0,255,0,0.15);border:1px solid #0f0;padding:2px 6px;font-size:10px;margin-right:4px">${t}</span>`).join('')}</div>`;
+                infoDiv.innerHTML = `<div class="name">${name}</div><div class="detail">⭐${trust.toFixed(1)} · ${meets} meets · Age ${age}</div><div class="detail">${user?.nationality||''} ${user?.profession?'· '+user.profession:''}</div><div class="tags" style="margin-top:4px">${tags.map(t=>`<span style="background:rgba(255,215,0,0.15);border:1px solid #FFD700;padding:2px 6px;font-size:10px;margin-right:4px">${t}</span>`).join('')}</div>`;
                 if(req.answer_given){
                     const vibeLabel = req.answer_given === 'a' ? (vibeChecks[currentN.intent]?.a || 'Option A') : (vibeChecks[currentN.intent]?.b || 'Option B');
-                    infoDiv.innerHTML += `<div style="color:#0f0;margin-top:3px">Vibe: ${vibeLabel}</div>`;
+                    infoDiv.innerHTML += `<div style="color:#FFD700;margin-top:3px">Vibe: ${vibeLabel}</div>`;
                 }
                 const actionsDiv = document.createElement('div'); actionsDiv.className='inbox-actions';
                 const acceptBtn = document.createElement('button'); acceptBtn.innerText='ACCEPT'; acceptBtn.onclick=()=>handleRequest(req.id,'accepted');
@@ -442,7 +441,6 @@
                 if(currentN.node_type === 'one_on_one'){ await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id); }
                 startChatSync();
                 startOracleLive();
-                // Oracle must be manually triggered via the button
             }
             loadInbox();
         }
@@ -519,11 +517,11 @@
             myConfirmed = false;
             selectedVenueCoords = { lat: +s.selected_lat, lng: +s.selected_lng };
             const u1lat = +s.u1_lat, u1lng = +s.u1_lng, u2lat = +s.u2_lat, u2lng = +s.u2_lng, vlat = +s.selected_lat, vlng = +s.selected_lng;
-            new mapboxgl.Marker({ color: '#0f0' }).setLngLat([u1lng, u1lat]).addTo(map);
-            new mapboxgl.Marker({ color: '#00ffaa' }).setLngLat([u2lng, u2lat]).addTo(map);
-            new mapboxgl.Marker({ color: '#ff0' }).setLngLat([vlng, vlat]).addTo(map);
-            drawRoute('rA', u1lng, u1lat, vlng, vlat, '#0f0');
-            drawRoute('rB', u2lng, u2lat, vlng, vlat, '#00ffaa');
+            new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([u1lng, u1lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#e6b800' }).setLngLat([u2lng, u2lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#fff' }).setLngLat([vlng, vlat]).addTo(map);
+            drawRoute('rA', u1lng, u1lat, vlng, vlat, '#FFD700');
+            drawRoute('rB', u2lng, u2lat, vlng, vlat, '#e6b800');
             map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng, u1lat]).extend([u2lng, u2lat]).extend([vlng, vlat]), { padding: 80, duration: 2000 });
         }
         window.confirmProceed = async () => { myConfirmed = true; document.getElementById('sync-confirm-btn').style.display = 'none'; document.getElementById('sync-status').innerText = 'Waiting for other user...'; await _supabase.from('oracle_sessions').update({ u1_confirmed: true }).eq('bridge_id', currentN.id); };

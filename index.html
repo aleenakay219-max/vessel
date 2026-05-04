@@ -262,6 +262,7 @@
         window.openIntentPanel = () => { if (!gpsReady) { setStatus('warning', 'GPS not ready'); return; } document.getElementById('intent-panel').style.display = 'block'; };
         function closeIntentPanel() { document.getElementById('intent-panel').style.display = 'none'; collapseAll(); }
 
+        // Node creation – inbox updates via realtime only (polling removed)
         window.startCreation = () => {
             const finalIntent = selectedIntent === 'Custom' ? customIntentText : selectedIntent;
             if (!finalIntent.trim()) { setStatus('error', 'Please select or enter an intent'); return; }
@@ -279,18 +280,14 @@
                 clearStatus(); setStatus('success', '"' + finalIntent + '" node active! ' + NODE_EXPIRY_MINUTES + ' mins.');
                 new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
 
+                // Realtime only – no more fallback polling
                 _supabase.channel('reqs-' + currentN.id)
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: 'node_id=eq.' + currentN.id }, () => {
-                        clearStatus(); setStatus('success', 'Someone wants to connect!');
+                        clearStatus();
+                        setStatus('success', 'Someone wants to connect!');
                         document.getElementById('terminal').style.display = 'flex';
                         loadInbox();
                     }).subscribe();
-
-                const poll = setInterval(async () => {
-                    if (document.getElementById('terminal').style.display === 'flex') { clearInterval(poll); return; }
-                    const { data: reqs } = await _supabase.from('requests').select('*').eq('node_id', currentN.id).limit(1);
-                    if (reqs && reqs.length > 0) { clearInterval(poll); clearStatus(); setStatus('success', 'Someone wants to connect!'); document.getElementById('terminal').style.display = 'flex'; loadInbox(); }
-                }, 3000);
             });
         };
 

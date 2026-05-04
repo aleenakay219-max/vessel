@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VESSEL | ADMIN</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
+        #login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#FFD700}
+        #login-screen input{padding:10px;background:#000;border:1px solid #FFD700;color:#FFD700;margin:10px 0;width:200px;text-align:center}
+        #login-screen button{background:#FFD700;color:#000;border:none;padding:10px 30px;cursor:pointer;font-weight:bold}
+        #dashboard{display:none;flex-direction:column;height:100%}
+        #top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #FFD700;color:#FFD700}
+        #top-bar button{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:6px 15px;cursor:pointer}
+        #tabs{display:flex;gap:10px;padding:10px 20px;border-bottom:1px solid #333}
+        .tab-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 20px;cursor:pointer}
+        .tab-btn.active{background:#FFD700;color:#000}
+        #content{flex:1;overflow-y:auto;padding:20px;color:#FFD700}
+        .stats-row{display:flex;flex-wrap:wrap;gap:15px;margin-bottom:20px}
+        .stat-card{background:#111;border:1px solid #FFD700;padding:15px;flex:1;min-width:150px;text-align:center}
+        .stat-card h3{font-size:28px;margin:0}
+        .stat-card p{margin:5px 0 0;font-size:11px;color:#aaa}
+        table{width:100%;border-collapse:collapse;margin-top:15px;font-size:12px}
+        th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #333}
+        th{color:#FFD700;font-size:11px;text-transform:uppercase}
+        tr:hover{background:rgba(255,215,0,0.05)}
+        .action-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:3px 10px;cursor:pointer;font-size:11px;margin-right:3px}
+        .action-btn.danger{border-color:#f00;color:#f00}
+        .search-input{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;margin-bottom:15px}
+        .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:999;align-items:center;justify-content:center}
+        .modal-box{background:#000;border:2px solid #FFD700;padding:20px;max-width:400px;width:90%;color:#FFD700;text-align:center}
+        .modal-box button{margin:5px;background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 20px;cursor:pointer}
+        .toast{position:fixed;top:20px;right:20px;background:#333;border:1px solid #FFD700;color:#FFD700;padding:10px 20px;z-index:1000;display:none}
+    </style>
+</head>
+<body>
+    <div id="login-screen">
+        <h2>VESSEL ADMIN</h2>
+        <input type="password" id="pw" placeholder="Password">
+        <button onclick="login()">LOGIN</button>
+    </div>
+
+    <div id="dashboard">
+        <div id="top-bar">
+            <h2>VESSEL ADMIN</h2>
+            <button onclick="logout()">LOGOUT</button>
+        </div>
+        <div id="tabs">
+            <button class="tab-btn active" onclick="switchTab('stats')">STATS</button>
+            <button class="tab-btn" onclick="switchTab('users')">USERS</button>
+            <button class="tab-btn" onclick="switchTab('nodes')">NODES</button>
+        </div>
+        <div id="content"></div>
+    </div>
+
+    <div id="modal" class="modal-overlay"><div class="modal-box" id="modal-content"></div></div>
+    <div id="toast" class="toast"></div>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script>
+        // Supabase client
+        const SUPABASE_URL = 'https://rnroyhkvkmzuichysxnk.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let isLoggedIn = false;
+        let currentTab = 'stats';
+
+        // Check for existing session (simple: if previously logged in)
+        if(localStorage.getItem('admin_logged_in') === 'true') {
+            document.getElementById('login-screen').style.display='none';
+            document.getElementById('dashboard').style.display='flex';
+            isLoggedIn = true;
+            loadTab('stats');
+        }
+
+        // Show toast
+        function toast(msg, isError=false) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            t.style.borderColor = isError ? '#f00' : '#FFD700';
+            setTimeout(()=>t.style.display='none', 3000);
+        }
+
+        // Login
+        async function login() {
+            const pw = document.getElementById('pw').value;
+            // Hash password with SHA-256
+            const encoder = new TextEncoder();
+            const data = encoder.encode(pw);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+
+            // Fetch stored hash
+            const { data: config, error } = await supabase
+                .from('admin_config')
+                .select('value')
+                .eq('key', 'admin_password')
+                .single();
+
+            if(error || !config) {
+                toast('Error fetching password', true);
+                return;
+            }
+
+            if(hashHex === config.value) {
+                localStorage.setItem('admin_logged_in', 'true');
+                document.getElementById('login-screen').style.display='none';
+                document.getElementById('dashboard').style.display='flex';
+                isLoggedIn = true;
+                loadTab('stats');
+            } else {
+                toast('Invalid password', true);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('admin_logged_in');
+            isLoggedIn = false;
+            document.getElementById('dashboard').style.display='none';
+            document.getElementById('login-screen').style.display='flex';
+            document.getElementById('pw').value = '';
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+            event.target.classList.add('active');
+            loadTab(tab);
+        }
+
+        async function loadTab(tab) {
+            const content = document.getElementById('content');
+            switch(tab) {
+                case 'stats': content.innerHTML = await getStatsHTML(); break;
+                case 'users': content.innerHTML = await getUsersHTML(); break;
+                case 'nodes': content.innerHTML = await getNodesHTML(); break;
+            }
+        }
+
+        // ---------- STATS TAB ----------
+        async function getStatsHTML() {
+            const now = new Date().toISOString();
+            const today = new Date(); today.setHours(0,0,0,0); const todayISO = today.toISOString();
+
+            const [usersRes, nodesRes, meetsRes, nodesTodayRes] = await Promise.all([
+                supabase.from('users').select('*', { count: 'exact', head: true }),
+                supabase.from('nodes').select('*', { count: 'exact', head: true }).eq('status','active').gt('expires_at', now),
+                supabase.from('oracle_sessions').select('*', { count: 'exact', head: true }).gte('created_at', todayISO).eq('meet_completed', true),
+                supabase.from('nodes').select('*', { count: 'exact', head: true }).gte('created_at', todayISO)
+            ]);
+
+            const totalUsers = usersRes.count || 0;
+            const activeNodes = nodesRes.count || 0;
+            const meetsToday = meetsRes.count || 0;
+            const nodesCreatedToday = nodesTodayRes.count || 0;
+
+            return `
+                <div class="stats-row">
+                    <div class="stat-card"><h3>${totalUsers}</h3><p>Total Users</p></div>
+                    <div class="stat-card"><h3>${activeNodes}</h3><p>Active Nodes</p></div>
+                    <div class="stat-card"><h3>${meetsToday}</h3><p>Meets Today</p></div>
+                    <div class="stat-card"><h3>${nodesCreatedToday}</h3><p>Nodes Created Today</p></div>
+                </div>
+            `;
+        }
+
+        // ---------- USERS TAB ----------
+        async function getUsersHTML() {
+            const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+            if(error) return '<p>Error loading users.</p>';
+
+            let html = '<input class="search-input" id="userSearch" placeholder="Search by name or ID..." oninput="filterUsers()">';
+            html += '<table id="userTable"><thead><tr><th>Avatar</th><th>Name</th><th>Trust</th><th>Meets</th><th>Age</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+            users.forEach(u => {
+                html += `<tr data-name="${u.display_name||''}" data-id="${u.id}">
+                    <td>${u.avatar_emoji||'🤖'}</td>
+                    <td>${u.display_name||'Unknown'}</td>
+                    <td>⭐${(u.trust_score||5).toFixed(1)}</td>
+                    <td>${u.total_meets||0}</td>
+                    <td>${u.age||'N/A'}</td>
+                    <td>${u.status||'active'}</td>
+                    <td>
+                        <button class="action-btn" onclick="suspendUser('${u.id}')">Suspend</button>
+                        <button class="action-btn danger" onclick="banUser('${u.id}')">Ban</button>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function filterUsers() {
+            const q = document.getElementById('userSearch').value.toLowerCase();
+            document.querySelectorAll('#userTable tbody tr').forEach(row => {
+                const name = row.getAttribute('data-name').toLowerCase();
+                const id = row.getAttribute('data-id').toLowerCase();
+                row.style.display = (name.includes(q) || id.includes(q)) ? '' : 'none';
+            });
+        }
+
+        async function suspendUser(userId) {
+            showModal('Suspend user?', async () => {
+                // For simplicity, we'll just set a flag. Since we don't have a 'status' column on users yet, we can update a custom field or just disable.
+                // We'll add a suspended flag via a custom key (or we can add a column later). For now, we'll just alert.
+                toast('User suspended (not fully implemented yet)');
+                closeModal();
+            });
+        }
+
+        async function banUser(userId) {
+            showModal('Permanently ban user?', async () => {
+                // Similar placeholder
+                toast('User banned (not fully implemented yet)');
+                closeModal();
+            });
+        }
+
+        // ---------- NODES TAB ----------
+        async function getNodesHTML() {
+            const now = new Date().toISOString();
+            const { data: nodes, error } = await supabase.from('nodes').select('*').eq('status','active').gt('expires_at', now).order('created_at', { ascending: false });
+            if(error) return '<p>Error loading nodes.</p>';
+
+            let html = '<table><thead><tr><th>Intent</th><th>Category</th><th>Type</th><th>Creator ID</th><th>Location</th><th>Expires</th><th>Actions</th></tr></thead><tbody>';
+            nodes.forEach(n => {
+                const coords = `(${parseFloat(n.lat).toFixed(4)}, ${parseFloat(n.lng).toFixed(4)})`;
+                const expires = new Date(n.expires_at).toLocaleTimeString();
+                html += `<tr>
+                    <td>${n.intent||'N/A'}</td>
+                    <td>${n.category||'social'}</td>
+                    <td>${n.node_type||'one_on_one'}</td>
+                    <td>${n.user_id}</td>
+                    <td>${coords}</td>
+                    <td>${expires}</td>
+                    <td><button class="action-btn danger" onclick="expireNode(${n.id})">Expire</button></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        async function expireNode(nodeId) {
+            showModal('Force‑expire this node?', async () => {
+                const { error } = await supabase.from('nodes').update({ status: 'expired' }).eq('id', nodeId);
+                if(error) toast('Failed to expire node', true);
+                else { toast('Node expired'); loadTab('nodes'); }
+                closeModal();
+            });
+        }
+
+        // Generic modal
+        function showModal(message, onConfirm) {
+            document.getElementById('modal').style.display = 'flex';
+            document.getElementById('modal-content').innerHTML = `<p>${message}</p>
+                <button onclick="document.getElementById('modal').style.display='none'">Cancel</button>
+                <button id="modal-confirm" style="border-color:#f00;color:#f00">Confirm</button>`;
+            document.getElementById('modal-confirm').addEventListener('click', onConfirm);
+        }
+        function closeModal() { document.getElementById('modal').style.display = 'none'; }
+    </script>
+</body>
+</html>

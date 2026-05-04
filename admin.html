@@ -30,6 +30,9 @@
         .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:999;align-items:center;justify-content:center}
         .modal-box{background:#000;border:2px solid #FFD700;padding:20px;max-width:500px;width:90%;color:#FFD700;text-align:left;max-height:80vh;overflow-y:auto}
         .modal-box button{margin:5px;background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 20px;cursor:pointer}
+        .form-group{margin-bottom:12px}
+        .form-group label{display:block;font-size:12px;margin-bottom:4px}
+        .form-group input,.form-group textarea{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;font-family:monospace}
         .toast{position:fixed;top:20px;right:20px;background:#333;border:1px solid #FFD700;color:#FFD700;padding:10px 20px;z-index:1000;display:none}
     </style>
 </head>
@@ -53,6 +56,7 @@
             <button class="tab-btn" onclick="switchTab('nodes')">NODES</button>
             <button class="tab-btn" onclick="switchTab('intents')">INTENTS</button>
             <button class="tab-btn" onclick="switchTab('tags')">TAGS</button>
+            <button class="tab-btn" onclick="switchTab('banners')">BANNERS</button>
         </div>
         <div id="content"></div>
     </div>
@@ -137,6 +141,7 @@
                 case 'nodes': content.innerHTML = await getNodesHTML(); break;
                 case 'intents': content.innerHTML = await getIntentsHTML(); break;
                 case 'tags': content.innerHTML = await getTagsHTML(); break;
+                case 'banners': content.innerHTML = await getBannersHTML(); break;
             }
         }
 
@@ -307,7 +312,7 @@
             });
         }
 
-        // ---------- CONTENT MODERATION: CUSTOM INTENTS ----------
+        // ---------- CUSTOM INTENTS ----------
         async function getIntentsHTML() {
             const { data: nodes, error } = await supabase.from('nodes').select('*').not('custom_intent', 'is', null).order('created_at', { ascending: false });
             if(error) return '<p>Error loading custom intents.</p>';
@@ -334,7 +339,7 @@
             });
         }
 
-        // ---------- CONTENT MODERATION: VIBE TAGS ----------
+        // ---------- VIBE TAGS ----------
         async function getTagsHTML() {
             const { data: users, error } = await supabase.from('users').select('*').not('vibe_tags', 'is', null).order('created_at', { ascending: false });
             if(error) return '<p>Error loading vibe tags.</p>';
@@ -356,7 +361,6 @@
         }
 
         async function removeVibeTag(userId, tagToRemove) {
-            // Fetch current tags, filter out the one to remove, then update
             const { data: user, error } = await supabase.from('users').select('vibe_tags').eq('id', userId).single();
             if(error || !user) { toast('Failed to fetch user', true); return; }
             const newTags = (user.vibe_tags || []).filter(t => t !== tagToRemove);
@@ -368,6 +372,116 @@
             showModal('Clear ALL vibe tags for this user?', async () => {
                 const { error } = await supabase.from('users').update({ vibe_tags: [] }).eq('id', userId);
                 if(error) toast('Failed', true); else { toast('All tags cleared'); loadTab('tags'); }
+                closeModal();
+            });
+        }
+
+        // ---------- BANNER / SPONSOR MANAGER ----------
+        async function getBannersHTML() {
+            const { data: banners, error } = await supabase.from('banners').select('*').order('created_at', { ascending: false });
+            if(error) return '<p>Error loading banners.</p>';
+            let html = '<button class="action-btn" style="margin-bottom:15px" onclick="showBannerForm()">+ Add Banner</button>';
+            if(!banners || banners.length === 0) return html + '<p>No banners found.</p>';
+            html += '<table><thead><tr><th>Title</th><th>Message</th><th>Location</th><th>Expires</th><th>Active</th><th>Impressions</th><th>Actions</th></tr></thead><tbody>';
+            banners.forEach(b => {
+                html += `<tr>
+                    <td>${b.title||'N/A'}</td>
+                    <td>${b.message||'N/A'}</td>
+                    <td>(${parseFloat(b.lat).toFixed(4)}, ${parseFloat(b.lng).toFixed(4)})</td>
+                    <td>${b.expires_at ? new Date(b.expires_at).toLocaleDateString() : 'Never'}</td>
+                    <td style="color:${b.is_active?'#0f0':'#f00'}">${b.is_active ? 'ON' : 'OFF'}</td>
+                    <td>${b.impression_count||0}</td>
+                    <td>
+                        <button class="action-btn" onclick="showBannerForm('${b.id}')">Edit</button>
+                        <button class="action-btn" onclick="toggleBanner('${b.id}', ${b.is_active})">${b.is_active?'Deactivate':'Activate'}</button>
+                        <button class="action-btn danger" onclick="deleteBanner('${b.id}')">Delete</button>
+                    </td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function showBannerForm(bannerId = null) {
+            const modal = document.getElementById('modal');
+            const content = document.getElementById('modal-content');
+            const isEdit = !!bannerId;
+            content.innerHTML = `<h3>${isEdit ? 'Edit' : 'Add'} Banner</h3>
+                <div class="form-group"><label>Title</label><input id="banner-title" placeholder="e.g., Golden Café"></div>
+                <div class="form-group"><label>Message</label><input id="banner-msg" placeholder="20% off lattes"></div>
+                <div class="form-group"><label>Image URL (optional)</label><input id="banner-img" placeholder="https://..."></div>
+                <div class="form-group"><label>Latitude</label><input id="banner-lat" type="number" step="any" placeholder="25.0800"></div>
+                <div class="form-group"><label>Longitude</label><input id="banner-lng" type="number" step="any" placeholder="55.1400"></div>
+                <div class="form-group"><label>Expiry Date</label><input id="banner-expiry" type="date"></div>
+                <div class="form-group"><label>Active</label><input id="banner-active" type="checkbox" checked></div>
+                <button onclick="saveBanner('${bannerId||''}')">${isEdit ? 'Update' : 'Create'}</button>
+                <button onclick="closeModal()">Cancel</button>`;
+            modal.style.display = 'flex';
+
+            // If editing, populate fields
+            if(isEdit) {
+                (async () => {
+                    const { data:banner, error } = await supabase.from('banners').select('*').eq('id', bannerId).single();
+                    if(!banner) return;
+                    document.getElementById('banner-title').value = banner.title || '';
+                    document.getElementById('banner-msg').value = banner.message || '';
+                    document.getElementById('banner-img').value = banner.image_url || '';
+                    document.getElementById('banner-lat').value = banner.lat || '';
+                    document.getElementById('banner-lng').value = banner.lng || '';
+                    document.getElementById('banner-expiry').value = banner.expires_at ? banner.expires_at.split('T')[0] : '';
+                    document.getElementById('banner-active').checked = banner.is_active;
+                })();
+            }
+        }
+
+        async function saveBanner(bannerId) {
+            const title = document.getElementById('banner-title').value.trim();
+            const message = document.getElementById('banner-msg').value.trim();
+            const imageUrl = document.getElementById('banner-img').value.trim();
+            const lat = parseFloat(document.getElementById('banner-lat').value);
+            const lng = parseFloat(document.getElementById('banner-lng').value);
+            const expiresAt = document.getElementById('banner-expiry').value;
+            const isActive = document.getElementById('banner-active').checked;
+
+            if(!title || !message || isNaN(lat) || isNaN(lng)) {
+                toast('Please fill all required fields (title, message, lat, lng).', true);
+                return;
+            }
+
+            const bannerData = {
+                title, message, image_url: imageUrl || null,
+                lat, lng,
+                expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+                is_active: isActive
+            };
+
+            let error;
+            if(bannerId) {
+                // Update
+                const result = await supabase.from('banners').update(bannerData).eq('id', bannerId);
+                error = result.error;
+            } else {
+                // Insert
+                const result = await supabase.from('banners').insert([bannerData]);
+                error = result.error;
+            }
+
+            if(error) toast('Failed to save banner: ' + error.message, true);
+            else { toast('Banner saved successfully'); loadTab('banners'); }
+            closeModal();
+        }
+
+        async function toggleBanner(bannerId, currentState) {
+            const { error } = await supabase.from('banners').update({ is_active: !currentState }).eq('id', bannerId);
+            if(error) toast('Failed to toggle banner', true);
+            else { toast('Banner ' + (!currentState?'activated':'deactivated')); loadTab('banners'); }
+        }
+
+        async function deleteBanner(bannerId) {
+            showModal('Delete this banner permanently?', async () => {
+                const { error } = await supabase.from('banners').delete().eq('id', bannerId);
+                if(error) toast('Failed', true);
+                else { toast('Banner deleted'); loadTab('banners'); }
                 closeModal();
             });
         }

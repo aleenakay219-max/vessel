@@ -34,6 +34,21 @@
         .form-group label{display:block;font-size:12px;margin-bottom:4px}
         .form-group input,.form-group textarea{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;font-family:monospace}
         .toast{position:fixed;top:20px;right:20px;background:#333;border:1px solid #FFD700;color:#FFD700;padding:10px 20px;z-index:1000;display:none}
+        /* Chart styles */
+        .chart-container{margin-bottom:30px}
+        .chart-container h3{margin-bottom:15px;font-size:16px}
+        .bar-row{display:flex;align-items:center;margin-bottom:8px}
+        .bar-label{width:100px;font-size:11px;text-align:right;padding-right:10px}
+        .bar-track{flex:1;background:#222;height:20px;position:relative}
+        .bar-fill{height:100%;background:#FFD700;position:absolute;left:0;top:0;transition:width 0.3s}
+        .bar-value{width:60px;font-size:11px;padding-left:10px}
+        .line-chart{display:flex;align-items:flex-end;gap:4px;height:180px;padding:10px 0;border-bottom:1px solid #333}
+        .line-bar{flex:1;background:#FFD700;min-width:20px;position:relative;transition:height 0.3s}
+        .line-bar span{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:9px;color:#aaa}
+        .heatmap-grid{display:grid;grid-template-columns:80px repeat(24,1fr);gap:2px;font-size:10px;margin-top:10px}
+        .heatmap-cell{background:#222;text-align:center;padding:4px 0;color:#aaa}
+        .heatmap-cell.high{background:#FFD700;color:#000}
+        .heatmap-cell.medium{background:#b38600;color:#000}
     </style>
 </head>
 <body>
@@ -57,6 +72,7 @@
             <button class="tab-btn" onclick="switchTab('intents')">INTENTS</button>
             <button class="tab-btn" onclick="switchTab('tags')">TAGS</button>
             <button class="tab-btn" onclick="switchTab('banners')">BANNERS</button>
+            <button class="tab-btn" onclick="switchTab('analytics')">ANALYTICS</button>
         </div>
         <div id="content"></div>
     </div>
@@ -142,6 +158,7 @@
                 case 'intents': content.innerHTML = await getIntentsHTML(); break;
                 case 'tags': content.innerHTML = await getTagsHTML(); break;
                 case 'banners': content.innerHTML = await getBannersHTML(); break;
+                case 'analytics': content.innerHTML = await getAnalyticsHTML(); break;
             }
         }
 
@@ -418,7 +435,6 @@
                 <button onclick="closeModal()">Cancel</button>`;
             modal.style.display = 'flex';
 
-            // If editing, populate fields
             if(isEdit) {
                 (async () => {
                     const { data:banner, error } = await supabase.from('banners').select('*').eq('id', bannerId).single();
@@ -457,11 +473,9 @@
 
             let error;
             if(bannerId) {
-                // Update
                 const result = await supabase.from('banners').update(bannerData).eq('id', bannerId);
                 error = result.error;
             } else {
-                // Insert
                 const result = await supabase.from('banners').insert([bannerData]);
                 error = result.error;
             }
@@ -484,6 +498,110 @@
                 else { toast('Banner deleted'); loadTab('banners'); }
                 closeModal();
             });
+        }
+
+        // ---------- ANALYTICS CHARTS ----------
+        async function getAnalyticsHTML() {
+            // 1. Meets per category (last 7 days)
+            const sevenDaysAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
+            const { data: meetsRaw, error: meetsError } = await supabase
+                .from('oracle_sessions')
+                .select('bridge_id, created_at')
+                .gte('created_at', sevenDaysAgo)
+                .eq('meet_completed', true);
+
+            let meetsByCategory = {};
+            if(meetsRaw && meetsRaw.length > 0) {
+                // Get node categories for these bridges
+                const bridgeIds = meetsRaw.map(m => m.bridge_id).filter(id => id != null);
+                if(bridgeIds.length > 0) {
+                    const { data: nodesData } = await supabase
+                        .from('nodes')
+                        .select('id, category')
+                        .in('id', bridgeIds);
+                    if(nodesData) {
+                        const nodeCategoryMap = {};
+                        nodesData.forEach(n => { nodeCategoryMap[n.id] = n.category || 'social'; });
+                        meetsRaw.forEach(m => {
+                            const cat = nodeCategoryMap[m.bridge_id] || 'social';
+                            meetsByCategory[cat] = (meetsByCategory[cat] || 0) + 1;
+                        });
+                    }
+                }
+            }
+
+            // 2. User growth (last 14 days)
+            const fourteenDaysAgo = new Date(Date.now() - 14*24*60*60*1000).toISOString();
+            const { data: newUsersRaw } = await supabase
+                .from('users')
+                .select('created_at')
+                .gte('created_at', fourteenDaysAgo);
+
+            const dailyUsers = {};
+            for(let i=0; i<14; i++) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const key = d.toISOString().split('T')[0]; // YYYY-MM-DD
+                dailyUsers[key] = 0;
+            }
+            if(newUsersRaw) {
+                newUsersRaw.forEach(u => {
+                    const key = u.created_at.split('T')[0];
+                    if(dailyUsers[key] !== undefined) dailyUsers[key]++;
+                });
+            }
+            const sortedDays = Object.keys(dailyUsers).sort();
+
+            // 3. Peak hours (last 7 days)
+            const hourlyMeets = new Array(24).fill(0);
+            if(meetsRaw) {
+                meetsRaw.forEach(m => {
+                    const h = new Date(m.created_at).getHours();
+                    hourlyMeets[h]++;
+                });
+            }
+            const maxHourly = Math.max(...hourlyMeets, 1);
+
+            // Build HTML
+            let html = '<div class="chart-container"><h3>Meets per Category (Last 7 Days)</h3>';
+            const categories = ['social','games','work','parents'];
+            const catLabels = {social:'🍻 Social', games:'⚽ Games', work:'🔧 Work', parents:'🧒 Parents'};
+            const maxCat = Math.max(...Object.values(meetsByCategory), 1);
+            categories.forEach(cat => {
+                const count = meetsByCategory[cat] || 0;
+                const pct = (count / maxCat * 100).toFixed(0);
+                html += `<div class="bar-row">
+                    <div class="bar-label">${catLabels[cat]||cat}</div>
+                    <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+                    <div class="bar-value">${count}</div>
+                </div>`;
+            });
+            html += '</div>';
+
+            html += '<div class="chart-container"><h3>User Growth (Last 14 Days)</h3>';
+            const maxUsers = Math.max(...Object.values(dailyUsers), 1);
+            html += '<div class="line-chart">';
+            sortedDays.forEach(day => {
+                const count = dailyUsers[day];
+                const height = Math.max(2, (count / maxUsers * 160));
+                html += `<div class="line-bar" style="height:${height}px"><span>${day.slice(5)}</span></div>`;
+            });
+            html += '</div></div>';
+
+            html += '<div class="chart-container"><h3>Peak Activity Hours (Last 7 Days)</h3>';
+            html += '<div class="heatmap-grid"><div></div>';
+            for(let h=0; h<24; h++) html += `<div style="text-align:center;font-size:9px;color:#aaa">${h}h</div>`;
+            html += '<div style="text-align:right;padding-right:5px;font-size:10px;">Meets</div>';
+            for(let h=0; h<24; h++) {
+                const pct = hourlyMeets[h] / maxHourly;
+                let cls = '';
+                if(pct > 0.7) cls = 'high';
+                else if(pct > 0.3) cls = 'medium';
+                html += `<div class="heatmap-cell ${cls}">${hourlyMeets[h]}</div>`;
+            }
+            html += '</div></div>';
+
+            return html;
         }
 
         // Generic modal and toast

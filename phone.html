@@ -233,7 +233,7 @@
             }, 2000);
         }
 
-        // ---------- Chat (polling for safety, realtime also active) ----------
+        // ---------- Chat (realtime ONLY – polling removed) ----------
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
             if (msg.sender === 'SEEKER') msgDiv.classList.add('msg-right');
@@ -251,23 +251,11 @@
             document.getElementById('chat-in').value = '';
         };
         function startChatSync() {
-            // realtime
+            // Only realtime – no more fallback polling
             supabaseClient.channel('msgs-'+currentN.id)
                 .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:'node_id=eq.'+currentN.id }, p => {
                     if (p.new.id > lastMsgId) { addMessageToChat(p.new); lastMsgId = p.new.id; }
                 }).subscribe();
-            // fallback polling (safe)
-            setInterval(async () => {
-                if (!currentN) return;
-                const { data } = await supabaseClient.from('messages')
-                    .select('*')
-                    .eq('node_id', currentN.id)
-                    .order('id', { ascending: true })
-                    .gt('id', lastMsgId);
-                if (data && data.length > 0) {
-                    data.forEach(msg => { addMessageToChat(msg); lastMsgId = msg.id; });
-                }
-            }, 2500);
         }
 
         // ---------- Oracle (manual, on click) ----------

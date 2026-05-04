@@ -12,8 +12,8 @@
         #dashboard{display:none;flex-direction:column;height:100%}
         #top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #FFD700;color:#FFD700}
         #top-bar button{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:6px 15px;cursor:pointer}
-        #tabs{display:flex;gap:10px;padding:10px 20px;border-bottom:1px solid #333}
-        .tab-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 20px;cursor:pointer}
+        #tabs{display:flex;flex-wrap:wrap;gap:10px;padding:10px 20px;border-bottom:1px solid #333}
+        .tab-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 16px;cursor:pointer;font-size:12px}
         .tab-btn.active{background:#FFD700;color:#000}
         #content{flex:1;overflow-y:auto;padding:20px;color:#FFD700}
         .stats-row{display:flex;flex-wrap:wrap;gap:15px;margin-bottom:20px}
@@ -51,6 +51,8 @@
             <button class="tab-btn active" onclick="switchTab('stats')">STATS</button>
             <button class="tab-btn" onclick="switchTab('users')">USERS</button>
             <button class="tab-btn" onclick="switchTab('nodes')">NODES</button>
+            <button class="tab-btn" onclick="switchTab('intents')">INTENTS</button>
+            <button class="tab-btn" onclick="switchTab('tags')">TAGS</button>
         </div>
         <div id="content"></div>
     </div>
@@ -60,7 +62,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
     <script>
-        // Safety check
         if (typeof window.supabase === 'undefined') {
             document.body.innerHTML = '<h2 style="color:red;text-align:center;margin-top:50px;">Supabase library failed to load. Hard refresh (Ctrl+Shift+R) or try an incognito window.</h2>';
             throw new Error('Supabase not loaded');
@@ -134,6 +135,8 @@
                 case 'stats': content.innerHTML = await getStatsHTML(); break;
                 case 'users': content.innerHTML = await getUsersHTML(); break;
                 case 'nodes': content.innerHTML = await getNodesHTML(); break;
+                case 'intents': content.innerHTML = await getIntentsHTML(); break;
+                case 'tags': content.innerHTML = await getTagsHTML(); break;
             }
         }
 
@@ -155,7 +158,7 @@
             </div>`;
         }
 
-        // ---------- USERS (unchanged from previous) ----------
+        // ---------- USERS ----------
         async function getUsersHTML() {
             const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
             if(error) return '<p>Error loading users.</p>';
@@ -237,10 +240,9 @@
             document.getElementById('modal').style.display = 'flex';
         }
 
-        // ---------- NODES (enhanced with detail modal & permanent delete) ----------
+        // ---------- NODES ----------
         async function getNodesHTML() {
             const now = new Date().toISOString();
-            // Fetch all nodes (active and expired) for comprehensive view
             const { data: nodes, error } = await supabase.from('nodes').select('*').order('created_at', { ascending: false }).limit(200);
             if(error) return '<p>Error loading nodes.</p>';
             let html = '<table><thead><tr><th>Intent</th><th>Category</th><th>Type</th><th>Status</th><th>Creator ID</th><th>Location</th><th>Expires</th><th>Actions</th></tr></thead><tbody>';
@@ -305,7 +307,72 @@
             });
         }
 
-        // Generic modal
+        // ---------- CONTENT MODERATION: CUSTOM INTENTS ----------
+        async function getIntentsHTML() {
+            const { data: nodes, error } = await supabase.from('nodes').select('*').not('custom_intent', 'is', null).order('created_at', { ascending: false });
+            if(error) return '<p>Error loading custom intents.</p>';
+            if(!nodes || nodes.length === 0) return '<p>No custom intents found.</p>';
+            let html = '<table><thead><tr><th>Node ID</th><th>Custom Intent</th><th>Creator ID</th><th>Category</th><th>Actions</th></tr></thead><tbody>';
+            nodes.forEach(n => {
+                html += `<tr>
+                    <td>${n.id}</td>
+                    <td>${n.custom_intent}</td>
+                    <td>${n.user_id}</td>
+                    <td>${n.category||'social'}</td>
+                    <td><button class="action-btn danger" onclick="clearCustomIntent(${n.id})">Clear</button></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        async function clearCustomIntent(nodeId) {
+            showModal('Clear this custom intent?', async () => {
+                const { error } = await supabase.from('nodes').update({ custom_intent: null }).eq('id', nodeId);
+                if(error) toast('Failed', true); else { toast('Custom intent cleared'); loadTab('intents'); }
+                closeModal();
+            });
+        }
+
+        // ---------- CONTENT MODERATION: VIBE TAGS ----------
+        async function getTagsHTML() {
+            const { data: users, error } = await supabase.from('users').select('*').not('vibe_tags', 'is', null).order('created_at', { ascending: false });
+            if(error) return '<p>Error loading vibe tags.</p>';
+            if(!users || users.length === 0) return '<p>No vibe tags found.</p>';
+            let html = '<table><thead><tr><th>User</th><th>Tags</th><th>Actions</th></tr></thead><tbody>';
+            users.forEach(u => {
+                const tags = u.vibe_tags || [];
+                const tagButtons = tags.map(tag => 
+                    `<button class="action-btn danger" style="margin:2px" onclick="removeVibeTag('${u.id}', '${tag.replace(/'/g, "\\'")}')">${tag} ✕</button>`
+                ).join(' ');
+                html += `<tr>
+                    <td>${u.display_name||'Unknown'} (${u.id})</td>
+                    <td>${tagButtons || '<em>No tags</em>'}</td>
+                    <td><button class="action-btn danger" onclick="clearAllVibeTags('${u.id}')">Clear All</button></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        async function removeVibeTag(userId, tagToRemove) {
+            // Fetch current tags, filter out the one to remove, then update
+            const { data: user, error } = await supabase.from('users').select('vibe_tags').eq('id', userId).single();
+            if(error || !user) { toast('Failed to fetch user', true); return; }
+            const newTags = (user.vibe_tags || []).filter(t => t !== tagToRemove);
+            const { error: updateError } = await supabase.from('users').update({ vibe_tags: newTags }).eq('id', userId);
+            if(updateError) toast('Failed', true); else { toast('Tag removed'); loadTab('tags'); }
+        }
+
+        async function clearAllVibeTags(userId) {
+            showModal('Clear ALL vibe tags for this user?', async () => {
+                const { error } = await supabase.from('users').update({ vibe_tags: [] }).eq('id', userId);
+                if(error) toast('Failed', true); else { toast('All tags cleared'); loadTab('tags'); }
+                closeModal();
+            });
+        }
+
+        // Generic modal and toast
         function showModal(message, onConfirm) {
             document.getElementById('modal').style.display = 'flex';
             document.getElementById('modal-content').innerHTML = `<p>${message}</p>

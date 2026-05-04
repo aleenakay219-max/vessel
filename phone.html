@@ -123,6 +123,7 @@
         let selectedVenueCoords = null;
         let pendingNodeProps = null, selectedVibeAnswer = null;
         let lastMsgId = 0;
+        let acceptancePoll = null;   // for polling request status
         let activeChannels = [];
 
         navigator.geolocation.watchPosition = function(success){
@@ -141,17 +142,21 @@
         }
         ensureUser();
 
+        // Cleanup realtime channels (if any)
         function cleanupChannels() {
             activeChannels.forEach(ch => supabaseClient.removeChannel(ch));
             activeChannels = [];
         }
 
-        // ---------- Profile card ----------
+        // ---------- Profile card (open when node clicked) ----------
         async function openProfileCard(nodeProps) {
             pendingNodeProps = nodeProps;
             selectedVibeAnswer = null;
             const card = document.getElementById('profile-card');
-            const { data: user } = await supabaseClient.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets').eq('id', nodeProps.user_id).single();
+            const { data: user } = await supabaseClient.from('users')
+                .select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets')
+                .eq('id', nodeProps.user_id)
+                .single();
             const emoji = user?.avatar_emoji || '🤖';
             const name = user?.display_name || 'Unknown';
             const trust = user?.trust_score || 5.0;
@@ -167,8 +172,7 @@
             if (user?.vibe_tags && user.vibe_tags.length > 0) {
                 user.vibe_tags.forEach(tag => {
                     const span = document.createElement('span');
-                    span.className = 'tag';
-                    span.innerText = tag;
+                    span.className = 'tag'; span.innerText = tag;
                     tagsDiv.appendChild(span);
                 });
             }
@@ -177,7 +181,9 @@
                 vibeDiv.style.display = 'block';
                 const ck = vibeChecks[nodeProps.intent];
                 if (ck) {
-                    vibeDiv.innerHTML = `<p>${ck.q}</p><button class="vibe-opt" data-vibe="a">${ck.a}</button><button class="vibe-opt" data-vibe="b">${ck.b}</button>`;
+                    vibeDiv.innerHTML = `<p>${ck.q}</p>
+                        <button class="vibe-opt" data-vibe="a">${ck.a}</button>
+                        <button class="vibe-opt" data-vibe="b">${ck.b}</button>`;
                     vibeDiv.querySelectorAll('.vibe-opt').forEach(btn => {
                         btn.onclick = (e) => {
                             vibeDiv.querySelectorAll('.vibe-opt').forEach(b => b.classList.remove('selected'));
@@ -210,61 +216,39 @@
         }
         document.getElementById('card-send-btn').addEventListener('click', sendRequestFromCard);
 
-        // ---------- Request + Real-time acceptance + Polling fallback ----------
-        async function sendRequest(nodeProps, answer_given){
-            setStatus('info','Sending request...');
+        // ---------- Send request & poll for acceptance ----------
+        async function sendRequest(nodeProps, answer_given) {
+            setStatus('info', 'Sending request...');
             const payload = { node_id: nodeProps.id, requester_id: myUserId, status: 'pending' };
             if (answer_given) payload.answer_given = answer_given;
             const { error } = await supabaseClient.from('requests').insert([payload]);
-            if (error) { setStatus('error','Request failed: ' + error.message); return; }
-            setStatus('success','Request sent. Waiting for creator...');
-
-            // Real-time listener
-            const channel = supabaseClient.channel('my-req-'+nodeProps.id)
-                .on('postgres_changes', { event:'UPDATE', schema:'public', table:'requests', filter:`node_id=eq.${nodeProps.id}` }, payload => {
-                    const req = payload.new;
-                    if (req.requester_id === myUserId) {
-                        if (req.status === 'accepted') {
-                            openChatAndOracle(nodeProps);
-                        } else if (req.status === 'declined') {
-                            setStatus('error','Creator declined');
-                            currentN = null;
-                        }
-                    }
-                }).subscribe();
-            activeChannels.push(channel);
-
-            // Fallback polling for 30 seconds in case realtime fails
-            let attempts = 0;
-            const maxAttempts = 15; // 15 * 2s = 30s
-            const fallback = setInterval(async () => {
-                attempts++;
-                if (attempts > maxAttempts) { clearInterval(fallback); return; }
+            if (error) { setStatus('error', 'Request failed: ' + error.message); return; }
+            setStatus('success', 'Request sent. Waiting for creator...');
+            // Poll for acceptance every 1.5 seconds
+            if (acceptancePoll) clearInterval(acceptancePoll);
+            acceptancePoll = setInterval(async () => {
                 const { data } = await supabaseClient.from('requests')
                     .select('status')
                     .eq('node_id', nodeProps.id)
                     .eq('requester_id', myUserId)
                     .maybeSingle();
-                if (data && data.status === 'accepted') {
-                    clearInterval(fallback);
-                    openChatAndOracle(nodeProps);
-                } else if (data && data.status === 'declined') {
-                    clearInterval(fallback);
-                    setStatus('error','Creator declined');
+                if (!data) return;
+                if (data.status === 'accepted') {
+                    clearInterval(acceptancePoll);
+                    acceptancePoll = null;
+                    // Open chat and start Oracle
+                    currentN = { id: nodeProps.id, intent: nodeProps.intent, category: nodeProps.category, node_type: nodeProps.node_type };
+                    document.getElementById('terminal').style.display = 'flex';
+                    document.getElementById('oracle-btn').style.display = 'block';
+                    startChatSync();    // subscribes to messages
+                    startOracleLive();  // subscribes to oracle updates
+                } else if (data.status === 'declined') {
+                    clearInterval(acceptancePoll);
+                    acceptancePoll = null;
+                    setStatus('error', 'Creator declined');
                     currentN = null;
                 }
-            }, 2000);
-            // Store fallback ID so we can clear it later if needed
-            window._fallbackInterval = fallback;
-        }
-
-        function openChatAndOracle(nodeProps) {
-            if (window._fallbackInterval) clearInterval(window._fallbackInterval);
-            currentN = { id: nodeProps.id, intent: nodeProps.intent, category: nodeProps.category, node_type: nodeProps.node_type };
-            document.getElementById('terminal').style.display = 'flex';
-            document.getElementById('oracle-btn').style.display = 'block';
-            startChatSync();
-            startOracleLive();
+            }, 1500);
         }
 
         // ---------- Chat (realtime) ----------
@@ -280,44 +264,45 @@
         document.getElementById('send-btn').addEventListener('click', async () => {
             const val = document.getElementById('chat-in').value;
             if (!val.trim()) return;
-            if (!currentN || !currentN.id) { setStatus('error','No active chat'); return; }
+            if (!currentN || !currentN.id) { setStatus('error', 'No active chat'); return; }
             const { error } = await supabaseClient.from('messages').insert([{ node_id: currentN.id, sender: 'SEEKER', content: val }]);
-            if (error) { console.error('Send failed', error); setStatus('error','Message failed'); return; }
+            if (error) { console.error('Send failed', error); setStatus('error', 'Message failed'); return; }
             document.getElementById('chat-in').value = '';
         });
         function startChatSync() {
-            const msgChannel = supabaseClient.channel('msgs-'+currentN.id)
-                .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:'node_id=eq.'+currentN.id }, p => {
+            const msgChannel = supabaseClient.channel('msgs-' + currentN.id)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'node_id=eq.' + currentN.id }, p => {
                     if (p.new.id > lastMsgId) { addMessageToChat(p.new); lastMsgId = p.new.id; }
                 }).subscribe();
             activeChannels.push(msgChannel);
         }
 
-        // ---------- Oracle (manual) ----------
-        window.initiateOracle = async function(){
-            await supabaseClient.from('oracle_sessions').upsert({bridge_id:currentN.id, u2_lat:FAKE_LAT, u2_lng:FAKE_LNG},{onConflict:'bridge_id'});
+        // ---------- Oracle (manual, realtime) ----------
+        window.initiateOracle = async function() {
+            await supabaseClient.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: FAKE_LAT, u2_lng: FAKE_LNG }, { onConflict: 'bridge_id' });
         };
-        function startOracleLive(){
-            const oracleChannel = supabaseClient.channel('oracle-'+currentN.id)
-                .on('postgres_changes', {event:'*', schema:'public', table:'oracle_sessions', filter:'bridge_id=eq.'+currentN.id}, payload => {
-                    const s=payload.new;
-                    document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase();
-                    document.getElementById('oracle-ballot').style.display='block';
-                    if(s.error_state) return;
-                    if(s.status==='matched') triggerSync(s);
-                    if(s.u1_confirmed&&s.u2_confirmed&&!meetRated) startMeetTimer(s);
-                    if(s.meet_completed&&!meetRated) { cleanupChannels(); showRatingPanel(); }
+        function startOracleLive() {
+            const oracleChannel = supabaseClient.channel('oracle-' + currentN.id)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: 'bridge_id=eq.' + currentN.id }, payload => {
+                    const s = payload.new;
+                    document.getElementById('oracle-ballot').innerText = 'STATUS: ' + s.status.toUpperCase();
+                    document.getElementById('oracle-ballot').style.display = 'block';
+                    if (s.error_state) return;
+                    if (s.status === 'matched') triggerSync(s);
+                    if (s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
+                    if (s.meet_completed && !meetRated) { cleanupChannels(); showRatingPanel(); }
                 }).subscribe();
             activeChannels.push(oracleChannel);
         }
 
-        function triggerSync(s){ /* ... same as before with golden markers ... */ }
-        window.confirmProceed=async function(){ /* ... */ };
+        // ---------- Placeholder for sync/meet/rating (same as stable version) ----------
+        function triggerSync(s){ /* identical to previous golden seeker */ }
+        window.confirmProceed = async function(){ /* ... */ };
         function startMeetTimer(s){ /* ... */ }
         function showRatingPanel(){ /* ... */ }
-        window.submitRating=async function(r){ /* ... */ }
+        window.submitRating = async function(r){ /* ... */ }
 
-        // ---------- Map & node scanning ----------
+        // ---------- Map and scanning ----------
         map.on('load', () => {
             map.addSource('nodes-source', {
                 type: 'geojson',
@@ -383,8 +368,6 @@
             else document.getElementById('status-bar').style.display='none';
         }
         setInterval(scan, 5000);
-
-        // Incomplete missing function stubs (the full code contains complete implementations)
     </script>
 </body>
 </html>

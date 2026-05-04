@@ -145,6 +145,11 @@
 
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
+
+        // ===== CONNECTION DETECTION (NEW) =====
+        window.addEventListener('offline', () => setStatus('warning', '⚠️ Connection lost – waiting...'));
+        window.addEventListener('online', () => { clearStatus(); });
+
         navigator.geolocation.watchPosition(p=>{myLoc={lat:p.coords.latitude,lng:p.coords.longitude};gpsReady=true;gpsFailures=0;clearStatus()},e=>{gpsFailures++;gpsReady=false;if(gpsFailures===1)setStatus('warning','GPS signal weak');if(gpsFailures>5)setStatus('error','GPS unavailable')},{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
         setStatus('info','Waiting for GPS...');
 

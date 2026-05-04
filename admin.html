@@ -73,6 +73,8 @@
             <button class="tab-btn" onclick="switchTab('tags')">TAGS</button>
             <button class="tab-btn" onclick="switchTab('banners')">BANNERS</button>
             <button class="tab-btn" onclick="switchTab('analytics')">ANALYTICS</button>
+            <button class="tab-btn" onclick="switchTab('logs')">LOGS</button>
+            <button class="tab-btn" onclick="switchTab('settings')">SETTINGS</button>
         </div>
         <div id="content"></div>
     </div>
@@ -159,6 +161,8 @@
                 case 'tags': content.innerHTML = await getTagsHTML(); break;
                 case 'banners': content.innerHTML = await getBannersHTML(); break;
                 case 'analytics': content.innerHTML = await getAnalyticsHTML(); break;
+                case 'logs': content.innerHTML = await getLogsHTML(); break;
+                case 'settings': content.innerHTML = await getSettingsHTML(); break;
             }
         }
 
@@ -502,7 +506,6 @@
 
         // ---------- ANALYTICS CHARTS ----------
         async function getAnalyticsHTML() {
-            // 1. Meets per category (last 7 days)
             const sevenDaysAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString();
             const { data: meetsRaw, error: meetsError } = await supabase
                 .from('oracle_sessions')
@@ -512,7 +515,6 @@
 
             let meetsByCategory = {};
             if(meetsRaw && meetsRaw.length > 0) {
-                // Get node categories for these bridges
                 const bridgeIds = meetsRaw.map(m => m.bridge_id).filter(id => id != null);
                 if(bridgeIds.length > 0) {
                     const { data: nodesData } = await supabase
@@ -530,7 +532,6 @@
                 }
             }
 
-            // 2. User growth (last 14 days)
             const fourteenDaysAgo = new Date(Date.now() - 14*24*60*60*1000).toISOString();
             const { data: newUsersRaw } = await supabase
                 .from('users')
@@ -541,7 +542,7 @@
             for(let i=0; i<14; i++) {
                 const d = new Date();
                 d.setDate(d.getDate() - i);
-                const key = d.toISOString().split('T')[0]; // YYYY-MM-DD
+                const key = d.toISOString().split('T')[0];
                 dailyUsers[key] = 0;
             }
             if(newUsersRaw) {
@@ -552,7 +553,6 @@
             }
             const sortedDays = Object.keys(dailyUsers).sort();
 
-            // 3. Peak hours (last 7 days)
             const hourlyMeets = new Array(24).fill(0);
             if(meetsRaw) {
                 meetsRaw.forEach(m => {
@@ -562,7 +562,6 @@
             }
             const maxHourly = Math.max(...hourlyMeets, 1);
 
-            // Build HTML
             let html = '<div class="chart-container"><h3>Meets per Category (Last 7 Days)</h3>';
             const categories = ['social','games','work','parents'];
             const catLabels = {social:'🍻 Social', games:'⚽ Games', work:'🔧 Work', parents:'🧒 Parents'};
@@ -602,6 +601,65 @@
             html += '</div></div>';
 
             return html;
+        }
+
+        // ---------- SYSTEM LOGS ----------
+        async function getLogsHTML() {
+            const { data: logs, error } = await supabase
+                .from('logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(200);
+            if(error) return '<p>Error loading logs.</p>';
+            if(!logs || logs.length === 0) return '<p>No log entries found yet. Logs will appear here as the app runs.</p>';
+
+            let html = '<table><thead><tr><th>Time</th><th>Event</th><th>User</th><th>Details</th></tr></thead><tbody>';
+            logs.forEach(l => {
+                const details = l.details ? JSON.stringify(l.details).slice(0,80) : '';
+                html += `<tr>
+                    <td>${new Date(l.created_at).toLocaleString()}</td>
+                    <td>${l.event_type||''}</td>
+                    <td>${l.user_id||''}</td>
+                    <td>${details}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            return html;
+        }
+
+        // ---------- SETTINGS ----------
+        async function getSettingsHTML() {
+            const { data: settings, error } = await supabase.from('settings').select('*');
+            if(error) return '<p>Error loading settings.</p>';
+            if(!settings || settings.length === 0) return '<p>No settings found. Run the SQL to create defaults.</p>';
+
+            // Build a form
+            let html = '<h3>Global Parameters</h3>';
+            html += '<div style="max-width:500px;margin-bottom:20px;">';
+            settings.forEach(s => {
+                html += `<div class="form-group">
+                    <label>${s.key.replace(/_/g,' ')}</label>
+                    <input id="set-${s.key}" value="${s.value||''}" style="width:100%">
+                </div>`;
+            });
+            html += '<button class="action-btn" onclick="saveSettings()">Save All Settings</button>';
+            html += '</div>';
+            return html;
+        }
+
+        async function saveSettings() {
+            const { data: allSettings } = await supabase.from('settings').select('*');
+            if(!allSettings) return;
+            for(let s of allSettings) {
+                const input = document.getElementById('set-' + s.key);
+                if(!input) continue;
+                const newValue = input.value.trim();
+                if(newValue !== s.value) {
+                    await supabase.from('settings').update({ value: newValue }).eq('key', s.key);
+                }
+            }
+            toast('Settings saved');
+            loadTab('settings');
         }
 
         // Generic modal and toast

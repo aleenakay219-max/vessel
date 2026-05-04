@@ -23,7 +23,7 @@
         table{width:100%;border-collapse:collapse;margin-top:15px;font-size:12px}
         th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #333}
         th{color:#FFD700;font-size:11px;text-transform:uppercase}
-        tr:hover{background:rgba(255,215,0,0.05)}
+        tr:hover{background:rgba(255,215,0,0.05);cursor:pointer}
         .action-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:3px 10px;cursor:pointer;font-size:11px;margin-right:3px}
         .action-btn.danger{border-color:#f00;color:#f00}
         .search-input{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;margin-bottom:15px}
@@ -58,7 +58,6 @@
     <div id="modal" class="modal-overlay"><div class="modal-box" id="modal-content"></div></div>
     <div id="toast" class="toast"></div>
 
-    <!-- Reliable CDN for Supabase UMD -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
     <script>
         // Safety check
@@ -89,46 +88,29 @@
         async function testConnection() {
             try {
                 const { data, error } = await supabase.from('admin_config').select('*').limit(1);
-                if (error) {
-                    alert('Connection failed: ' + error.message);
-                } else {
-                    alert('Connection OK. Got ' + data.length + ' config row(s).');
-                }
-            } catch (e) {
-                alert('Supabase client error: ' + e.message);
-            }
+                if (error) { alert('Connection failed: ' + error.message); }
+                else { alert('Connection OK. Got ' + data.length + ' config row(s).'); }
+            } catch (e) { alert('Supabase client error: ' + e.message); }
         }
 
         async function login() {
             const pw = document.getElementById('pw').value;
             if (!pw) { showLoginError('Please enter a password.'); return; }
-
             try {
                 const encoder = new TextEncoder();
                 const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(pw));
                 const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2,'0')).join('');
-
-                const { data: configRow, error } = await supabase
-                    .from('admin_config')
-                    .select('value')
-                    .eq('key', 'admin_password')
-                    .single();
-
+                const { data: configRow, error } = await supabase.from('admin_config').select('value').eq('key','admin_password').single();
                 if (error) { alert('Database error: ' + error.message); return; }
                 if (!configRow) { alert('admin_config table empty. Run the SQL to insert a password.'); return; }
-
                 if (hashHex === configRow.value) {
                     localStorage.setItem('admin_logged_in', 'true');
                     document.getElementById('login-screen').style.display='none';
                     document.getElementById('dashboard').style.display='flex';
                     isLoggedIn = true;
                     loadTab('stats');
-                } else {
-                    showLoginError('Invalid password. Please try again.');
-                }
-            } catch (e) {
-                alert('Login error: ' + e.message);
-            }
+                } else { showLoginError('Invalid password.'); }
+            } catch (e) { alert('Login error: ' + e.message); }
         }
 
         function logout() {
@@ -155,45 +137,45 @@
             }
         }
 
-        // ---------- STATS TAB ----------
+        // ---------- STATS ----------
         async function getStatsHTML() {
             const now = new Date().toISOString();
             const today = new Date(); today.setHours(0,0,0,0); const todayISO = today.toISOString();
-
             const [usersRes, nodesRes, meetsRes, nodesTodayRes] = await Promise.all([
                 supabase.from('users').select('*', { count: 'exact', head: true }),
                 supabase.from('nodes').select('*', { count: 'exact', head: true }).eq('status','active').gt('expires_at', now),
                 supabase.from('oracle_sessions').select('*', { count: 'exact', head: true }).gte('created_at', todayISO).eq('meet_completed', true),
                 supabase.from('nodes').select('*', { count: 'exact', head: true }).gte('created_at', todayISO)
             ]);
-
-            return `
-                <div class="stats-row">
-                    <div class="stat-card"><h3>${usersRes.count||0}</h3><p>Total Users</p></div>
-                    <div class="stat-card"><h3>${nodesRes.count||0}</h3><p>Active Nodes</p></div>
-                    <div class="stat-card"><h3>${meetsRes.count||0}</h3><p>Meets Today</p></div>
-                    <div class="stat-card"><h3>${nodesTodayRes.count||0}</h3><p>Nodes Created Today</p></div>
-                </div>
-            `;
+            return `<div class="stats-row">
+                <div class="stat-card"><h3>${usersRes.count||0}</h3><p>Total Users</p></div>
+                <div class="stat-card"><h3>${nodesRes.count||0}</h3><p>Active Nodes</p></div>
+                <div class="stat-card"><h3>${meetsRes.count||0}</h3><p>Meets Today</p></div>
+                <div class="stat-card"><h3>${nodesTodayRes.count||0}</h3><p>Nodes Created Today</p></div>
+            </div>`;
         }
 
-        // ---------- USERS TAB ----------
+        // ---------- USERS ----------
         async function getUsersHTML() {
             const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
             if(error) return '<p>Error loading users.</p>';
-
-            let html = '<input class="search-input" id="userSearch" placeholder="Search by name or ID..." oninput="filterUsers()">';
-            html += '<table id="userTable"><thead><tr><th>Avatar</th><th>Name</th><th>Trust</th><th>Meets</th><th>Age</th><th>Actions</th></tr></thead><tbody>';
+            let html = '<input class="search-input" id="userSearch" placeholder="Search by name, ID, or status..." oninput="filterUsers()">';
+            html += '<table id="userTable"><thead><tr><th>Avatar</th><th>Name</th><th>Trust</th><th>Meets</th><th>Age</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
             users.forEach(u => {
-                html += `<tr data-name="${u.display_name||''}" data-id="${u.id}">
+                const status = u.status || 'active';
+                html += `<tr data-name="${u.display_name||''}" data-id="${u.id}" data-status="${status}" onclick="showUserDetail('${u.id}')">
                     <td>${u.avatar_emoji||'🤖'}</td>
                     <td>${u.display_name||'Unknown'}</td>
                     <td>⭐${(u.trust_score||5).toFixed(1)}</td>
                     <td>${u.total_meets||0}</td>
                     <td>${u.age||'N/A'}</td>
-                    <td>
-                        <button class="action-btn" onclick="suspendUser('${u.id}')">Suspend</button>
-                        <button class="action-btn danger" onclick="banUser('${u.id}')">Ban</button>
+                    <td style="color:${status==='active'?'#0f0':'#f00'}">${status}</td>
+                    <td onclick="event.stopPropagation()">
+                        ${status==='active' ? 
+                            `<button class="action-btn" onclick="suspendUser('${u.id}')">Suspend</button>
+                             <button class="action-btn danger" onclick="banUser('${u.id}')">Ban</button>` :
+                            `<button class="action-btn" onclick="reactivateUser('${u.id}')">Reactivate</button>`
+                        }
                     </td>
                 </tr>`;
             });
@@ -206,19 +188,61 @@
             document.querySelectorAll('#userTable tbody tr').forEach(row => {
                 const name = row.getAttribute('data-name').toLowerCase();
                 const id = row.getAttribute('data-id').toLowerCase();
-                row.style.display = (name.includes(q) || id.includes(q)) ? '' : 'none';
+                const status = row.getAttribute('data-status').toLowerCase();
+                row.style.display = (name.includes(q) || id.includes(q) || status.includes(q)) ? '' : 'none';
             });
         }
 
-        async function suspendUser(userId) { toast('Suspend not fully implemented yet (placeholder).'); }
-        async function banUser(userId) { toast('Ban not fully implemented yet (placeholder).'); }
+        async function suspendUser(userId) {
+            showModal('Suspend this user?', async () => {
+                const { error } = await supabase.from('users').update({ status: 'suspended' }).eq('id', userId);
+                if(error) toast('Failed', true); else { toast('User suspended'); loadTab('users'); }
+                closeModal();
+            });
+        }
 
-        // ---------- NODES TAB ----------
+        async function banUser(userId) {
+            showModal('Permanently ban this user?', async () => {
+                const { error } = await supabase.from('users').update({ status: 'banned' }).eq('id', userId);
+                if(error) toast('Failed', true); else { toast('User banned'); loadTab('users'); }
+                closeModal();
+            });
+        }
+
+        async function reactivateUser(userId) {
+            showModal('Reactivate this user?', async () => {
+                const { error } = await supabase.from('users').update({ status: 'active' }).eq('id', userId);
+                if(error) toast('Failed', true); else { toast('User reactivated'); loadTab('users'); }
+                closeModal();
+            });
+        }
+
+        // User detail modal
+        async function showUserDetail(userId) {
+            const { data: user, error } = await supabase.from('users').select('*').eq('id', userId).single();
+            if(error || !user) return;
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                <h3>${user.avatar_emoji||'🤖'} ${user.display_name||'Unknown'}</h3>
+                <p>ID: ${user.id}</p>
+                <p>Age: ${user.age||'N/A'}</p>
+                <p>Nationality: ${user.nationality||'N/A'}</p>
+                <p>Profession: ${user.profession||'N/A'}</p>
+                <p>Trust Score: ⭐${(user.trust_score||5).toFixed(1)}</p>
+                <p>Total Meets: ${user.total_meets||0}</p>
+                <p>Status: ${user.status||'active'}</p>
+                <p>Vibe Tags: ${(user.vibe_tags||[]).join(', ')||'None'}</p>
+                <p>Joined: ${new Date(user.created_at).toLocaleDateString()}</p>
+                <button onclick="closeModal()">Close</button>
+            `;
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        // ---------- NODES ----------
         async function getNodesHTML() {
             const now = new Date().toISOString();
             const { data: nodes, error } = await supabase.from('nodes').select('*').eq('status','active').gt('expires_at', now).order('created_at', { ascending: false });
             if(error) return '<p>Error loading nodes.</p>';
-
             let html = '<table><thead><tr><th>Intent</th><th>Category</th><th>Type</th><th>Creator ID</th><th>Location</th><th>Expires</th><th>Actions</th></tr></thead><tbody>';
             nodes.forEach(n => {
                 html += `<tr>

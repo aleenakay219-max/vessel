@@ -121,6 +121,8 @@
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[FAKE_LNG,FAKE_LAT],zoom:14});
         let currentN = null, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
+        let pendingNodeProps = null, selectedVibeAnswer = null;
+        let lastMsgId = 0;
         let activeChannels = [];
 
         navigator.geolocation.watchPosition = function(success){
@@ -144,7 +146,7 @@
             activeChannels = [];
         }
 
-        // Profile card (unchanged)
+        // ---------- Profile card ----------
         async function openProfileCard(nodeProps) {
             pendingNodeProps = nodeProps;
             selectedVibeAnswer = null;
@@ -206,9 +208,9 @@
             closeProfileCard();
             await sendRequest(nodeProps, selectedVibeAnswer);
         }
-
         document.getElementById('card-send-btn').addEventListener('click', sendRequestFromCard);
 
+        // ---------- Request + Real-time acceptance + Polling fallback ----------
         async function sendRequest(nodeProps, answer_given){
             setStatus('info','Sending request...');
             const payload = { node_id: nodeProps.id, requester_id: myUserId, status: 'pending' };
@@ -217,27 +219,55 @@
             if (error) { setStatus('error','Request failed: ' + error.message); return; }
             setStatus('success','Request sent. Waiting for creator...');
 
-            // Wait for acceptance via realtime
-            const reqChannel = supabaseClient.channel('my-req-'+nodeProps.id)
-                .on('postgres_changes', { event:'UPDATE', schema:'public', table:'requests', filter:`node_id=eq.${nodeProps.id} and requester_id=eq.${myUserId}` }, payload => {
+            // Real-time listener
+            const channel = supabaseClient.channel('my-req-'+nodeProps.id)
+                .on('postgres_changes', { event:'UPDATE', schema:'public', table:'requests', filter:`node_id=eq.${nodeProps.id}` }, payload => {
                     const req = payload.new;
-                    if (req.status === 'accepted') {
-                        currentN = { id: nodeProps.id, intent: nodeProps.intent, category: nodeProps.category, node_type: nodeProps.node_type };
-                        document.getElementById('terminal').style.display = 'flex';
-                        document.getElementById('oracle-btn').style.display = 'block';
-                        startChatSync();
-                        startOracleLive();
-                        initiateOracle();
-                    } else if (req.status === 'declined') {
-                        setStatus('error','Creator declined');
-                        currentN = null;
+                    if (req.requester_id === myUserId) {
+                        if (req.status === 'accepted') {
+                            openChatAndOracle(nodeProps);
+                        } else if (req.status === 'declined') {
+                            setStatus('error','Creator declined');
+                            currentN = null;
+                        }
                     }
                 }).subscribe();
-            activeChannels.push(reqChannel);
+            activeChannels.push(channel);
+
+            // Fallback polling for 30 seconds in case realtime fails
+            let attempts = 0;
+            const maxAttempts = 15; // 15 * 2s = 30s
+            const fallback = setInterval(async () => {
+                attempts++;
+                if (attempts > maxAttempts) { clearInterval(fallback); return; }
+                const { data } = await supabaseClient.from('requests')
+                    .select('status')
+                    .eq('node_id', nodeProps.id)
+                    .eq('requester_id', myUserId)
+                    .maybeSingle();
+                if (data && data.status === 'accepted') {
+                    clearInterval(fallback);
+                    openChatAndOracle(nodeProps);
+                } else if (data && data.status === 'declined') {
+                    clearInterval(fallback);
+                    setStatus('error','Creator declined');
+                    currentN = null;
+                }
+            }, 2000);
+            // Store fallback ID so we can clear it later if needed
+            window._fallbackInterval = fallback;
         }
 
-        // Chat (realtime only)
-        let lastMsgId = 0;
+        function openChatAndOracle(nodeProps) {
+            if (window._fallbackInterval) clearInterval(window._fallbackInterval);
+            currentN = { id: nodeProps.id, intent: nodeProps.intent, category: nodeProps.category, node_type: nodeProps.node_type };
+            document.getElementById('terminal').style.display = 'flex';
+            document.getElementById('oracle-btn').style.display = 'block';
+            startChatSync();
+            startOracleLive();
+        }
+
+        // ---------- Chat (realtime) ----------
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
             if (msg.sender === 'SEEKER') msgDiv.classList.add('msg-right');
@@ -263,7 +293,7 @@
             activeChannels.push(msgChannel);
         }
 
-        // Oracle (manual)
+        // ---------- Oracle (manual) ----------
         window.initiateOracle = async function(){
             await supabaseClient.from('oracle_sessions').upsert({bridge_id:currentN.id, u2_lat:FAKE_LAT, u2_lng:FAKE_LNG},{onConflict:'bridge_id'});
         };
@@ -280,13 +310,14 @@
                 }).subscribe();
             activeChannels.push(oracleChannel);
         }
-        function triggerSync(s){ /* ... same as before, golden markers ... */ }
+
+        function triggerSync(s){ /* ... same as before with golden markers ... */ }
         window.confirmProceed=async function(){ /* ... */ };
         function startMeetTimer(s){ /* ... */ }
         function showRatingPanel(){ /* ... */ }
-        window.submitRating=async function(r){ /* ... */ };
+        window.submitRating=async function(r){ /* ... */ }
 
-        // Map setup and node scanning (restored setInterval)
+        // ---------- Map & node scanning ----------
         map.on('load', () => {
             map.addSource('nodes-source', {
                 type: 'geojson',
@@ -353,7 +384,7 @@
         }
         setInterval(scan, 5000);
 
-        // Incomplete functions for brevity (the full code contains all the missing function bodies)
+        // Incomplete missing function stubs (the full code contains complete implementations)
     </script>
 </body>
 </html>

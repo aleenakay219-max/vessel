@@ -133,7 +133,7 @@
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;}
         function clearStatus(){document.getElementById('status-bar').style.display='none';}
 
-        // ===== CONNECTION DETECTION (NEW) =====
+        // ===== CONNECTION DETECTION =====
         window.addEventListener('offline', () => setStatus('warning', '⚠️ Connection lost – waiting...'));
         window.addEventListener('online', () => { clearStatus(); });
 
@@ -237,7 +237,7 @@
             }, 2000);
         }
 
-        // ---------- Chat (realtime ONLY – polling removed) ----------
+        // ---------- Chat (realtime ONLY) ----------
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
             if (msg.sender === 'SEEKER') msgDiv.classList.add('msg-right');
@@ -255,14 +255,13 @@
             document.getElementById('chat-in').value = '';
         };
         function startChatSync() {
-            // Only realtime – no more fallback polling
             supabaseClient.channel('msgs-'+currentN.id)
                 .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:'node_id=eq.'+currentN.id }, p => {
                     if (p.new.id > lastMsgId) { addMessageToChat(p.new); lastMsgId = p.new.id; }
                 }).subscribe();
         }
 
-        // ---------- Oracle (manual, on click) ----------
+        // ---------- Oracle (manual) ----------
         window.initiateOracle = async function(){
             if (!currentN || !currentN.id) { setStatus('error', 'No active connection'); return; }
             setStatus('info', 'Syncing GPS...');
@@ -347,7 +346,7 @@
             } catch (e) {}
         }
 
-        // ---------- Map & node scanning ----------
+        // ========== VIEWPORT‑BASED NODE SCANNING ==========
         map.on('load', () => {
             map.addSource('nodes-source', {
                 type: 'geojson',
@@ -386,13 +385,37 @@
             });
 
             document.getElementById('status-bar').innerText = 'Scanning...';
-            scan();
+            scan(); // initial load
+
+            // Refresh nodes when the user stops moving the map
+            map.on('moveend', scan);
         });
 
         async function scan(){
             const now = new Date().toISOString();
-            const { data, error } = await supabaseClient.from('nodes').select('*').eq('status','active').gt('expires_at',now);
+            const bounds = map.getBounds();
+            if (!bounds) return;
+
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            // Expand bounds slightly to preload nearby nodes
+            const latMin = sw.lat - 0.02;
+            const latMax = ne.lat + 0.02;
+            const lngMin = sw.lng - 0.02;
+            const lngMax = ne.lng + 0.02;
+
+            const { data, error } = await supabaseClient.from('nodes')
+                .select('*')
+                .eq('status','active')
+                .gt('expires_at', now)
+                .gte('lat', latMin)
+                .lte('lat', latMax)
+                .gte('lng', lngMin)
+                .lte('lng', lngMax)
+                .limit(200); // safety limit
+
             if (error) { setStatus('error','Connection issue'); return; }
+
             const features = (data || []).map(node => ({
                 type: 'Feature',
                 geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
@@ -408,11 +431,17 @@
                     expires_at: node.expires_at
                 }
             }));
-            if (map.getSource('nodes-source')) map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
-            if (features.length === 0) setStatus('info','No active nodes. Scanning...');
-            else document.getElementById('status-bar').style.display='none';
+
+            if (map.getSource('nodes-source')) {
+                map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
+            }
+
+            if (features.length === 0) {
+                setStatus('info','No active nodes in this area. Scanning...');
+            } else {
+                document.getElementById('status-bar').style.display = 'none';
+            }
         }
-        setInterval(scan, 5000);
     </script>
 </body>
 </html>

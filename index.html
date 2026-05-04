@@ -52,6 +52,19 @@
         .inbox-item .info .name{color:#FFD700;font-size:14px}
         .inbox-item .info .detail{color:#aaa}
         .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #FFD700;color:#FFD700;cursor:pointer;padding:5px 10px}
+        /* Test banner style */
+        .test-banner {
+            background: #000;
+            border: 2px solid #FFD700;
+            color: #FFD700;
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-weight: bold;
+            font-size: 14px;
+            white-space: nowrap;
+            box-shadow: 0 0 12px #FFD700;
+        }
     </style>
 </head>
 <body>
@@ -146,7 +159,7 @@
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
 
-        // ===== CONNECTION DETECTION (NEW) =====
+        // ===== CONNECTION DETECTION =====
         window.addEventListener('offline', () => setStatus('warning', '⚠️ Connection lost – waiting...'));
         window.addEventListener('online', () => { clearStatus(); });
 
@@ -410,6 +423,17 @@
         function showRatingPanel() { document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300); const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10); }
         window.submitRating = async (r) => { if (meetRated) return; meetRated = true; document.getElementById('rate-panel').style.display = 'none'; await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id); setStatus('success', 'Thanks for rating!'); setTimeout(() => location.reload(), 3000); };
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
+
+        // ===== TEST BANNER =====
+        // Place a Starbucks banner at Dubai Marina (25.08, 55.14)
+        map.on('load', () => {
+            const bannerEl = document.createElement('div');
+            bannerEl.className = 'test-banner';
+            bannerEl.innerText = '☕ STARBUCKS';
+            new mapboxgl.Marker(bannerEl)
+                .setLngLat([55.14, 25.08])  // [lng, lat]
+                .addTo(map);
+        });
     </script>
 </body>
 </html>

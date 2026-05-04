@@ -133,6 +133,10 @@
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;}
         function clearStatus(){document.getElementById('status-bar').style.display='none';}
 
+        // ===== CONNECTION DETECTION (NEW) =====
+        window.addEventListener('offline', () => setStatus('warning', '⚠️ Connection lost – waiting...'));
+        window.addEventListener('online', () => { clearStatus(); });
+
         async function ensureUser(){
             const { data } = await supabaseClient.from('users').select('id').eq('id', myUserId).limit(1);
             if (!data || data.length === 0) { await supabaseClient.from('users').insert([{ id: myUserId, trust_score: 5.0, total_meets: 0 }]); }

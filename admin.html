@@ -28,7 +28,7 @@
         .action-btn.danger{border-color:#f00;color:#f00}
         .search-input{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;margin-bottom:15px}
         .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:999;align-items:center;justify-content:center}
-        .modal-box{background:#000;border:2px solid #FFD700;padding:20px;max-width:400px;width:90%;color:#FFD700;text-align:center}
+        .modal-box{background:#000;border:2px solid #FFD700;padding:20px;max-width:500px;width:90%;color:#FFD700;text-align:left;max-height:80vh;overflow-y:auto}
         .modal-box button{margin:5px;background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 20px;cursor:pointer}
         .toast{position:fixed;top:20px;right:20px;background:#333;border:1px solid #FFD700;color:#FFD700;padding:10px 20px;z-index:1000;display:none}
     </style>
@@ -155,7 +155,7 @@
             </div>`;
         }
 
-        // ---------- USERS ----------
+        // ---------- USERS (unchanged from previous) ----------
         async function getUsersHTML() {
             const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
             if(error) return '<p>Error loading users.</p>';
@@ -217,7 +217,6 @@
             });
         }
 
-        // User detail modal
         async function showUserDetail(userId) {
             const { data: user, error } = await supabase.from('users').select('*').eq('id', userId).single();
             if(error || !user) return;
@@ -238,22 +237,56 @@
             document.getElementById('modal').style.display = 'flex';
         }
 
-        // ---------- NODES ----------
+        // ---------- NODES (enhanced with detail modal & permanent delete) ----------
         async function getNodesHTML() {
             const now = new Date().toISOString();
-            const { data: nodes, error } = await supabase.from('nodes').select('*').eq('status','active').gt('expires_at', now).order('created_at', { ascending: false });
+            // Fetch all nodes (active and expired) for comprehensive view
+            const { data: nodes, error } = await supabase.from('nodes').select('*').order('created_at', { ascending: false }).limit(200);
             if(error) return '<p>Error loading nodes.</p>';
-            let html = '<table><thead><tr><th>Intent</th><th>Category</th><th>Type</th><th>Creator ID</th><th>Location</th><th>Expires</th><th>Actions</th></tr></thead><tbody>';
+            let html = '<table><thead><tr><th>Intent</th><th>Category</th><th>Type</th><th>Status</th><th>Creator ID</th><th>Location</th><th>Expires</th><th>Actions</th></tr></thead><tbody>';
             nodes.forEach(n => {
-                html += `<tr>
-                    <td>${n.intent||'N/A'}</td><td>${n.category||'social'}</td><td>${n.node_type||'one_on_one'}</td>
-                    <td>${n.user_id}</td><td>(${parseFloat(n.lat).toFixed(4)}, ${parseFloat(n.lng).toFixed(4)})</td>
-                    <td>${new Date(n.expires_at).toLocaleTimeString()}</td>
-                    <td><button class="action-btn danger" onclick="expireNode(${n.id})">Expire</button></td>
+                const coords = `(${parseFloat(n.lat).toFixed(4)}, ${parseFloat(n.lng).toFixed(4)})`;
+                const expires = n.expires_at ? new Date(n.expires_at).toLocaleString() : 'N/A';
+                html += `<tr onclick="showNodeDetail(${n.id})">
+                    <td>${n.intent||'N/A'}</td>
+                    <td>${n.category||'social'}</td>
+                    <td>${n.node_type||'one_on_one'}</td>
+                    <td style="color:${n.status==='active'?'#0f0':'#f00'}">${n.status||'active'}</td>
+                    <td>${n.user_id}</td>
+                    <td>${coords}</td>
+                    <td>${expires}</td>
+                    <td onclick="event.stopPropagation()">
+                        ${n.status === 'active' ? `<button class="action-btn danger" onclick="expireNode(${n.id})">Expire</button>` : ''}
+                    </td>
                 </tr>`;
             });
             html += '</tbody></table>';
             return html;
+        }
+
+        async function showNodeDetail(nodeId) {
+            const { data: node, error } = await supabase.from('nodes').select('*').eq('id', nodeId).single();
+            if(error || !node) return;
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                <h3>Node Detail</h3>
+                <p><b>ID:</b> ${node.id}</p>
+                <p><b>Intent:</b> ${node.intent||'N/A'}</p>
+                <p><b>Category:</b> ${node.category||'social'}</p>
+                <p><b>Type:</b> ${node.node_type||'one_on_one'} ${node.max_participants ? '(max '+node.max_participants+')' : ''}</p>
+                <p><b>Status:</b> ${node.status||'active'}</p>
+                <p><b>Creator ID:</b> ${node.user_id}</p>
+                <p><b>Location:</b> ${parseFloat(node.lat).toFixed(4)}, ${parseFloat(node.lng).toFixed(4)}</p>
+                ${node.vibe_question ? `<p><b>Vibe Question:</b> ${node.vibe_question}</p>` : ''}
+                ${node.vibe_answer ? `<p><b>Vibe Answer:</b> ${node.vibe_answer}</p>` : ''}
+                <p><b>Created:</b> ${new Date(node.created_at).toLocaleString()}</p>
+                <p><b>Expires:</b> ${node.expires_at ? new Date(node.expires_at).toLocaleString() : 'N/A'}</p>
+                <hr>
+                <button onclick="closeModal()">Close</button>
+                ${node.status !== 'expired' ? `<button onclick="expireNode(${node.id}); closeModal();">Expire Node</button>` : ''}
+                <button style="border-color:#f00;color:#f00" onclick="deleteNode(${node.id})">Delete Permanently</button>
+            `;
+            document.getElementById('modal').style.display = 'flex';
         }
 
         async function expireNode(nodeId) {
@@ -264,6 +297,15 @@
             });
         }
 
+        async function deleteNode(nodeId) {
+            showModal('Permanently delete this node? This cannot be undone.', async () => {
+                const { error } = await supabase.from('nodes').delete().eq('id', nodeId);
+                if(error) toast('Failed', true); else { toast('Node deleted permanently'); loadTab('nodes'); }
+                closeModal();
+            });
+        }
+
+        // Generic modal
         function showModal(message, onConfirm) {
             document.getElementById('modal').style.display = 'flex';
             document.getElementById('modal-content').innerHTML = `<p>${message}</p>

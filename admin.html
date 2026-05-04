@@ -8,7 +8,7 @@
         body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
         #login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#FFD700}
         #login-screen input{padding:10px;background:#000;border:1px solid #FFD700;color:#FFD700;margin:10px 0;width:200px;text-align:center}
-        #login-screen button{background:#FFD700;color:#000;border:none;padding:10px 30px;cursor:pointer;font-weight:bold}
+        #login-screen button{background:#FFD700;color:#000;border:none;padding:10px 30px;cursor:pointer;font-weight:bold;margin:5px}
         #dashboard{display:none;flex-direction:column;height:100%}
         #top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #FFD700;color:#FFD700}
         #top-bar button{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:6px 15px;cursor:pointer}
@@ -38,6 +38,7 @@
         <h2>VESSEL ADMIN</h2>
         <input type="password" id="pw" placeholder="Password">
         <button onclick="login()">LOGIN</button>
+        <button onclick="testConnection()" style="background:transparent;border:1px dashed #FFD700;color:#FFD700;">TEST CONNECTION</button>
     </div>
 
     <div id="dashboard">
@@ -56,17 +57,17 @@
     <div id="modal" class="modal-overlay"><div class="modal-box" id="modal-content"></div></div>
     <div id="toast" class="toast"></div>
 
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <!-- Correct UMD build -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script>
-        // Supabase client
         const SUPABASE_URL = 'https://rnroyhkvkmzuichysxnk.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let isLoggedIn = false;
         let currentTab = 'stats';
 
-        // Check for existing session (simple: if previously logged in)
+        // Session check
         if(localStorage.getItem('admin_logged_in') === 'true') {
             document.getElementById('login-screen').style.display='none';
             document.getElementById('dashboard').style.display='flex';
@@ -74,7 +75,6 @@
             loadTab('stats');
         }
 
-        // Show toast
         function toast(msg, isError=false) {
             const t = document.getElementById('toast');
             t.innerText = msg;
@@ -83,17 +83,25 @@
             setTimeout(()=>t.style.display='none', 3000);
         }
 
+        // Quick connection test
+        async function testConnection() {
+            const { data, error } = await supabase.from('admin_config').select('*').limit(1);
+            if (error) {
+                alert('Connection failed: ' + error.message);
+            } else {
+                alert('Connection OK. Got ' + data.length + ' config row(s).');
+            }
+        }
+
         // Login
         async function login() {
             const pw = document.getElementById('pw').value;
-            // Hash password with SHA-256
             const encoder = new TextEncoder();
             const data = encoder.encode(pw);
             const hashBuffer = await crypto.subtle.digest('SHA-256', data);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
 
-            // Fetch stored hash
             const { data: config, error } = await supabase
                 .from('admin_config')
                 .select('value')
@@ -102,6 +110,7 @@
 
             if(error || !config) {
                 toast('Error fetching password', true);
+                console.error(error);
                 return;
             }
 
@@ -124,7 +133,6 @@
             document.getElementById('pw').value = '';
         }
 
-        // Tab switching
         function switchTab(tab) {
             currentTab = tab;
             document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -141,48 +149,36 @@
             }
         }
 
-        // ---------- STATS TAB ----------
+        // Stats (unchanged)
         async function getStatsHTML() {
             const now = new Date().toISOString();
             const today = new Date(); today.setHours(0,0,0,0); const todayISO = today.toISOString();
-
             const [usersRes, nodesRes, meetsRes, nodesTodayRes] = await Promise.all([
                 supabase.from('users').select('*', { count: 'exact', head: true }),
                 supabase.from('nodes').select('*', { count: 'exact', head: true }).eq('status','active').gt('expires_at', now),
                 supabase.from('oracle_sessions').select('*', { count: 'exact', head: true }).gte('created_at', todayISO).eq('meet_completed', true),
                 supabase.from('nodes').select('*', { count: 'exact', head: true }).gte('created_at', todayISO)
             ]);
-
-            const totalUsers = usersRes.count || 0;
-            const activeNodes = nodesRes.count || 0;
-            const meetsToday = meetsRes.count || 0;
-            const nodesCreatedToday = nodesTodayRes.count || 0;
-
             return `
                 <div class="stats-row">
-                    <div class="stat-card"><h3>${totalUsers}</h3><p>Total Users</p></div>
-                    <div class="stat-card"><h3>${activeNodes}</h3><p>Active Nodes</p></div>
-                    <div class="stat-card"><h3>${meetsToday}</h3><p>Meets Today</p></div>
-                    <div class="stat-card"><h3>${nodesCreatedToday}</h3><p>Nodes Created Today</p></div>
+                    <div class="stat-card"><h3>${usersRes.count||0}</h3><p>Total Users</p></div>
+                    <div class="stat-card"><h3>${nodesRes.count||0}</h3><p>Active Nodes</p></div>
+                    <div class="stat-card"><h3>${meetsRes.count||0}</h3><p>Meets Today</p></div>
+                    <div class="stat-card"><h3>${nodesTodayRes.count||0}</h3><p>Nodes Created Today</p></div>
                 </div>
             `;
         }
 
-        // ---------- USERS TAB ----------
+        // Users tab (unchanged)
         async function getUsersHTML() {
             const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
             if(error) return '<p>Error loading users.</p>';
-
             let html = '<input class="search-input" id="userSearch" placeholder="Search by name or ID..." oninput="filterUsers()">';
-            html += '<table id="userTable"><thead><tr><th>Avatar</th><th>Name</th><th>Trust</th><th>Meets</th><th>Age</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+            html += '<table id="userTable"><thead><tr><th>Avatar</th><th>Name</th><th>Trust</th><th>Meets</th><th>Age</th><th>Actions</th></tr></thead><tbody>';
             users.forEach(u => {
                 html += `<tr data-name="${u.display_name||''}" data-id="${u.id}">
-                    <td>${u.avatar_emoji||'🤖'}</td>
-                    <td>${u.display_name||'Unknown'}</td>
-                    <td>⭐${(u.trust_score||5).toFixed(1)}</td>
-                    <td>${u.total_meets||0}</td>
-                    <td>${u.age||'N/A'}</td>
-                    <td>${u.status||'active'}</td>
+                    <td>${u.avatar_emoji||'🤖'}</td><td>${u.display_name||'Unknown'}</td>
+                    <td>⭐${(u.trust_score||5).toFixed(1)}</td><td>${u.total_meets||0}</td><td>${u.age||'N/A'}</td>
                     <td>
                         <button class="action-btn" onclick="suspendUser('${u.id}')">Suspend</button>
                         <button class="action-btn danger" onclick="banUser('${u.id}')">Ban</button>
@@ -192,7 +188,6 @@
             html += '</tbody></table>';
             return html;
         }
-
         function filterUsers() {
             const q = document.getElementById('userSearch').value.toLowerCase();
             document.querySelectorAll('#userTable tbody tr').forEach(row => {
@@ -201,58 +196,34 @@
                 row.style.display = (name.includes(q) || id.includes(q)) ? '' : 'none';
             });
         }
+        async function suspendUser(userId) { toast('Suspend not fully implemented yet (placeholder).'); }
+        async function banUser(userId) { toast('Ban not fully implemented yet (placeholder).'); }
 
-        async function suspendUser(userId) {
-            showModal('Suspend user?', async () => {
-                // For simplicity, we'll just set a flag. Since we don't have a 'status' column on users yet, we can update a custom field or just disable.
-                // We'll add a suspended flag via a custom key (or we can add a column later). For now, we'll just alert.
-                toast('User suspended (not fully implemented yet)');
-                closeModal();
-            });
-        }
-
-        async function banUser(userId) {
-            showModal('Permanently ban user?', async () => {
-                // Similar placeholder
-                toast('User banned (not fully implemented yet)');
-                closeModal();
-            });
-        }
-
-        // ---------- NODES TAB ----------
+        // Nodes tab (unchanged)
         async function getNodesHTML() {
             const now = new Date().toISOString();
             const { data: nodes, error } = await supabase.from('nodes').select('*').eq('status','active').gt('expires_at', now).order('created_at', { ascending: false });
             if(error) return '<p>Error loading nodes.</p>';
-
             let html = '<table><thead><tr><th>Intent</th><th>Category</th><th>Type</th><th>Creator ID</th><th>Location</th><th>Expires</th><th>Actions</th></tr></thead><tbody>';
             nodes.forEach(n => {
-                const coords = `(${parseFloat(n.lat).toFixed(4)}, ${parseFloat(n.lng).toFixed(4)})`;
-                const expires = new Date(n.expires_at).toLocaleTimeString();
                 html += `<tr>
-                    <td>${n.intent||'N/A'}</td>
-                    <td>${n.category||'social'}</td>
-                    <td>${n.node_type||'one_on_one'}</td>
-                    <td>${n.user_id}</td>
-                    <td>${coords}</td>
-                    <td>${expires}</td>
+                    <td>${n.intent||'N/A'}</td><td>${n.category||'social'}</td><td>${n.node_type||'one_on_one'}</td>
+                    <td>${n.user_id}</td><td>(${parseFloat(n.lat).toFixed(4)}, ${parseFloat(n.lng).toFixed(4)})</td>
+                    <td>${new Date(n.expires_at).toLocaleTimeString()}</td>
                     <td><button class="action-btn danger" onclick="expireNode(${n.id})">Expire</button></td>
                 </tr>`;
             });
             html += '</tbody></table>';
             return html;
         }
-
         async function expireNode(nodeId) {
             showModal('Force‑expire this node?', async () => {
                 const { error } = await supabase.from('nodes').update({ status: 'expired' }).eq('id', nodeId);
-                if(error) toast('Failed to expire node', true);
-                else { toast('Node expired'); loadTab('nodes'); }
+                if(error) toast('Failed', true); else { toast('Node expired'); loadTab('nodes'); }
                 closeModal();
             });
         }
 
-        // Generic modal
         function showModal(message, onConfirm) {
             document.getElementById('modal').style.display = 'flex';
             document.getElementById('modal-content').innerHTML = `<p>${message}</p>

@@ -54,7 +54,7 @@
     </div>
     <div id="terminal">
         <div id="oracle-ballot">STATUS: PENDING</div>
-        <button id="oracle-btn" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #FFD700;color:#FFD700;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #FFD700;color:#FFD700;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
         <div id="chat-controls" style="display:flex">
             <input type="text" id="chat-in" placeholder="TYPE..." style="flex:1;background:#000;border:1px solid #FFD700;color:#FFD700;padding:10px;outline:none">
@@ -124,7 +124,6 @@
         let pendingNodeProps = null, selectedVibeAnswer = null;
         let lastMsgId = 0;
         let acceptancePoll = null;
-        let activeChannels = [];
 
         navigator.geolocation.watchPosition = function(success){
             success({coords:{latitude:FAKE_LAT,longitude:FAKE_LNG,accuracy:5}});
@@ -141,11 +140,6 @@
             }
         }
         ensureUser();
-
-        function cleanupChannels() {
-            activeChannels.forEach(ch => supabaseClient.removeChannel(ch));
-            activeChannels = [];
-        }
 
         // ---------- Profile card ----------
         async function openProfileCard(nodeProps) {
@@ -244,10 +238,10 @@
                     setStatus('error','Creator declined');
                     currentN = null;
                 }
-            }, 1500);
+            }, 2000);
         }
 
-        // ---------- Chat (realtime) ----------
+        // ---------- Chat (polling for safety, realtime also active) ----------
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
             if (msg.sender === 'SEEKER') msgDiv.classList.add('msg-right');
@@ -266,21 +260,31 @@
             document.getElementById('chat-in').value = '';
         });
         function startChatSync() {
-            const msgChannel = supabaseClient.channel('msgs-'+currentN.id)
+            // realtime
+            supabaseClient.channel('msgs-'+currentN.id)
                 .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:'node_id=eq.'+currentN.id }, p => {
                     if (p.new.id > lastMsgId) { addMessageToChat(p.new); lastMsgId = p.new.id; }
                 }).subscribe();
-            activeChannels.push(msgChannel);
+            // fallback polling (safe)
+            setInterval(async () => {
+                if (!currentN) return;
+                const { data } = await supabaseClient.from('messages')
+                    .select('*')
+                    .eq('node_id', currentN.id)
+                    .order('id', { ascending: true })
+                    .gt('id', lastMsgId);
+                if (data && data.length > 0) {
+                    data.forEach(msg => {
+                        addMessageToChat(msg);
+                        lastMsgId = msg.id;
+                    });
+                }
+            }, 2500);
         }
 
-        // ---------- Oracle (event listener, no onclick) ----------
-        document.getElementById('oracle-btn').addEventListener('click', async function() {
-            if (!currentN || !currentN.id) {
-                setStatus('error', 'No active connection');
-                return;
-            }
-            // debug: you can temporarily uncomment the line below to confirm the button fires
-            // alert('Oracle button clicked');
+        // ---------- Oracle (manual, on click) ----------
+        window.initiateOracle = async function(){
+            if (!currentN || !currentN.id) { setStatus('error', 'No active connection'); return; }
             setStatus('info', 'Syncing GPS...');
             const { error } = await supabaseClient.from('oracle_sessions').upsert({
                 bridge_id: currentN.id,
@@ -292,10 +296,10 @@
                 setStatus('error', 'Oracle sync failed: ' + error.message);
                 console.error(error);
             }
-        });
+        };
 
         function startOracleLive() {
-            const oracleChannel = supabaseClient.channel('oracle-'+currentN.id)
+            supabaseClient.channel('oracle-'+currentN.id)
                 .on('postgres_changes', { event:'*', schema:'public', table:'oracle_sessions', filter:'bridge_id=eq.'+currentN.id }, payload => {
                     const s = payload.new;
                     document.getElementById('oracle-ballot').innerText = 'STATUS: ' + s.status.toUpperCase();
@@ -303,9 +307,8 @@
                     if (s.error_state) { setStatus('error', s.error_state); return; }
                     if (s.status === 'matched') triggerSync(s);
                     if (s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
-                    if (s.meet_completed && !meetRated) { cleanupChannels(); showRatingPanel(); }
+                    if (s.meet_completed && !meetRated) showRatingPanel();
                 }).subscribe();
-            activeChannels.push(oracleChannel);
         }
 
         // ---------- Venue lock, sync, timer, rating ----------

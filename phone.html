@@ -222,7 +222,6 @@
             if (answer_given) payload.answer_given = answer_given;
             const { error } = await supabaseClient.from('requests').insert([payload]);
             if (error) { setStatus('error','Request failed: ' + error.message); return; }
-            // Log request sent
             try { await supabaseClient.from('logs').insert([{event_type:'request_sent', user_id:myUserId, details:{node_id:nodeProps.id}}]); } catch(e) {}
             setStatus('success','Request sent. Waiting for creator...');
             if (acceptancePoll) clearInterval(acceptancePoll);
@@ -361,7 +360,6 @@
             meetRated = true;
             document.getElementById('rate-panel').style.display = 'none';
             await supabaseClient.from('oracle_sessions').update({ u2_rating: r }).eq('bridge_id', currentN.id);
-            // Log rating
             try { await supabaseClient.from('logs').insert([{event_type:'meet_rated', user_id:myUserId, details:{bridge_id:currentN.id, rating:r}}]); } catch(e) {}
             setStatus('success', 'Thanks for rating!');
             showReceipt(currentN.id);
@@ -372,7 +370,7 @@
             else location.reload();
         });
 
-        // ---------- HEATMAP TOGGLE ----------
+        // ========== HEATMAP TOGGLE (with error logging) ==========
         document.getElementById('heatmap-toggle-btn').addEventListener('click', toggleHeatmap);
 
         async function toggleHeatmap() {
@@ -382,58 +380,76 @@
             btn.style.color = heatmapOn ? '#000' : '#FFD700';
 
             if (!heatmapOn) {
-                if (map.getLayer('sector-heatmap')) map.removeLayer('sector-heatmap');
-                if (map.getSource('sector-heatmap')) map.removeSource('sector-heatmap');
+                try {
+                    if (map.getLayer('sector-heatmap')) map.removeLayer('sector-heatmap');
+                    if (map.getSource('sector-heatmap')) map.removeSource('sector-heatmap');
+                } catch (e) { console.warn('Heatmap layer removal error:', e); }
                 return;
             }
 
-            const { data } = await supabaseClient.from('sector_activity')
-                .select('*, sectors(*)')
-                .gt('expires_at', new Date().toISOString());
+            try {
+                const { data, error } = await supabaseClient.from('sector_activity')
+                    .select('*, sectors(*)')
+                    .gt('expires_at', new Date().toISOString());
 
-            if (!data || data.length === 0) return;
+                if (error) { console.error('Supabase error:', error); return; }
+                console.log('Sector activity data:', data);
 
-            const features = data.map(row => {
-                const s = row.sectors;
-                const centerLat = (s.lat_min + s.lat_max) / 2;
-                const centerLng = (s.lng_min + s.lng_max) / 2;
-                const radius = Math.min(2000, row.signal_count * 200 + 400);
-                return {
-                    type: 'Feature',
-                    geometry: { type: 'Point', coordinates: [centerLng, centerLat] },
-                    properties: {
-                        intensity: row.intensity,
-                        signal_count: row.signal_count,
-                        sector_name: s.name,
-                        radius: radius
-                    }
-                };
-            });
+                if (!data || data.length === 0) {
+                    console.log('No sector activity data – the table may be empty or no active nodes are inside the defined sectors.');
+                    return;
+                }
 
-            const geojson = { type: 'FeatureCollection', features };
+                const features = data.map(row => {
+                    const s = row.sectors;
+                    if (!s) return null;
+                    const centerLat = (s.lat_min + s.lat_max) / 2;
+                    const centerLng = (s.lng_min + s.lng_max) / 2;
+                    const radius = Math.min(2000, row.signal_count * 200 + 400);
+                    return {
+                        type: 'Feature',
+                        geometry: { type: 'Point', coordinates: [centerLng, centerLat] },
+                        properties: {
+                            intensity: row.intensity,
+                            signal_count: row.signal_count,
+                            sector_name: s.name,
+                            radius: radius
+                        }
+                    };
+                }).filter(f => f !== null);
 
-            if (map.getSource('sector-heatmap')) {
-                map.getSource('sector-heatmap').setData(geojson);
-            } else {
-                map.addSource('sector-heatmap', { type: 'geojson', data: geojson });
-                map.addLayer({
-                    id: 'sector-heatmap',
-                    type: 'circle',
-                    source: 'sector-heatmap',
-                    paint: {
-                        'circle-radius': ['get', 'radius'],
-                        'circle-color': [
-                            'match', ['get', 'intensity'],
-                            'high', 'rgba(255,80,80,0.25)',
-                            'moderate', 'rgba(255,215,0,0.20)',
-                            'quiet', 'rgba(80,255,80,0.15)',
-                            'rgba(255,215,0,0.10)'
-                        ],
-                        'circle-stroke-color': '#FFD700',
-                        'circle-stroke-width': 1,
-                        'circle-opacity': 0.8
-                    }
-                });
+                if (features.length === 0) {
+                    console.log('No features generated – sector data may be missing or invalid.');
+                    return;
+                }
+
+                const geojson = { type: 'FeatureCollection', features };
+
+                if (map.getSource('sector-heatmap')) {
+                    map.getSource('sector-heatmap').setData(geojson);
+                } else {
+                    map.addSource('sector-heatmap', { type: 'geojson', data: geojson });
+                    map.addLayer({
+                        id: 'sector-heatmap',
+                        type: 'circle',
+                        source: 'sector-heatmap',
+                        paint: {
+                            'circle-radius': ['get', 'radius'],
+                            'circle-color': [
+                                'match', ['get', 'intensity'],
+                                'high', 'rgba(255,80,80,0.25)',
+                                'moderate', 'rgba(255,215,0,0.20)',
+                                'quiet', 'rgba(80,255,80,0.15)',
+                                'rgba(255,215,0,0.10)'
+                            ],
+                            'circle-stroke-color': '#FFD700',
+                            'circle-stroke-width': 1,
+                            'circle-opacity': 0.8
+                        }
+                    });
+                }
+            } catch (e) {
+                console.error('Heatmap toggle error:', e);
             }
         }
 

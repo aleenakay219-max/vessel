@@ -21,9 +21,10 @@
         #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #FFD700;z-index:4000;padding:20px;text-align:center;color:#FFD700;box-sizing:border-box}
         #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #FFD700}
         #profile-gear{position:absolute;top:20px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:20px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
+        #heatmap-toggle-btn{position:absolute;top:70px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:18px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
         #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:6000;padding:20px;color:#FFD700;width:85%;max-width:320px;box-sizing:border-box}
         #profile-panel label{display:block;margin:10px 0 4px;font-size:12px}
-        #profile-panel input, #profile-panel select{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;font-family:monospace;margin-bottom:5px}
+        #profile-panel input,#profile-panel select{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;font-family:monospace;margin-bottom:5px}
         .profile-save-btn{background:#FFD700;color:#000;border:none;padding:10px;margin-top:10px;width:100%;cursor:pointer;font-family:monospace}
         .profile-close-btn{background:transparent;border:1px solid #f00;color:#f00;padding:8px;margin-top:8px;width:100%;cursor:pointer;font-family:monospace}
         #intent-panel{display:none;position:fixed;bottom:110px;left:5%;width:90%;background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:5000;padding:0;box-sizing:border-box;max-height:60vh;overflow-y:auto}
@@ -52,27 +53,18 @@
         .inbox-item .info .name{color:#FFD700;font-size:14px}
         .inbox-item .info .detail{color:#aaa}
         .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #FFD700;color:#FFD700;cursor:pointer;padding:5px 10px}
-        /* Receipt overlay */
-        #receipt-overlay{
-            display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-            background:rgba(0,0,0,0.95); z-index:9999;
-            justify-content:center; align-items:center; flex-direction:column;
-            color:#FFD700; font-family:monospace;
-        }
-        .receipt-card{
-            border:2px solid #FFD700; padding:25px; max-width:320px; width:90%;
-            text-align:left; font-size:14px; line-height:1.6;
-            background:#000; position:relative;
-        }
-        .receipt-card .hash{word-break:break-all; color:#e6b800; font-size:12px;}
-        .receipt-card .ttl{color:#aaa; font-size:11px;}
-        .redacted-bar{background:#FFD700; color:#000; padding:2px 0; margin:5px 0; text-align:center; font-weight:bold; letter-spacing:2px;}
+        #receipt-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:9999;justify-content:center;align-items:center;flex-direction:column;color:#FFD700;font-family:monospace}
+        .receipt-card{border:2px solid #FFD700;padding:25px;max-width:320px;width:90%;text-align:left;font-size:14px;line-height:1.6;background:#000;position:relative}
+        .receipt-card .hash{word-break:break-all;color:#e6b800;font-size:12px}
+        .receipt-card .ttl{color:#aaa;font-size:11px}
+        .redacted-bar{background:#FFD700;color:#000;padding:2px 0;margin:5px 0;text-align:center;font-weight:bold;letter-spacing:2px}
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="status-bar"></div>
     <button id="profile-gear" onclick="openProfilePanel()" title="Profile">⚙️</button>
+    <button id="heatmap-toggle-btn" title="Heatmap">🔥</button>
     <div id="profile-panel">
         <h3 style="margin-top:0;text-align:center">YOUR PROFILE</h3>
         <label>Display Name</label><input type="text" id="prof-name" placeholder="Your public name">
@@ -127,7 +119,6 @@
 
         const MAX_VENUE_DISTANCE_KM = 20, NODE_EXPIRY_MINUTES = 30;
         const params = new URLSearchParams(window.location.search);
-        // ===== MEET DURATION SET TO 2 MINUTES FOR TESTING =====
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
 
         const categories = {
@@ -156,6 +147,8 @@
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[55.39,25.34],zoom:12});
         let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false, gpsReady = false, gpsFailures = 0, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
+        // Heatmap state
+        let heatmapOn = false;
 
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
@@ -298,6 +291,9 @@
                 clearStatus(); setStatus('success', '"' + finalIntent + '" node active! ' + NODE_EXPIRY_MINUTES + ' mins.');
                 new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
 
+                // Log node creation
+                try { await _supabase.from('logs').insert([{event_type:'node_created', user_id:myUserId, details:{node_id:currentN.id, intent:finalIntent}}]); } catch(e) {}
+
                 _supabase.channel('reqs-' + currentN.id)
                     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: 'node_id=eq.' + currentN.id }, () => {
                         clearStatus();
@@ -335,6 +331,8 @@
 
         async function handleRequest(requestId,newStatus){
             await _supabase.from('requests').update({status:newStatus}).eq('id',requestId);
+            // Log acceptance/decline
+            try { await _supabase.from('logs').insert([{event_type:'request_'+newStatus, user_id:myUserId, details:{request_id:requestId, node_id:currentN.id}}]); } catch(e) {}
             if(newStatus==='accepted'){
                 document.getElementById('inbox-panel').style.display='none';
                 if(currentN.node_type === 'one_on_one'){ await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id); }
@@ -421,7 +419,7 @@
         }
         function showRatingPanel() { document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300); const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10); }
 
-        // ===== RECEIPT & MODIFIED RATING =====
+        // Deletion receipt + modified rating
         async function showReceipt(bridgeId) {
             const plain = bridgeId + '|' + Date.now();
             const encoder = new TextEncoder();
@@ -441,6 +439,8 @@
             meetRated = true;
             document.getElementById('rate-panel').style.display = 'none';
             await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id);
+            // Log rating
+            try { await _supabase.from('logs').insert([{event_type:'meet_rated', user_id:myUserId, details:{bridge_id:currentN.id, rating:r}}]); } catch(e) {}
             setStatus('success', 'Thanks for rating!');
             showReceipt(currentN.id);
         };
@@ -451,7 +451,72 @@
             else location.reload();
         });
 
-        // Route drawing (unchanged)
+        // ---------- HEATMAP TOGGLE ----------
+        document.getElementById('heatmap-toggle-btn').addEventListener('click', toggleHeatmap);
+
+        async function toggleHeatmap() {
+            heatmapOn = !heatmapOn;
+            const btn = document.getElementById('heatmap-toggle-btn');
+            btn.style.background = heatmapOn ? '#FFD700' : '#000';
+            btn.style.color = heatmapOn ? '#000' : '#FFD700';
+
+            if (!heatmapOn) {
+                if (map.getLayer('sector-heatmap')) map.removeLayer('sector-heatmap');
+                if (map.getSource('sector-heatmap')) map.removeSource('sector-heatmap');
+                return;
+            }
+
+            const { data } = await _supabase.from('sector_activity')
+                .select('*, sectors(*)')
+                .gt('expires_at', new Date().toISOString());
+
+            if (!data || data.length === 0) return;
+
+            const features = data.map(row => {
+                const s = row.sectors;
+                const centerLat = (s.lat_min + s.lat_max) / 2;
+                const centerLng = (s.lng_min + s.lng_max) / 2;
+                const radius = Math.min(2000, row.signal_count * 200 + 400);
+                return {
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [centerLng, centerLat] },
+                    properties: {
+                        intensity: row.intensity,
+                        signal_count: row.signal_count,
+                        sector_name: s.name,
+                        radius: radius
+                    }
+                };
+            });
+
+            const geojson = { type: 'FeatureCollection', features };
+
+            if (map.getSource('sector-heatmap')) {
+                map.getSource('sector-heatmap').setData(geojson);
+            } else {
+                map.addSource('sector-heatmap', { type: 'geojson', data: geojson });
+                map.addLayer({
+                    id: 'sector-heatmap',
+                    type: 'circle',
+                    source: 'sector-heatmap',
+                    paint: {
+                        'circle-radius': ['get', 'radius'],
+                        'circle-color': [
+                            'match', ['get', 'intensity'],
+                            'high', 'rgba(255,80,80,0.25)',
+                            'moderate', 'rgba(255,215,0,0.20)',
+                            'quiet', 'rgba(80,255,80,0.15)',
+                            'rgba(255,215,0,0.10)'
+                        ],
+                        'circle-stroke-color': '#FFD700',
+                        'circle-stroke-width': 1,
+                        'circle-opacity': 0.8
+                    }
+                });
+            }
+        }
+
+        // Route drawing
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
     </script>
 </body>

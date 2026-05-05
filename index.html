@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        /* ========== ALL STYLES (same as before, included fully) ========== */
         body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
         #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
         #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #FFD700;z-index:3000;padding:10px;text-align:center;color:#FFD700;font-size:12px;box-sizing:border-box}
@@ -23,7 +22,7 @@
         #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #FFD700}
         #profile-gear{position:absolute;top:20px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:20px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
         
-        /* Heatmap UI panel */
+        /* Heatmap UI */
         #heatmap-toggle-btn{position:absolute;top:70px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:18px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
         #heatmap-panel{position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:8px;padding:10px;display:none;flex-direction:column;gap:8px;z-index:2000;min-width:180px}
         .heatmap-circle{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 12px;border-radius:20px;transition:all 0.2s}
@@ -79,28 +78,64 @@
     <button id="profile-gear" onclick="openProfilePanel()" title="Profile">⚙️</button>
     <button id="heatmap-toggle-btn" title="Heatmap">🔥</button>
     <div id="heatmap-panel"></div>
-    <div id="profile-panel">...</div>
+    <div id="profile-panel">
+        <h3 style="margin-top:0;text-align:center">YOUR PROFILE</h3>
+        <label>Display Name</label><input type="text" id="prof-name" placeholder="Your public name">
+        <label>Avatar Emoji</label><input type="text" id="prof-emoji" placeholder="🤖" maxlength="2">
+        <label>Age</label><input type="number" id="prof-age" placeholder="25" min="13" max="120">
+        <label>Nationality</label><input type="text" id="prof-nationality" placeholder="e.g. Indian, Emirati">
+        <label>Profession</label><input type="text" id="prof-profession" placeholder="e.g. Designer, Student">
+        <label>Vibe Tags (comma separated)</label><input type="text" id="prof-tags" placeholder="e.g. Creative, Night Owl">
+        <button class="profile-save-btn" onclick="saveProfile()">SAVE</button>
+        <button class="profile-close-btn" onclick="closeProfilePanel()">CLOSE</button>
+    </div>
     <button id="fab" onclick="openIntentPanel()">+</button>
     <div id="intent-panel"></div>
-    <div id="terminal">...</div>
-    <div id="sync-panel">...</div>
-    <div id="rate-panel">...</div>
-    <div id="nav-hud">...</div>
-    <div id="receipt-overlay">...</div>
+    <div id="terminal">
+        <div id="inbox-panel"></div>
+        <div id="oracle-ballot">STATUS: PENDING</div>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #FFD700;color:#FFD700;margin-bottom:10px;cursor:pointer">[ SYNC GPS WITH ORACLE ]</button>
+        <div id="msg-box"></div>
+        <div style="display:flex">
+            <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter')sendMsg()" style="flex:1;background:#000;border:1px solid #FFD700;color:#FFD700;padding:10px;outline:none">
+            <button onclick="sendMsg()" style="background:#FFD700;color:#000;border:none;padding:10px;margin-left:5px;cursor:pointer;font-weight:bold">SEND</button>
+        </div>
+    </div>
+    <div id="sync-panel">
+        <h2>VENUE LOCKED</h2><p id="sync-venue"></p><p id="sync-status">Waiting for both users to confirm...</p>
+        <button class="sync-btn" id="sync-confirm-btn" onclick="confirmProceed()">[ CONFIRM & PROCEED ]</button>
+    </div>
+    <div id="rate-panel">
+        <h2>MEET COMPLETE</h2><p>How was your experience?</p>
+        <button class="rate-btn" onclick="submitRating(1)">👍</button>
+        <button class="rate-btn" onclick="submitRating(-1)">👎</button>
+    </div>
+    <div id="nav-hud">
+        <h3 id="target-name">MATCHED</h3><p id="meet-timer"></p>
+        <button class="hud-btn" id="terminate-btn">TERMINATE</button>
+    </div>
+    <div id="receipt-overlay">
+        <div class="receipt-card">
+            <div style="font-size:18px;font-weight:bold;border-bottom:1px solid #FFD700;padding-bottom:5px;margin-bottom:10px;">SESSION //REDACTED</div>
+            <div class="redacted-bar">█████ PURGED █████</div>
+            <div style="margin-top:10px;">VERIFY: <span class="hash" id="receipt-hash"></span></div>
+            <div class="ttl" id="receipt-ttl"></div>
+        </div>
+    </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        // ========== SUPABASE & MAPBOX INIT ==========
+        // ========== SUPABASE & MAPBOX ==========
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        // ========== APP CONSTANTS ==========
+        // Constants
         const MAX_VENUE_DISTANCE_KM = 20;
         const NODE_EXPIRY_MINUTES = 30;
-        const HEATMAP_RADIUS_KM = 50;          // how far to search for nodes (from GPS)
-        const HEATMAP_CELL_SIZE_DEG = 0.02;     // ~2.2 km per grid cell
+        const HEATMAP_RADIUS_KM = 50;
+        const HEATMAP_CELL_SIZE_DEG = 0.02; // ~2.2 km
 
         const params = new URLSearchParams(window.location.search);
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
@@ -148,7 +183,7 @@
         async function ensureUser(){const{data}=await _supabase.from('users').select('id').eq('id',myUserId).limit(1);if(!data||data.length===0)await _supabase.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]);}
         ensureUser();
 
-        // Profile functions (full)
+        // Profile functions
         window.openProfilePanel = async () => {
             document.getElementById('profile-panel').style.display = 'block';
             const { data } = await _supabase.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags').eq('id', myUserId).single();
@@ -180,7 +215,7 @@
             else { closeProfilePanel(); setStatus('success', 'Profile updated!'); setTimeout(() => clearStatus(), 2000); }
         };
 
-        // Intent accordion (full)
+        // Build intent accordion
         function buildAccordion(){
             const panel = document.getElementById('intent-panel');
             panel.innerHTML = '';
@@ -239,7 +274,7 @@
         function toggleAccordion(cat) { document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open')); document.getElementById('body-' + cat).classList.toggle('open'); }
         function collapseAll() { document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open')); }
 
-        function selectIntent(cat, intent, isCustom) { /* same as original */ 
+        function selectIntent(cat, intent, isCustom) {
             selectedCategory = cat;
             if (isCustom) { selectedIntent = 'Custom'; customIntentText = ''; document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none'); document.getElementById('custom-' + cat).style.display = 'block'; const vibeRow = document.getElementById('vibe-row-' + cat); if (vibeRow) vibeRow.style.display = 'none'; selectedVibeAnswer = null; }
             else { selectedIntent = intent; customIntentText = ''; document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none');
@@ -284,26 +319,153 @@
             });
         };
 
-        // Inbox, chat, oracle functions (abbreviated for length – same as your working version)
-        async function loadInbox(){ /* keep original */ }
-        async function handleRequest(requestId,newStatus){ /* keep original */ }
-        let lastMsgId = 0;
-        function addMessageToChat(msg){ /* keep original */ }
-        window.sendMsg = async () => { /* keep original */ };
-        function startChatSync(){ /* keep original */ }
-        window.initiateOracle = async () => { /* keep original */ };
-        function startOracleLive(){ /* keep original */ }
-        async function runOracleBrain(s){ /* keep original */ }
-        function triggerSync(s){ /* keep original */ }
-        window.confirmProceed = async () => { /* keep original */ };
-        function startMeetTimer(s){ /* keep original */ }
-        function showRatingPanel(){ /* keep original */ }
-        async function showReceipt(bridgeId){ /* keep original */ }
-        window.submitRating = async (r) => { /* keep original */ };
-        document.getElementById('terminate-btn').addEventListener('click', () => { /* keep original */ });
-        async function drawRoute(id, sLng, sLat, eLng, eLat, color) { /* keep original */ }
+        // Inbox functions
+        async function loadInbox(){
+            if(!currentN) return;
+            const{data:requests} = await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
+            const inbox = document.getElementById('inbox-panel');
+            if(!requests||requests.length===0){inbox.style.display='none';return;}
+            inbox.style.display='block';
+            inbox.innerHTML = '<div style="color:#FFD700;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
+            for(let req of requests){
+                const{data:user} = await _supabase.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets').eq('id',req.requester_id).single();
+                const emoji = user?.avatar_emoji || '🤖'; const name = user?.display_name || 'Unknown'; const trust = user?.trust_score || 5.0; const meets = user?.total_meets || 0; const age = user?.age || 'N/A'; const tags = user?.vibe_tags || [];
+                const item = document.createElement('div'); item.className='inbox-item';
+                const avatarDiv = document.createElement('div'); avatarDiv.className='avatar'; avatarDiv.innerText = emoji;
+                const infoDiv = document.createElement('div'); infoDiv.className='info';
+                infoDiv.innerHTML = `<div class="name">${name}</div><div class="detail">⭐${trust.toFixed(1)} · ${meets} meets · Age ${age}</div><div class="detail">${user?.nationality||''} ${user?.profession?'· '+user.profession:''}</div><div class="tags" style="margin-top:4px">${tags.map(t=>`<span style="background:rgba(255,215,0,0.15);border:1px solid #FFD700;padding:2px 6px;font-size:10px;margin-right:4px">${t}</span>`).join('')}</div>`;
+                if(req.answer_given){ const vibeLabel = req.answer_given === 'a' ? (vibeChecks[currentN.intent]?.a || 'Option A') : (vibeChecks[currentN.intent]?.b || 'Option B'); infoDiv.innerHTML += `<div style="color:#FFD700;margin-top:3px">Vibe: ${vibeLabel}</div>`; }
+                const actionsDiv = document.createElement('div'); actionsDiv.className='inbox-actions';
+                const acceptBtn = document.createElement('button'); acceptBtn.innerText='ACCEPT'; acceptBtn.onclick=()=>handleRequest(req.id,'accepted');
+                const declineBtn = document.createElement('button'); declineBtn.innerText='DECLINE'; declineBtn.onclick=()=>handleRequest(req.id,'declined');
+                actionsDiv.appendChild(acceptBtn); actionsDiv.appendChild(declineBtn);
+                item.appendChild(avatarDiv); item.appendChild(infoDiv); item.appendChild(actionsDiv);
+                inbox.appendChild(item);
+            }
+        }
 
-        // ========== NEW DYNAMIC GRID HEATMAP (no SQL tables needed) ==========
+        async function handleRequest(requestId,newStatus){
+            await _supabase.from('requests').update({status:newStatus}).eq('id',requestId);
+            try { await _supabase.from('logs').insert([{event_type:'request_'+newStatus, user_id:myUserId, details:{request_id:requestId, node_id:currentN.id}}]); } catch(e) {}
+            if(newStatus==='accepted'){
+                document.getElementById('inbox-panel').style.display='none';
+                if(currentN.node_type === 'one_on_one'){ await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id); }
+                startChatSync(); startOracleLive();
+            }
+            loadInbox();
+        }
+
+        // Chat
+        let lastMsgId = 0;
+        function addMessageToChat(msg) {
+            const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
+            if (msg.sender === 'CREATOR') msgDiv.classList.add('msg-right'); else msgDiv.classList.add('msg-left');
+            msgDiv.innerText = msg.content;
+            document.getElementById('msg-box').appendChild(msgDiv);
+            document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
+            document.getElementById('oracle-btn').style.display = 'block';
+        }
+        window.sendMsg = async () => {
+            const val = document.getElementById('chat-in').value; if (!val.trim()) return;
+            const { error } = await _supabase.from('messages').insert([{node_id: currentN.id, sender: 'CREATOR', content: val}]);
+            if (error) { setStatus('error', 'Failed to send'); return; }
+            document.getElementById('chat-in').value = '';
+        };
+        function startChatSync() {
+            _supabase.channel('msgs-' + currentN.id)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'node_id=eq.' + currentN.id }, p => {
+                    if (p.new.id > lastMsgId) { addMessageToChat(p.new); lastMsgId = p.new.id; }
+                }).subscribe();
+        }
+
+        // Oracle functions
+        window.initiateOracle = async () => { if (!gpsReady || myLoc.lat === 0) { setStatus('error', 'GPS not ready'); return; } setStatus('info', 'Syncing GPS...'); await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' }); };
+        function startOracleLive() {
+            _supabase.channel('oracle-' + currentN.id)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: 'bridge_id=eq.' + currentN.id }, async payload => {
+                    const s = payload.new; if (s.error_state) { setStatus('error', s.error_state); return; }
+                    document.getElementById('oracle-ballot').innerText = 'STATUS: ' + s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display = 'block';
+                    const hasGPS = (s.u1_lat && s.u1_lng && s.u2_lat && s.u2_lng && s.u1_lat !== 0 && s.u2_lat !== 0);
+                    if (!hasGPS && s.status === 'pending') setStatus('warning', 'Waiting for both users GPS...');
+                    if (hasGPS && s.status === 'pending') { setStatus('info', 'Oracle calculating...'); await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id); }
+                    if (s.status === 'ready' && !s.options_generated && !oracleProcessed) { oracleProcessed = true; await runOracleBrain(s); }
+                    if (s.status === 'matched') { clearStatus(); triggerSync(s); }
+                    if (s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
+                    if (s.meet_completed && !meetRated) showRatingPanel();
+                }).subscribe();
+        }
+        async function runOracleBrain(s) {
+            const midLat = (s.u1_lat + s.u2_lat) / 2, midLng = (s.u1_lng + s.u2_lng) / 2;
+            const queries = ['cafe', 'coffee shop', 'restaurant', 'mall', 'park']; let bestVenue = null;
+            for (const q of queries) { for (const r of [3, 6, 10, 15, MAX_VENUE_DISTANCE_KM]) { if (bestVenue) break;
+                const box = bbox(midLat, midLng, r);
+                const url = 'https://api.mapbox.com/search/geocode/v6/forward?q=' + encodeURIComponent(q) + '&proximity=' + midLng + ',' + midLat + '&bbox=' + box + '&limit=10&access_token=' + MAPBOX_TOKEN;
+                try { const res = await fetch(url); const d = await res.json();
+                    if (d.features && d.features.length > 0) { const nearby = d.features.filter(f => f.geometry.coordinates[1] && f.geometry.coordinates[0]).map(f => ({ name: f.properties.name || f.properties.full_address || 'Venue', lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], dist: haversine(midLat, midLng, f.geometry.coordinates[1], f.geometry.coordinates[0]) })).filter(v => v.dist <= MAX_VENUE_DISTANCE_KM).sort((a, b) => a.dist - b.dist);
+                        if (nearby.length > 0) { bestVenue = nearby[0]; } }
+                } catch (e) { } }
+                if (bestVenue) break;
+            }
+            if (bestVenue) { await _supabase.from('oracle_sessions').update({ status: 'matched', options_generated: true, error_state: null, selected_venue_name: bestVenue.name, selected_lat: bestVenue.lat, selected_lng: bestVenue.lng, meet_expires_at: new Date(Date.now() + MEET_DURATION_MINUTES * 60 * 1000).toISOString() }).eq('bridge_id', currentN.id); }
+            else { await _supabase.from('oracle_sessions').update({ status: 'matched', options_generated: true, error_state: null, selected_venue_name: 'Midpoint Meeting Spot', selected_lat: midLat, selected_lng: midLng, meet_expires_at: new Date(Date.now() + MEET_DURATION_MINUTES * 60 * 1000).toISOString() }).eq('bridge_id', currentN.id); }
+        }
+        function triggerSync(s) {
+            document.getElementById('terminal').style.display = 'none'; const syncPanel = document.getElementById('sync-panel'); syncPanel.style.display = 'block'; setTimeout(() => syncPanel.style.opacity = '1', 10);
+            document.getElementById('sync-venue').innerText = 'Venue: ' + s.selected_venue_name; document.getElementById('sync-confirm-btn').style.display = 'block'; myConfirmed = false;
+            selectedVenueCoords = { lat: +s.selected_lat, lng: +s.selected_lng };
+            const u1lat = +s.u1_lat, u1lng = +s.u1_lng, u2lat = +s.u2_lat, u2lng = +s.u2_lng, vlat = +s.selected_lat, vlng = +s.selected_lng;
+            new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([u1lng, u1lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#e6b800' }).setLngLat([u2lng, u2lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#fff' }).setLngLat([vlng, vlat]).addTo(map);
+            drawRoute('rA', u1lng, u1lat, vlng, vlat, '#FFD700'); drawRoute('rB', u2lng, u2lat, vlng, vlat, '#e6b800');
+            map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng, u1lat]).extend([u2lng, u2lat]).extend([vlng, vlat]), { padding: 80, duration: 2000 });
+        }
+        window.confirmProceed = async () => { myConfirmed = true; document.getElementById('sync-confirm-btn').style.display = 'none'; document.getElementById('sync-status').innerText = 'Waiting for other user...'; await _supabase.from('oracle_sessions').update({ u1_confirmed: true }).eq('bridge_id', currentN.id); };
+        function startMeetTimer(s) {
+            document.getElementById('sync-panel').style.opacity = '0'; setTimeout(() => document.getElementById('sync-panel').style.display = 'none', 300);
+            const navHud = document.getElementById('nav-hud'); navHud.style.display = 'block'; setTimeout(() => navHud.style.opacity = '1', 10);
+            document.getElementById('target-name').innerText = 'MEET AT: ' + s.selected_venue_name.toUpperCase();
+            let remaining = MEET_DURATION_MINUTES * 60;
+            meetTimerInterval = setInterval(async () => { remaining--; const mins = Math.floor(remaining / 60), secs = remaining % 60;
+                document.getElementById('meet-timer').innerText = 'MEET WINDOW: ' + mins + 'm ' + secs + 's';
+                if (remaining <= 0) { clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({ meet_completed: true }).eq('bridge_id', currentN.id); }
+            }, 1000);
+        }
+        function showRatingPanel() { document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300); const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10); }
+
+        // Receipt & rating
+        async function showReceipt(bridgeId) {
+            const plain = bridgeId + '|' + Date.now();
+            const encoder = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(plain));
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+            const shortHash = hashHex.slice(0,16) + '...' + hashHex.slice(-16);
+            try { await _supabase.from('deletion_receipts').upsert({ bridge_id: bridgeId, hash: hashHex }); } catch(e) {}
+            document.getElementById('receipt-hash').innerText = shortHash;
+            document.getElementById('receipt-ttl').innerText = 'TTL EXPIRES: ' + new Date(Date.now() + 30*60*1000).toLocaleTimeString();
+            document.getElementById('receipt-overlay').style.display = 'flex';
+            setTimeout(() => { location.reload(); }, 3000);
+        }
+
+        window.submitRating = async (r) => {
+            if (meetRated) return;
+            meetRated = true;
+            document.getElementById('rate-panel').style.display = 'none';
+            await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id);
+            try { await _supabase.from('logs').insert([{event_type:'meet_rated', user_id:myUserId, details:{bridge_id:currentN.id, rating:r}}]); } catch(e) {}
+            setStatus('success', 'Thanks for rating!');
+            showReceipt(currentN.id);
+        };
+
+        document.getElementById('terminate-btn').addEventListener('click', () => {
+            if (currentN && currentN.id) showReceipt(currentN.id);
+            else location.reload();
+        });
+
+        async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
+
+        // ========== NEW DYNAMIC HEATMAP ==========
         const heatmapPanel = document.getElementById('heatmap-panel');
         const heatmapToggleBtn = document.getElementById('heatmap-toggle-btn');
         let heatmapOn = false;
@@ -329,7 +491,6 @@
             const latMax = centerLat + delta;
             const lngMin = centerLng - delta / Math.cos(centerLat * Math.PI / 180);
             const lngMax = centerLng + delta / Math.cos(centerLat * Math.PI / 180);
-            
             const { data, error } = await _supabase
                 .from('nodes')
                 .select('id, lat, lng')
@@ -339,7 +500,6 @@
                 .lte('lat', latMax)
                 .gte('lng', lngMin)
                 .lte('lng', lngMax);
-            
             if (error) throw error;
             return (data || []).filter(node => 
                 haversine(centerLat, centerLng, node.lat, node.lng) <= radiusKm

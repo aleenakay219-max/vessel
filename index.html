@@ -21,7 +21,17 @@
         #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #FFD700;z-index:4000;padding:20px;text-align:center;color:#FFD700;box-sizing:border-box}
         #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #FFD700}
         #profile-gear{position:absolute;top:20px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:20px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
+        
+        /* NEW HEATMAP UI – panel next to toggle button */
         #heatmap-toggle-btn{position:absolute;top:70px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:18px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
+        #heatmap-panel{position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:8px;padding:10px;display:none;flex-direction:column;gap:8px;z-index:2000;min-width:180px}
+        .heatmap-circle{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 12px;border-radius:20px;transition:all 0.2s}
+        .heatmap-circle:hover{background:rgba(255,215,0,0.15)}
+        .circle-dot{width:20px;height:20px;border-radius:50%;display:inline-block}
+        .circle-label{font-size:12px;color:#FFD700}
+        .circle-stats{font-size:10px;color:#aaa;margin-left:auto}
+        .heatmap-loading{position:absolute;top:115px;left:70px;background:#000;border:1px solid #FFD700;padding:4px 8px;font-size:10px;color:#FFD700;z-index:2000;display:none}
+        
         #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:6000;padding:20px;color:#FFD700;width:85%;max-width:320px;box-sizing:border-box}
         #profile-panel label{display:block;margin:10px 0 4px;font-size:12px}
         #profile-panel input,#profile-panel select{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;font-family:monospace;margin-bottom:5px}
@@ -58,15 +68,15 @@
         .receipt-card .hash{word-break:break-all;color:#e6b800;font-size:12px}
         .receipt-card .ttl{color:#aaa;font-size:11px}
         .redacted-bar{background:#FFD700;color:#000;padding:2px 0;margin:5px 0;text-align:center;font-weight:bold;letter-spacing:2px}
-        .heatmap-loading{position:absolute;top:120px;left:70px;background:#000;border:1px solid #FFD700;padding:4px 8px;font-size:10px;color:#FFD700;z-index:2000;display:none}
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="status-bar"></div>
-    <div id="heatmap-loading" class="heatmap-loading">Loading heatmap...</div>
+    <div id="heatmap-loading" class="heatmap-loading">Loading...</div>
     <button id="profile-gear" onclick="openProfilePanel()" title="Profile">⚙️</button>
     <button id="heatmap-toggle-btn" title="Heatmap">🔥</button>
+    <div id="heatmap-panel"></div>
     <div id="profile-panel">
         <h3 style="margin-top:0;text-align:center">YOUR PROFILE</h3>
         <label>Display Name</label><input type="text" id="prof-name" placeholder="Your public name">
@@ -149,7 +159,6 @@
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[55.39,25.34],zoom:12});
         let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false, gpsReady = false, gpsFailures = 0, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
-        let heatmapOn = false;
 
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;setTimeout(()=>{if(document.getElementById('status-bar').innerText===m)b.style.display='none'},3000);}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
@@ -292,7 +301,6 @@
                 clearStatus(); setStatus('success', '"' + finalIntent + '" node active! ' + NODE_EXPIRY_MINUTES + ' mins.');
                 new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
 
-                // Log node creation
                 try { await _supabase.from('logs').insert([{event_type:'node_created', user_id:myUserId, details:{node_id:currentN.id, intent:finalIntent}}]); } catch(e) {}
 
                 _supabase.channel('reqs-' + currentN.id)
@@ -305,7 +313,7 @@
             });
         };
 
-        // Inbox with profile
+        // Inbox
         async function loadInbox(){
             if(!currentN) return;
             const{data:requests} = await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
@@ -364,7 +372,7 @@
                 }).subscribe();
         }
 
-        // Oracle, sync, timer, rating
+        // Oracle
         window.initiateOracle = async () => { if (!gpsReady || myLoc.lat === 0) { setStatus('error', 'GPS not ready'); return; } setStatus('info', 'Syncing GPS...'); await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' }); };
         function startOracleLive() {
             _supabase.channel('oracle-' + currentN.id)
@@ -419,7 +427,6 @@
         }
         function showRatingPanel() { document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300); const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10); }
 
-        // Deletion receipt + modified rating
         async function showReceipt(bridgeId) {
             const plain = bridgeId + '|' + Date.now();
             const encoder = new TextEncoder();
@@ -444,143 +451,118 @@
             showReceipt(currentN.id);
         };
 
-        // Terminate button
         document.getElementById('terminate-btn').addEventListener('click', () => {
             if (currentN && currentN.id) showReceipt(currentN.id);
             else location.reload();
         });
 
-        // ========== WORKING HEATMAP TOGGLE ==========
-        document.getElementById('heatmap-toggle-btn').addEventListener('click', toggleHeatmap);
+        async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
 
-        async function toggleHeatmap() {
-            heatmapOn = !heatmapOn;
-            const btn = document.getElementById('heatmap-toggle-btn');
+        // ========== NEW HEATMAP PANEL LOGIC ==========
+        const heatmapPanel = document.getElementById('heatmap-panel');
+        const heatmapToggleBtn = document.getElementById('heatmap-toggle-btn');
+        let heatmapOn = false;
+
+        async function fetchHeatmapData() {
             const loadingDiv = document.getElementById('heatmap-loading');
-            
-            btn.style.background = heatmapOn ? '#FFD700' : '#000';
-            btn.style.color = heatmapOn ? '#000' : '#FFD700';
-
-            if (!heatmapOn) {
-                // Remove heatmap layers
-                try {
-                    if (map.getLayer('sector-heatmap')) map.removeLayer('sector-heatmap');
-                    if (map.getSource('sector-heatmap')) map.removeSource('sector-heatmap');
-                } catch (e) { console.warn('Layer removal error:', e); }
-                return;
-            }
-
-            // Show loading indicator
             loadingDiv.style.display = 'block';
-            
             try {
-                // First, check if sectors table has data
-                const { data: sectorCheck, error: sectorError } = await _supabase.from('sectors').select('id', { count: 'exact', head: true });
-                if (sectorError) { console.error('Sector check error:', sectorError); setStatus('error', 'Cannot fetch sector data'); loadingDiv.style.display = 'none'; return; }
-                
-                if (!sectorCheck || sectorCheck.length === 0) {
-                    setStatus('warning', 'No sectors defined. Add sectors in Admin → SECTORS tab first.');
-                    loadingDiv.style.display = 'none';
-                    // Turn off heatmap since no data
-                    heatmapOn = false;
-                    btn.style.background = '#000';
-                    btn.style.color = '#FFD700';
-                    return;
-                }
-
-                // Fetch sector activity with sector details
                 const { data, error } = await _supabase
                     .from('sector_activity')
                     .select('*, sectors(id, name, city, lat_min, lat_max, lng_min, lng_max)')
-                    .order('computed_at', { ascending: false });
+                    .gt('expires_at', new Date().toISOString());
 
-                if (error) { console.error('Supabase error:', error); setStatus('error', 'Failed to load heatmap data'); loadingDiv.style.display = 'none'; return; }
-                
-                console.log('Sector activity data:', data);
-
-                if (!data || data.length === 0) {
-                    setStatus('warning', 'No heatmap data. Run aggregation in Supabase SQL Editor first.');
-                    loadingDiv.style.display = 'none';
-                    // Turn off heatmap since no data
-                    heatmapOn = false;
-                    btn.style.background = '#000';
-                    btn.style.color = '#FFD700';
-                    return;
-                }
-
-                // Filter only valid sectors
-                const validData = data.filter(row => row.sectors && row.sectors.lat_min && row.sectors.lat_max);
-                
-                if (validData.length === 0) {
-                    setStatus('warning', 'Sector definitions incomplete. Check lat/lng bounds.');
-                    loadingDiv.style.display = 'none';
-                    heatmapOn = false;
-                    btn.style.background = '#000';
-                    btn.style.color = '#FFD700';
-                    return;
-                }
-
-                // Build GeoJSON features from sector activity
-                const features = validData.map(row => {
-                    const s = row.sectors;
-                    const centerLat = (parseFloat(s.lat_min) + parseFloat(s.lat_max)) / 2;
-                    const centerLng = (parseFloat(s.lng_min) + parseFloat(s.lng_max)) / 2;
-                    // Radius based on signal count: min 400m, max 2000m
-                    const radius = Math.min(2000, Math.max(400, row.signal_count * 200 + 400));
-                    
-                    return {
-                        type: 'Feature',
-                        geometry: { type: 'Point', coordinates: [centerLng, centerLat] },
-                        properties: {
-                            intensity: row.intensity || 'quiet',
-                            signal_count: row.signal_count || 0,
-                            sector_name: s.name,
-                            radius: radius
-                        }
-                    };
-                });
-
-                const geojson = { type: 'FeatureCollection', features };
-                console.log('Heatmap features:', features.length);
-
-                // Add or update source and layer
-                if (map.getSource('sector-heatmap')) {
-                    map.getSource('sector-heatmap').setData(geojson);
-                } else {
-                    map.addSource('sector-heatmap', { type: 'geojson', data: geojson });
-                    map.addLayer({
-                        id: 'sector-heatmap',
-                        type: 'circle',
-                        source: 'sector-heatmap',
-                        paint: {
-                            'circle-radius': ['get', 'radius'],
-                            'circle-color': [
-                                'match', ['get', 'intensity'],
-                                'high', 'rgba(255,80,80,0.35)',
-                                'moderate', 'rgba(255,215,0,0.30)',
-                                'quiet', 'rgba(80,255,80,0.20)',
-                                'rgba(255,215,0,0.15)'
-                            ],
-                            'circle-stroke-color': '#FFD700',
-                            'circle-stroke-width': 1.5,
-                            'circle-opacity': 0.85
-                        }
-                    });
-                }
-                
-                setStatus('success', `Heatmap on — ${features.length} active sectors`);
-                setTimeout(() => clearStatus(), 2000);
-                
+                if (error) throw error;
+                if (!data || data.length === 0) return [];
+                // filter valid sectors
+                return data.filter(row => row.sectors && row.sectors.name);
             } catch (e) {
-                console.error('Heatmap toggle error:', e);
-                setStatus('error', 'Heatmap error: ' + e.message);
+                console.error('Heatmap fetch error:', e);
+                setStatus('error', 'Failed to load heatmap data');
+                return [];
             } finally {
                 loadingDiv.style.display = 'none';
             }
         }
 
-        // Route drawing
-        async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
+        function groupByIntensity(data) {
+            const groups = {
+                high: { label: '🔴 HIGH ACTIVITY', color: 'rgba(255,80,80,0.8)', sectors: [] },
+                moderate: { label: '🟡 MODERATE', color: 'rgba(255,215,0,0.8)', sectors: [] },
+                quiet: { label: '🟢 QUIET', color: 'rgba(80,255,80,0.8)', sectors: [] }
+            };
+            data.forEach(item => {
+                const intensity = item.intensity || 'quiet';
+                const sectorName = item.sectors?.name || 'Unknown';
+                const signalCount = item.signal_count || 0;
+                if (groups[intensity]) {
+                    groups[intensity].sectors.push({ name: sectorName, signals: signalCount });
+                }
+            });
+            return groups;
+        }
+
+        function buildHeatmapPanel(data) {
+            if (!data || data.length === 0) {
+                heatmapPanel.innerHTML = '<div style="color:#aaa;font-size:10px;padding:5px">No activity data</div>';
+                return;
+            }
+            const groups = groupByIntensity(data);
+            let hasAny = false;
+            let html = '';
+            for (const [key, grp] of Object.entries(groups)) {
+                if (grp.sectors.length === 0) continue;
+                hasAny = true;
+                const sectorList = grp.sectors.map(s => `${s.name} (${s.signals} sig)`).join(', ');
+                html += `
+                    <div class="heatmap-circle" data-intensity="${key}" data-details="${sectorList.replace(/"/g, '&quot;')}">
+                        <div class="circle-dot" style="background:${grp.color}; box-shadow:0 0 5px ${grp.color};"></div>
+                        <div class="circle-label">${grp.label}</div>
+                        <div class="circle-stats">${grp.sectors.length} area${grp.sectors.length !== 1 ? 's' : ''}</div>
+                    </div>
+                `;
+            }
+            if (!hasAny) {
+                heatmapPanel.innerHTML = '<div style="color:#aaa;font-size:10px;padding:5px">No active sectors</div>';
+                return;
+            }
+            heatmapPanel.innerHTML = html;
+            // attach click handlers
+            document.querySelectorAll('.heatmap-circle').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const intensity = el.dataset.intensity;
+                    const details = el.dataset.details;
+                    let title = '';
+                    if (intensity === 'high') title = '🔴 HIGH ACTIVITY';
+                    else if (intensity === 'moderate') title = '🟡 MODERATE';
+                    else title = '🟢 QUIET';
+                    alert(`${title}\n\n${details}`);
+                });
+            });
+        }
+
+        async function toggleHeatmap() {
+            heatmapOn = !heatmapOn;
+            heatmapToggleBtn.style.background = heatmapOn ? '#FFD700' : '#000';
+            heatmapToggleBtn.style.color = heatmapOn ? '#000' : '#FFD700';
+
+            if (!heatmapOn) {
+                heatmapPanel.style.display = 'none';
+                heatmapPanel.innerHTML = '';
+                return;
+            }
+
+            heatmapPanel.style.display = 'flex';
+            const data = await fetchHeatmapData();
+            if (data.length === 0) {
+                heatmapPanel.innerHTML = '<div style="color:#aaa;font-size:10px;padding:5px">No sector activity. Run aggregation in Supabase.</div>';
+                return;
+            }
+            buildHeatmapPanel(data);
+        }
+
+        heatmapToggleBtn.addEventListener('click', toggleHeatmap);
     </script>
 </body>
 </html>

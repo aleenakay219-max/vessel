@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
+        /* ========== ALL STYLES (identical to your working version, plus heatmap panel) ========== */
         body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
         #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
         #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #FFD700;z-index:3000;padding:10px;text-align:center;color:#FFD700;font-size:12px;box-sizing:border-box}
@@ -28,11 +29,12 @@
         .heatmap-circle{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 12px;border-radius:20px;transition:all 0.2s}
         .heatmap-circle:hover{background:rgba(255,215,0,0.15)}
         .circle-dot{width:20px;height:20px;border-radius:50%;display:inline-block}
-        .circle-label{font-size:12px;color:#FFD700}
-        .circle-stats{font-size:10px;color:#aaa;margin-left:auto}
+        .circle-label{font-size:12px;color:#FFD700;font-weight:bold}
+        .circle-stats{font-size:11px;color:#aaa;margin-left:auto}
         .heatmap-loading{position:absolute;top:115px;left:70px;background:#000;border:1px solid #FFD700;padding:4px 8px;font-size:10px;color:#FFD700;z-index:2000;display:none}
         .heatmap-toast{position:fixed;background:#000;border:1px solid #FFD700;color:#FFD700;padding:8px 12px;border-radius:6px;font-size:11px;z-index:10000;max-width:260px;white-space:normal;pointer-events:none;box-shadow:0 0 10px rgba(0,0,0,0.5);transition:opacity 0.2s}
         
+        /* Profile & intent panels (unchanged from your working version – included fully) */
         #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:6000;padding:20px;color:#FFD700;width:85%;max-width:320px;box-sizing:border-box}
         #profile-panel label{display:block;margin:10px 0 4px;font-size:12px}
         #profile-panel input,#profile-panel select{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;font-family:monospace;margin-bottom:5px}
@@ -134,8 +136,8 @@
         // Constants
         const MAX_VENUE_DISTANCE_KM = 20;
         const NODE_EXPIRY_MINUTES = 30;
-        const HEATMAP_RADIUS_KM = 50;
-        const HEATMAP_CELL_SIZE_DEG = 0.02; // ~2.2 km
+        const HEATMAP_RADIUS_KM = 50;          // radius around user to count nodes
+        const HEATMAP_CELL_SIZE_DEG = 0.02;     // for detailed breakdown only (2.2 km)
 
         const params = new URLSearchParams(window.location.search);
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
@@ -183,7 +185,7 @@
         async function ensureUser(){const{data}=await _supabase.from('users').select('id').eq('id',myUserId).limit(1);if(!data||data.length===0)await _supabase.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]);}
         ensureUser();
 
-        // Profile functions
+        // Profile functions (full implementation)
         window.openProfilePanel = async () => {
             document.getElementById('profile-panel').style.display = 'block';
             const { data } = await _supabase.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags').eq('id', myUserId).single();
@@ -215,7 +217,7 @@
             else { closeProfilePanel(); setStatus('success', 'Profile updated!'); setTimeout(() => clearStatus(), 2000); }
         };
 
-        // Build intent accordion
+        // Intent accordion (full)
         function buildAccordion(){
             const panel = document.getElementById('intent-panel');
             panel.innerHTML = '';
@@ -319,7 +321,7 @@
             });
         };
 
-        // Inbox functions
+        // Inbox functions (full)
         async function loadInbox(){
             if(!currentN) return;
             const{data:requests} = await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
@@ -355,7 +357,7 @@
             loadInbox();
         }
 
-        // Chat
+        // Chat functions (full)
         let lastMsgId = 0;
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
@@ -378,7 +380,7 @@
                 }).subscribe();
         }
 
-        // Oracle functions
+        // Oracle functions (full)
         window.initiateOracle = async () => { if (!gpsReady || myLoc.lat === 0) { setStatus('error', 'GPS not ready'); return; } setStatus('info', 'Syncing GPS...'); await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' }); };
         function startOracleLive() {
             _supabase.channel('oracle-' + currentN.id)
@@ -447,7 +449,6 @@
             document.getElementById('receipt-overlay').style.display = 'flex';
             setTimeout(() => { location.reload(); }, 3000);
         }
-
         window.submitRating = async (r) => {
             if (meetRated) return;
             meetRated = true;
@@ -457,15 +458,13 @@
             setStatus('success', 'Thanks for rating!');
             showReceipt(currentN.id);
         };
-
         document.getElementById('terminate-btn').addEventListener('click', () => {
             if (currentN && currentN.id) showReceipt(currentN.id);
             else location.reload();
         });
-
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
 
-        // ========== NEW DYNAMIC HEATMAP ==========
+        // ========== CORRECTED HEATMAP (OVERALL TOTAL NODES) ==========
         const heatmapPanel = document.getElementById('heatmap-panel');
         const heatmapToggleBtn = document.getElementById('heatmap-toggle-btn');
         let heatmapOn = false;
@@ -506,6 +505,7 @@
             );
         }
 
+        // For breakdown only: group nodes into grid cells
         function groupNodesByGrid(nodes, cellSizeDeg) {
             const grid = new Map();
             nodes.forEach(node => {
@@ -518,45 +518,6 @@
                 grid.get(key).count++;
             });
             return Array.from(grid.values());
-        }
-
-        function buildHeatmapPanelFromGrid(cells) {
-            if (!cells.length) {
-                heatmapPanel.innerHTML = '<div style="color:#aaa;font-size:10px;padding:5px">No active nodes within radius</div>';
-                return;
-            }
-            const groups = {
-                high: { label: '🔴 HIGH ACTIVITY', color: 'rgba(255,80,80,0.8)', cells: [] },
-                moderate: { label: '🟡 MODERATE', color: 'rgba(255,215,0,0.8)', cells: [] },
-                quiet: { label: '🟢 QUIET', color: 'rgba(80,255,80,0.8)', cells: [] }
-            };
-            cells.forEach(cell => {
-                let intensity;
-                if (cell.count >= 10) intensity = 'high';
-                else if (cell.count >= 3) intensity = 'moderate';
-                else intensity = 'quiet';
-                groups[intensity].cells.push(cell);
-            });
-            let html = '';
-            for (const [key, grp] of Object.entries(groups)) {
-                if (grp.cells.length === 0) continue;
-                const totalNodes = grp.cells.reduce((sum, c) => sum + c.count, 0);
-                const summary = `${grp.label} — ${grp.cells.length} area(s), ${totalNodes} total nodes`;
-                html += `
-                    <div class="heatmap-circle" data-summary="${summary.replace(/"/g, '&quot;')}">
-                        <div class="circle-dot" style="background:${grp.color}; box-shadow:0 0 5px ${grp.color};"></div>
-                        <div class="circle-label">${grp.label}</div>
-                        <div class="circle-stats">${grp.cells.length} areas</div>
-                    </div>
-                `;
-            }
-            heatmapPanel.innerHTML = html;
-            document.querySelectorAll('.heatmap-circle').forEach(el => {
-                el.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    showToast(el.dataset.summary, el);
-                });
-            });
         }
 
         async function toggleHeatmap() {
@@ -581,14 +542,53 @@
                     setStatus('warning', 'Using map center (GPS unavailable)');
                 }
                 const nodes = await fetchNodesWithinRadius(centerLat, centerLng, HEATMAP_RADIUS_KM);
-                if (!nodes.length) {
-                    heatmapPanel.innerHTML = `<div style="color:#aaa;font-size:10px;padding:5px">No active nodes within ${HEATMAP_RADIUS_KM} km of your location.</div>`;
+                const totalNodes = nodes.length;
+                let intensity, color, label;
+                if (totalNodes >= 10) {
+                    intensity = 'high';
+                    color = 'rgba(255,80,80,0.8)';
+                    label = '🔴 HIGH ACTIVITY';
+                } else if (totalNodes >= 3) {
+                    intensity = 'moderate';
+                    color = 'rgba(255,215,0,0.8)';
+                    label = '🟡 MODERATE';
+                } else if (totalNodes >= 1) {
+                    intensity = 'quiet';
+                    color = 'rgba(80,255,80,0.8)';
+                    label = '🟢 QUIET';
+                } else {
+                    heatmapPanel.innerHTML = '<div style="color:#aaa;font-size:10px;padding:5px">No active nodes within radius</div>';
                     loadingDiv.style.display = 'none';
                     return;
                 }
+                // Build a detailed breakdown of grid cells
                 const cells = groupNodesByGrid(nodes, HEATMAP_CELL_SIZE_DEG);
-                buildHeatmapPanelFromGrid(cells);
-                setStatus('success', `Heatmap: ${nodes.length} nodes in ${cells.length} areas`);
+                let details = '';
+                if (cells.length === 1) {
+                    details = `${cells[0].count} nodes in this area`;
+                } else {
+                    const highCells = cells.filter(c => c.count >= 10);
+                    const modCells = cells.filter(c => c.count >= 3 && c.count < 10);
+                    const lowCells = cells.filter(c => c.count < 3);
+                    const parts = [];
+                    if (highCells.length) parts.push(`${highCells.length} high‑density area(s)`);
+                    if (modCells.length) parts.push(`${modCells.length} moderate area(s)`);
+                    if (lowCells.length) parts.push(`${lowCells.length} low‑density area(s)`);
+                    details = parts.join(', ') + `. ${totalNodes} total nodes.`;
+                }
+                const summary = `${label} — ${totalNodes} nodes within ${HEATMAP_RADIUS_KM} km. ${details}`;
+                heatmapPanel.innerHTML = `
+                    <div class="heatmap-circle" data-summary="${summary.replace(/"/g, '&quot;')}">
+                        <div class="circle-dot" style="background:${color}; box-shadow:0 0 5px ${color};"></div>
+                        <div class="circle-label">${label}</div>
+                        <div class="circle-stats">${totalNodes} nodes</div>
+                    </div>
+                `;
+                document.querySelector('.heatmap-circle').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showToast(summary, e.currentTarget);
+                });
+                setStatus('success', `Heatmap: ${totalNodes} active nodes within ${HEATMAP_RADIUS_KM} km`);
                 setTimeout(() => clearStatus(), 3000);
             } catch (err) {
                 console.error(err);

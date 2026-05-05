@@ -58,11 +58,13 @@
         .receipt-card .hash{word-break:break-all;color:#e6b800;font-size:12px}
         .receipt-card .ttl{color:#aaa;font-size:11px}
         .redacted-bar{background:#FFD700;color:#000;padding:2px 0;margin:5px 0;text-align:center;font-weight:bold;letter-spacing:2px}
+        .heatmap-loading{position:absolute;top:120px;left:70px;background:#000;border:1px solid #FFD700;padding:4px 8px;font-size:10px;color:#FFD700;z-index:2000;display:none}
     </style>
 </head>
 <body>
     <div id="map"></div>
     <div id="status-bar"></div>
+    <div id="heatmap-loading" class="heatmap-loading">Loading heatmap...</div>
     <button id="profile-gear" onclick="openProfilePanel()" title="Profile">⚙️</button>
     <button id="heatmap-toggle-btn" title="Heatmap">🔥</button>
     <div id="profile-panel">
@@ -147,10 +149,9 @@
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[55.39,25.34],zoom:12});
         let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false, gpsReady = false, gpsFailures = 0, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
-        // Heatmap state
         let heatmapOn = false;
 
-        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m}
+        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;setTimeout(()=>{if(document.getElementById('status-bar').innerText===m)b.style.display='none'},3000);}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
 
         window.addEventListener('offline', () => setStatus('warning', '⚠️ Connection lost – waiting...'));
@@ -318,206 +319,4 @@
                 const item = document.createElement('div'); item.className='inbox-item';
                 const avatarDiv = document.createElement('div'); avatarDiv.className='avatar'; avatarDiv.innerText = emoji;
                 const infoDiv = document.createElement('div'); infoDiv.className='info';
-                infoDiv.innerHTML = `<div class="name">${name}</div><div class="detail">⭐${trust.toFixed(1)} · ${meets} meets · Age ${age}</div><div class="detail">${user?.nationality||''} ${user?.profession?'· '+user.profession:''}</div><div class="tags" style="margin-top:4px">${tags.map(t=>`<span style="background:rgba(255,215,0,0.15);border:1px solid #FFD700;padding:2px 6px;font-size:10px;margin-right:4px">${t}</span>`).join('')}</div>`;
-                if(req.answer_given){ const vibeLabel = req.answer_given === 'a' ? (vibeChecks[currentN.intent]?.a || 'Option A') : (vibeChecks[currentN.intent]?.b || 'Option B'); infoDiv.innerHTML += `<div style="color:#FFD700;margin-top:3px">Vibe: ${vibeLabel}</div>`; }
-                const actionsDiv = document.createElement('div'); actionsDiv.className='inbox-actions';
-                const acceptBtn = document.createElement('button'); acceptBtn.innerText='ACCEPT'; acceptBtn.onclick=()=>handleRequest(req.id,'accepted');
-                const declineBtn = document.createElement('button'); declineBtn.innerText='DECLINE'; declineBtn.onclick=()=>handleRequest(req.id,'declined');
-                actionsDiv.appendChild(acceptBtn); actionsDiv.appendChild(declineBtn);
-                item.appendChild(avatarDiv); item.appendChild(infoDiv); item.appendChild(actionsDiv);
-                inbox.appendChild(item);
-            }
-        }
-
-        async function handleRequest(requestId,newStatus){
-            await _supabase.from('requests').update({status:newStatus}).eq('id',requestId);
-            // Log acceptance/decline
-            try { await _supabase.from('logs').insert([{event_type:'request_'+newStatus, user_id:myUserId, details:{request_id:requestId, node_id:currentN.id}}]); } catch(e) {}
-            if(newStatus==='accepted'){
-                document.getElementById('inbox-panel').style.display='none';
-                if(currentN.node_type === 'one_on_one'){ await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id); }
-                startChatSync(); startOracleLive();
-            }
-            loadInbox();
-        }
-
-        // Chat
-        let lastMsgId = 0;
-        function addMessageToChat(msg) {
-            const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
-            if (msg.sender === 'CREATOR') msgDiv.classList.add('msg-right'); else msgDiv.classList.add('msg-left');
-            msgDiv.innerText = msg.content;
-            document.getElementById('msg-box').appendChild(msgDiv);
-            document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
-            document.getElementById('oracle-btn').style.display = 'block';
-        }
-        window.sendMsg = async () => {
-            const val = document.getElementById('chat-in').value; if (!val.trim()) return;
-            const { error } = await _supabase.from('messages').insert([{node_id: currentN.id, sender: 'CREATOR', content: val}]);
-            if (error) { setStatus('error', 'Failed to send'); return; }
-            document.getElementById('chat-in').value = '';
-        };
-        function startChatSync() {
-            _supabase.channel('msgs-' + currentN.id)
-                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'node_id=eq.' + currentN.id }, p => {
-                    if (p.new.id > lastMsgId) { addMessageToChat(p.new); lastMsgId = p.new.id; }
-                }).subscribe();
-        }
-
-        // Oracle, sync, timer, rating
-        window.initiateOracle = async () => { if (!gpsReady || myLoc.lat === 0) { setStatus('error', 'GPS not ready'); return; } setStatus('info', 'Syncing GPS...'); await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' }); };
-        function startOracleLive() {
-            _supabase.channel('oracle-' + currentN.id)
-                .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: 'bridge_id=eq.' + currentN.id }, async payload => {
-                    const s = payload.new; if (s.error_state) { setStatus('error', s.error_state); return; }
-                    document.getElementById('oracle-ballot').innerText = 'STATUS: ' + s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display = 'block';
-                    const hasGPS = (s.u1_lat && s.u1_lng && s.u2_lat && s.u2_lng && s.u1_lat !== 0 && s.u2_lat !== 0);
-                    if (!hasGPS && s.status === 'pending') setStatus('warning', 'Waiting for both users GPS...');
-                    if (hasGPS && s.status === 'pending') { setStatus('info', 'Oracle calculating...'); await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id); }
-                    if (s.status === 'ready' && !s.options_generated && !oracleProcessed) { oracleProcessed = true; await runOracleBrain(s); }
-                    if (s.status === 'matched') { clearStatus(); triggerSync(s); }
-                    if (s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
-                    if (s.meet_completed && !meetRated) showRatingPanel();
-                }).subscribe();
-        }
-        async function runOracleBrain(s) {
-            const midLat = (s.u1_lat + s.u2_lat) / 2, midLng = (s.u1_lng + s.u2_lng) / 2;
-            const queries = ['cafe', 'coffee shop', 'restaurant', 'mall', 'park']; let bestVenue = null;
-            for (const q of queries) { for (const r of [3, 6, 10, 15, MAX_VENUE_DISTANCE_KM]) { if (bestVenue) break;
-                const box = bbox(midLat, midLng, r);
-                const url = 'https://api.mapbox.com/search/geocode/v6/forward?q=' + encodeURIComponent(q) + '&proximity=' + midLng + ',' + midLat + '&bbox=' + box + '&limit=10&access_token=' + MAPBOX_TOKEN;
-                try { const res = await fetch(url); const d = await res.json();
-                    if (d.features && d.features.length > 0) { const nearby = d.features.filter(f => f.geometry.coordinates[1] && f.geometry.coordinates[0]).map(f => ({ name: f.properties.name || f.properties.full_address || 'Venue', lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], dist: haversine(midLat, midLng, f.geometry.coordinates[1], f.geometry.coordinates[0]) })).filter(v => v.dist <= MAX_VENUE_DISTANCE_KM).sort((a, b) => a.dist - b.dist);
-                        if (nearby.length > 0) { bestVenue = nearby[0]; } }
-                } catch (e) { } }
-                if (bestVenue) break;
-            }
-            if (bestVenue) { await _supabase.from('oracle_sessions').update({ status: 'matched', options_generated: true, error_state: null, selected_venue_name: bestVenue.name, selected_lat: bestVenue.lat, selected_lng: bestVenue.lng, meet_expires_at: new Date(Date.now() + MEET_DURATION_MINUTES * 60 * 1000).toISOString() }).eq('bridge_id', currentN.id); }
-            else { await _supabase.from('oracle_sessions').update({ status: 'matched', options_generated: true, error_state: null, selected_venue_name: 'Midpoint Meeting Spot', selected_lat: midLat, selected_lng: midLng, meet_expires_at: new Date(Date.now() + MEET_DURATION_MINUTES * 60 * 1000).toISOString() }).eq('bridge_id', currentN.id); }
-        }
-        function triggerSync(s) {
-            document.getElementById('terminal').style.display = 'none'; const syncPanel = document.getElementById('sync-panel'); syncPanel.style.display = 'block'; setTimeout(() => syncPanel.style.opacity = '1', 10);
-            document.getElementById('sync-venue').innerText = 'Venue: ' + s.selected_venue_name; document.getElementById('sync-confirm-btn').style.display = 'block'; myConfirmed = false;
-            selectedVenueCoords = { lat: +s.selected_lat, lng: +s.selected_lng };
-            const u1lat = +s.u1_lat, u1lng = +s.u1_lng, u2lat = +s.u2_lat, u2lng = +s.u2_lng, vlat = +s.selected_lat, vlng = +s.selected_lng;
-            new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([u1lng, u1lat]).addTo(map);
-            new mapboxgl.Marker({ color: '#e6b800' }).setLngLat([u2lng, u2lat]).addTo(map);
-            new mapboxgl.Marker({ color: '#fff' }).setLngLat([vlng, vlat]).addTo(map);
-            drawRoute('rA', u1lng, u1lat, vlng, vlat, '#FFD700'); drawRoute('rB', u2lng, u2lat, vlng, vlat, '#e6b800');
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng, u1lat]).extend([u2lng, u2lat]).extend([vlng, vlat]), { padding: 80, duration: 2000 });
-        }
-        window.confirmProceed = async () => { myConfirmed = true; document.getElementById('sync-confirm-btn').style.display = 'none'; document.getElementById('sync-status').innerText = 'Waiting for other user...'; await _supabase.from('oracle_sessions').update({ u1_confirmed: true }).eq('bridge_id', currentN.id); };
-        function startMeetTimer(s) {
-            document.getElementById('sync-panel').style.opacity = '0'; setTimeout(() => document.getElementById('sync-panel').style.display = 'none', 300);
-            const navHud = document.getElementById('nav-hud'); navHud.style.display = 'block'; setTimeout(() => navHud.style.opacity = '1', 10);
-            document.getElementById('target-name').innerText = 'MEET AT: ' + s.selected_venue_name.toUpperCase();
-            let remaining = MEET_DURATION_MINUTES * 60;
-            meetTimerInterval = setInterval(async () => { remaining--; const mins = Math.floor(remaining / 60), secs = remaining % 60;
-                document.getElementById('meet-timer').innerText = 'MEET WINDOW: ' + mins + 'm ' + secs + 's';
-                if (remaining <= 0) { clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({ meet_completed: true }).eq('bridge_id', currentN.id); }
-            }, 1000);
-        }
-        function showRatingPanel() { document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300); const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10); }
-
-        // Deletion receipt + modified rating
-        async function showReceipt(bridgeId) {
-            const plain = bridgeId + '|' + Date.now();
-            const encoder = new TextEncoder();
-            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(plain));
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
-            const shortHash = hashHex.slice(0,16) + '...' + hashHex.slice(-16);
-            try { await _supabase.from('deletion_receipts').upsert({ bridge_id: bridgeId, hash: hashHex }); } catch(e) {}
-            document.getElementById('receipt-hash').innerText = shortHash;
-            document.getElementById('receipt-ttl').innerText = 'TTL EXPIRES: ' + new Date(Date.now() + 30*60*1000).toLocaleTimeString();
-            document.getElementById('receipt-overlay').style.display = 'flex';
-            setTimeout(() => { location.reload(); }, 3000);
-        }
-
-        window.submitRating = async (r) => {
-            if (meetRated) return;
-            meetRated = true;
-            document.getElementById('rate-panel').style.display = 'none';
-            await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id);
-            // Log rating
-            try { await _supabase.from('logs').insert([{event_type:'meet_rated', user_id:myUserId, details:{bridge_id:currentN.id, rating:r}}]); } catch(e) {}
-            setStatus('success', 'Thanks for rating!');
-            showReceipt(currentN.id);
-        };
-
-        // Terminate button
-        document.getElementById('terminate-btn').addEventListener('click', () => {
-            if (currentN && currentN.id) showReceipt(currentN.id);
-            else location.reload();
-        });
-
-        // ---------- HEATMAP TOGGLE ----------
-        document.getElementById('heatmap-toggle-btn').addEventListener('click', toggleHeatmap);
-
-        async function toggleHeatmap() {
-            heatmapOn = !heatmapOn;
-            const btn = document.getElementById('heatmap-toggle-btn');
-            btn.style.background = heatmapOn ? '#FFD700' : '#000';
-            btn.style.color = heatmapOn ? '#000' : '#FFD700';
-
-            if (!heatmapOn) {
-                if (map.getLayer('sector-heatmap')) map.removeLayer('sector-heatmap');
-                if (map.getSource('sector-heatmap')) map.removeSource('sector-heatmap');
-                return;
-            }
-
-            const { data } = await _supabase.from('sector_activity')
-                .select('*, sectors(*)')
-                .gt('expires_at', new Date().toISOString());
-
-            if (!data || data.length === 0) return;
-
-            const features = data.map(row => {
-                const s = row.sectors;
-                const centerLat = (s.lat_min + s.lat_max) / 2;
-                const centerLng = (s.lng_min + s.lng_max) / 2;
-                const radius = Math.min(2000, row.signal_count * 200 + 400);
-                return {
-                    type: 'Feature',
-                    geometry: { type: 'Point', coordinates: [centerLng, centerLat] },
-                    properties: {
-                        intensity: row.intensity,
-                        signal_count: row.signal_count,
-                        sector_name: s.name,
-                        radius: radius
-                    }
-                };
-            });
-
-            const geojson = { type: 'FeatureCollection', features };
-
-            if (map.getSource('sector-heatmap')) {
-                map.getSource('sector-heatmap').setData(geojson);
-            } else {
-                map.addSource('sector-heatmap', { type: 'geojson', data: geojson });
-                map.addLayer({
-                    id: 'sector-heatmap',
-                    type: 'circle',
-                    source: 'sector-heatmap',
-                    paint: {
-                        'circle-radius': ['get', 'radius'],
-                        'circle-color': [
-                            'match', ['get', 'intensity'],
-                            'high', 'rgba(255,80,80,0.25)',
-                            'moderate', 'rgba(255,215,0,0.20)',
-                            'quiet', 'rgba(80,255,80,0.15)',
-                            'rgba(255,215,0,0.10)'
-                        ],
-                        'circle-stroke-color': '#FFD700',
-                        'circle-stroke-width': 1,
-                        'circle-opacity': 0.8
-                    }
-                });
-            }
-        }
-
-        // Route drawing
-        async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
-    </script>
-</body>
-</html>
+                infoDiv.innerHTML = `<div class="name">${name}</div><div class="detail">⭐${trust.toFixed(

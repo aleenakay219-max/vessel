@@ -35,70 +35,18 @@
         #profile-card .vibe-opt.selected{background:#FFD700;color:#000}
         #profile-card .send-btn{display:block;width:100%;margin-top:15px;background:#FFD700;color:#000;border:none;padding:12px;cursor:pointer;font-family:monospace;font-size:15px;font-weight:bold}
         #profile-card .close-card{display:block;width:100%;margin-top:8px;background:transparent;border:1px solid #f00;color:#f00;padding:10px;cursor:pointer;font-family:monospace}
-
-        /* Heatmap toggle */
-        .heatmap-toggle-container {
-            position: absolute;
-            top: 60px;
-            right: 20px;
-            z-index: 1500;
-            background: rgba(0,0,0,0.8);
-            border: 1px solid #FFD700;
-            padding: 6px 12px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-family: monospace;
-            color: #FFD700;
-            font-size: 12px;
-        }
-        .heatmap-switch {
-            position: relative;
-            display: inline-block;
-            width: 36px;
-            height: 18px;
-        }
-        .heatmap-switch input { opacity: 0; width: 0; height: 0; }
-        .heatmap-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #444;
-            transition: 0.3s;
-            border-radius: 18px;
-            border: 1px solid #FFD700;
-        }
-        .heatmap-slider:before {
-            position: absolute;
-            content: "";
-            height: 12px; width: 12px;
-            left: 2px; bottom: 2px;
-            background-color: #FFD700;
-            transition: 0.3s;
-            border-radius: 50%;
-        }
-        input:checked + .heatmap-slider {
-            background-color: #FFD700;
-        }
-        input:checked + .heatmap-slider:before {
-            transform: translateX(18px);
-            background-color: #000;
-        }
+        #heatmap-toggle-btn{position:absolute;top:70px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:18px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
+        #receipt-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:9999;justify-content:center;align-items:center;flex-direction:column;color:#FFD700;font-family:monospace}
+        .receipt-card{border:2px solid #FFD700;padding:25px;max-width:320px;width:90%;text-align:left;font-size:14px;line-height:1.6;background:#000;position:relative}
+        .receipt-card .hash{word-break:break-all;color:#e6b800;font-size:12px}
+        .receipt-card .ttl{color:#aaa;font-size:11px}
+        .redacted-bar{background:#FFD700;color:#000;padding:2px 0;margin:5px 0;text-align:center;font-weight:bold;letter-spacing:2px}
     </style>
 </head>
 <body>
-    <div id="map">
-        <!-- Heatmap toggle -->
-        <div class="heatmap-toggle-container">
-            <span>HEATMAP</span>
-            <label class="heatmap-switch">
-                <input type="checkbox" id="heatmapToggle">
-                <span class="heatmap-slider"></span>
-            </label>
-        </div>
-    </div>
+    <div id="map"></div>
     <div id="status-bar">Loading map...</div>
+    <button id="heatmap-toggle-btn" title="Heatmap">🔥</button>
     <div id="profile-card">
         <div class="emoji" id="card-emoji"></div>
         <div class="name" id="card-name"></div>
@@ -121,21 +69,25 @@
         </div>
     </div>
     <div id="sync-panel">
-        <h2>VENUE LOCKED</h2>
-        <p id="sync-venue"></p>
-        <p id="sync-status">Waiting for both users to confirm...</p>
+        <h2>VENUE LOCKED</h2><p id="sync-venue"></p><p id="sync-status">Waiting for both users to confirm...</p>
         <button class="sync-btn" id="sync-confirm-btn" onclick="confirmProceed()">[ CONFIRM & PROCEED ]</button>
     </div>
     <div id="rate-panel">
-        <h2>MEET COMPLETE</h2>
-        <p>How was your experience?</p>
+        <h2>MEET COMPLETE</h2><p>How was your experience?</p>
         <button class="rate-btn" onclick="submitRating(1)">👍</button>
         <button class="rate-btn" onclick="submitRating(-1)">👎</button>
     </div>
     <div id="nav-hud">
-        <h3 id="target-name">MATCHED</h3>
-        <p id="meet-timer"></p>
-        <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
+        <h3 id="target-name">MATCHED</h3><p id="meet-timer"></p>
+        <button class="hud-btn" id="terminate-btn">TERMINATE</button>
+    </div>
+    <div id="receipt-overlay">
+        <div class="receipt-card">
+            <div style="font-size:18px;font-weight:bold;border-bottom:1px solid #FFD700;padding-bottom:5px;margin-bottom:10px;">SESSION //REDACTED</div>
+            <div class="redacted-bar">█████ PURGED █████</div>
+            <div style="margin-top:10px;">VERIFY: <span class="hash" id="receipt-hash"></span></div>
+            <div class="ttl" id="receipt-ttl"></div>
+        </div>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
@@ -147,23 +99,23 @@
 
         const FAKE_LAT = 25.0800, FAKE_LNG = 55.1400;
         const params = new URLSearchParams(window.location.search);
-        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
+        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
 
         const intentColors = {
             '☕ Coffee':'#FFD700','🚶 Walk':'#00FF88','🍽️ Food':'#FF6B6B','📚 Study':'#6BCBFF',
             '🏋️ Gym':'#FF8C42','🍺 Drinks':'#C084FC','⚽ Sports':'#4ADE80','💬 Chat':'#F472B6',
             '☕ Coffee & Conversation':'#FFD700','🍽️ Foodie Meetup':'#FF6B6B',
-            '🌙 Night Out':'#C084FC','🧘 Chill & Wellness':'#6BCBFF',
+            '🌙 Night Out':'#C084FC','📸 Social Collab':'#FFD700',
             '⚽ Football':'#4ADE80','🏏 Cricket':'#4ADE80','🎾 Tennis':'#4ADE80',
-            '🔨 I Can Help':'#FF8C42','☕ Co‑Working / Study':'#FF8C42','💡 Creative Collab':'#FF8C42',
+            '🔨 I Can Help':'#FF8C42','☕ Co‑Working / Study':'#FF8C42',
             '🧸 Kids’ Playdate':'#C084FC','🤱 Mum2Mum':'#C084FC','👨 Dad’s Crew':'#C084FC','👨‍👩‍👧 Family Hangout':'#C084FC'
         };
         const intentEmojis = {
             '☕ Coffee':'☕','🚶 Walk':'🚶','🍽️ Food':'🍽️','📚 Study':'📚','🏋️ Gym':'🏋️',
             '🍺 Drinks':'🍺','⚽ Sports':'⚽','💬 Chat':'💬',
-            '☕ Coffee & Conversation':'☕','🍽️ Foodie Meetup':'🍽️','🌙 Night Out':'🌙','🧘 Chill & Wellness':'🧘',
+            '☕ Coffee & Conversation':'☕','🍽️ Foodie Meetup':'🍽️','🌙 Night Out':'🌙','📸 Social Collab':'📸',
             '⚽ Football':'⚽','🏏 Cricket':'🏏','🎾 Tennis':'🎾',
-            '🔨 I Can Help':'🔧','☕ Co‑Working / Study':'☕','💡 Creative Collab':'💡',
+            '🔨 I Can Help':'🔧','☕ Co‑Working / Study':'☕',
             '🧸 Kids’ Playdate':'🧒','🤱 Mum2Mum':'🤱','👨 Dad’s Crew':'👨','👨‍👩‍👧 Family Hangout':'👨‍👩‍👧'
         };
         const defaultColor = '#AAAAAA';
@@ -171,7 +123,7 @@
             '☕ Coffee & Conversation': {q:'What kind of coffee vibe?', a:'Loud & social', b:'Quiet & intimate'},
             '🍽️ Foodie Meetup': {q:'What cuisine mood?', a:'Adventurous / new', b:'Comfort / familiar'},
             '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'},
-            '🧘 Chill & Wellness': {q:'How should we chill?', a:'Silent parallel time', b:'Chat while walking'}
+            '📸 Social Collab': {q:'What type of content?', a:'Video / Reels', b:'Photography'}
         };
 
         let myUserId = localStorage.getItem('vessel_user_id');
@@ -183,6 +135,7 @@
         let pendingNodeProps = null, selectedVibeAnswer = null;
         let lastMsgId = 0;
         let acceptancePoll = null;
+        let heatmapOn = false;
 
         navigator.geolocation.watchPosition = function(success){
             success({coords:{latitude:FAKE_LAT,longitude:FAKE_LNG,accuracy:5}});
@@ -192,7 +145,6 @@
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;}
         function clearStatus(){document.getElementById('status-bar').style.display='none';}
 
-        // ===== CONNECTION DETECTION =====
         window.addEventListener('offline', () => setStatus('warning', '⚠️ Connection lost – waiting...'));
         window.addEventListener('online', () => { clearStatus(); });
 
@@ -270,6 +222,8 @@
             if (answer_given) payload.answer_given = answer_given;
             const { error } = await supabaseClient.from('requests').insert([payload]);
             if (error) { setStatus('error','Request failed: ' + error.message); return; }
+            // Log request sent
+            try { await supabaseClient.from('logs').insert([{event_type:'request_sent', user_id:myUserId, details:{node_id:nodeProps.id}}]); } catch(e) {}
             setStatus('success','Request sent. Waiting for creator...');
             if (acceptancePoll) clearInterval(acceptancePoll);
             acceptancePoll = setInterval(async () => {
@@ -296,7 +250,7 @@
             }, 2000);
         }
 
-        // ---------- Chat (realtime ONLY) ----------
+        // ---------- Chat (realtime only) ----------
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
             if (msg.sender === 'SEEKER') msgDiv.classList.add('msg-right');
@@ -386,13 +340,103 @@
             const rp = document.getElementById('rate-panel'); rp.style.display = 'block';
             setTimeout(() => rp.style.opacity = '1', 10);
         }
+
+        // ===== RECEIPT & MODIFIED RATING =====
+        async function showReceipt(bridgeId) {
+            const plain = bridgeId + '|' + Date.now();
+            const encoder = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(plain));
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+            const shortHash = hashHex.slice(0,16) + '...' + hashHex.slice(-16);
+            try { await supabaseClient.from('deletion_receipts').upsert({ bridge_id: bridgeId, hash: hashHex }); } catch(e) {}
+            document.getElementById('receipt-hash').innerText = shortHash;
+            document.getElementById('receipt-ttl').innerText = 'TTL EXPIRES: ' + new Date(Date.now() + 30*60*1000).toLocaleTimeString();
+            document.getElementById('receipt-overlay').style.display = 'flex';
+            setTimeout(() => { location.reload(); }, 3000);
+        }
+
         window.submitRating = async function(r) {
-            if (meetRated) return; meetRated = true;
+            if (meetRated) return;
+            meetRated = true;
             document.getElementById('rate-panel').style.display = 'none';
             await supabaseClient.from('oracle_sessions').update({ u2_rating: r }).eq('bridge_id', currentN.id);
+            // Log rating
+            try { await supabaseClient.from('logs').insert([{event_type:'meet_rated', user_id:myUserId, details:{bridge_id:currentN.id, rating:r}}]); } catch(e) {}
             setStatus('success', 'Thanks for rating!');
-            setTimeout(() => location.reload(), 3000);
+            showReceipt(currentN.id);
         };
+
+        document.getElementById('terminate-btn').addEventListener('click', () => {
+            if (currentN && currentN.id) showReceipt(currentN.id);
+            else location.reload();
+        });
+
+        // ---------- HEATMAP TOGGLE ----------
+        document.getElementById('heatmap-toggle-btn').addEventListener('click', toggleHeatmap);
+
+        async function toggleHeatmap() {
+            heatmapOn = !heatmapOn;
+            const btn = document.getElementById('heatmap-toggle-btn');
+            btn.style.background = heatmapOn ? '#FFD700' : '#000';
+            btn.style.color = heatmapOn ? '#000' : '#FFD700';
+
+            if (!heatmapOn) {
+                if (map.getLayer('sector-heatmap')) map.removeLayer('sector-heatmap');
+                if (map.getSource('sector-heatmap')) map.removeSource('sector-heatmap');
+                return;
+            }
+
+            const { data } = await supabaseClient.from('sector_activity')
+                .select('*, sectors(*)')
+                .gt('expires_at', new Date().toISOString());
+
+            if (!data || data.length === 0) return;
+
+            const features = data.map(row => {
+                const s = row.sectors;
+                const centerLat = (s.lat_min + s.lat_max) / 2;
+                const centerLng = (s.lng_min + s.lng_max) / 2;
+                const radius = Math.min(2000, row.signal_count * 200 + 400);
+                return {
+                    type: 'Feature',
+                    geometry: { type: 'Point', coordinates: [centerLng, centerLat] },
+                    properties: {
+                        intensity: row.intensity,
+                        signal_count: row.signal_count,
+                        sector_name: s.name,
+                        radius: radius
+                    }
+                };
+            });
+
+            const geojson = { type: 'FeatureCollection', features };
+
+            if (map.getSource('sector-heatmap')) {
+                map.getSource('sector-heatmap').setData(geojson);
+            } else {
+                map.addSource('sector-heatmap', { type: 'geojson', data: geojson });
+                map.addLayer({
+                    id: 'sector-heatmap',
+                    type: 'circle',
+                    source: 'sector-heatmap',
+                    paint: {
+                        'circle-radius': ['get', 'radius'],
+                        'circle-color': [
+                            'match', ['get', 'intensity'],
+                            'high', 'rgba(255,80,80,0.25)',
+                            'moderate', 'rgba(255,215,0,0.20)',
+                            'quiet', 'rgba(80,255,80,0.15)',
+                            'rgba(255,215,0,0.10)'
+                        ],
+                        'circle-stroke-color': '#FFD700',
+                        'circle-stroke-width': 1,
+                        'circle-opacity': 0.8
+                    }
+                });
+            }
+        }
+
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
             try {
                 const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + mapboxgl.accessToken;
@@ -405,7 +449,7 @@
             } catch (e) {}
         }
 
-        // ========== VIEWPORT‑BASED NODE SCANNING ==========
+        // ===== VIEWPORT‑BASED NODE SCANNING =====
         map.on('load', () => {
             map.addSource('nodes-source', {
                 type: 'geojson',
@@ -423,36 +467,6 @@
             map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
                 layout:{ 'text-field':['get','emoji'], 'text-font':['Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Arial Unicode MS Bold'], 'text-size':16, 'text-allow-overlap':true },
                 paint:{ 'text-color':'#fff', 'text-halo-color':'#000', 'text-halo-width':1 } });
-
-            // ---- ADD HEATMAP LAYER (uses same nodes-source) ----
-            map.addLayer({
-                id: 'heatmap-layer',
-                type: 'heatmap',
-                source: 'nodes-source',
-                paint: {
-                    'heatmap-weight': 1,
-                    'heatmap-intensity': 0.8,
-                    'heatmap-radius': 30,
-                    'heatmap-opacity': 0.7,
-                    'heatmap-color': [
-                        'interpolate', ['linear'], ['heatmap-density'],
-                        0, 'rgba(33,102,172,0)',
-                        0.2, 'rgb(103,169,207)',
-                        0.4, 'rgb(209,229,240)',
-                        0.6, 'rgb(253,219,199)',
-                        0.8, 'rgb(239,138,98)',
-                        1, 'rgb(178,24,43)'
-                    ]
-                },
-                layout: {
-                    'visibility': 'none'
-                }
-            });
-
-            // Toggle switch
-            document.getElementById('heatmapToggle').addEventListener('change', (e) => {
-                map.setLayoutProperty('heatmap-layer', 'visibility', e.target.checked ? 'visible' : 'none');
-            });
 
             const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });
             map.on('mouseenter', 'nodes-unclustered', (e) => {
@@ -482,14 +496,12 @@
             const now = new Date().toISOString();
             const bounds = map.getBounds();
             if (!bounds) return;
-
             const sw = bounds.getSouthWest();
             const ne = bounds.getNorthEast();
             const latMin = sw.lat - 0.02;
             const latMax = ne.lat + 0.02;
             const lngMin = sw.lng - 0.02;
             const lngMax = ne.lng + 0.02;
-
             const { data, error } = await supabaseClient.from('nodes')
                 .select('*')
                 .eq('status','active')
@@ -499,9 +511,7 @@
                 .gte('lng', lngMin)
                 .lte('lng', lngMax)
                 .limit(200);
-
             if (error) { setStatus('error','Connection issue'); return; }
-
             const features = (data || []).map(node => ({
                 type: 'Feature',
                 geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
@@ -517,16 +527,9 @@
                     expires_at: node.expires_at
                 }
             }));
-
-            if (map.getSource('nodes-source')) {
-                map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
-            }
-
-            if (features.length === 0) {
-                setStatus('info','No active nodes in this area. Scanning...');
-            } else {
-                document.getElementById('status-bar').style.display = 'none';
-            }
+            if (map.getSource('nodes-source')) map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
+            if (features.length === 0) setStatus('info','No active nodes in this area. Scanning...');
+            else document.getElementById('status-bar').style.display='none';
         }
     </script>
 </body>

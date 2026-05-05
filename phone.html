@@ -35,6 +35,21 @@
         #profile-card .vibe-opt.selected{background:#FFD700;color:#000}
         #profile-card .send-btn{display:block;width:100%;margin-top:15px;background:#FFD700;color:#000;border:none;padding:12px;cursor:pointer;font-family:monospace;font-size:15px;font-weight:bold}
         #profile-card .close-card{display:block;width:100%;margin-top:8px;background:transparent;border:1px solid #f00;color:#f00;padding:10px;cursor:pointer;font-family:monospace}
+        /* Receipt overlay */
+        #receipt-overlay{
+            display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.95); z-index:9999;
+            justify-content:center; align-items:center; flex-direction:column;
+            color:#FFD700; font-family:monospace;
+        }
+        .receipt-card{
+            border:2px solid #FFD700; padding:25px; max-width:320px; width:90%;
+            text-align:left; font-size:14px; line-height:1.6;
+            background:#000; position:relative;
+        }
+        .receipt-card .hash{word-break:break-all; color:#e6b800; font-size:12px;}
+        .receipt-card .ttl{color:#aaa; font-size:11px;}
+        .redacted-bar{background:#FFD700; color:#000; padding:2px 0; margin:5px 0; text-align:center; font-weight:bold; letter-spacing:2px;}
     </style>
 </head>
 <body>
@@ -62,21 +77,25 @@
         </div>
     </div>
     <div id="sync-panel">
-        <h2>VENUE LOCKED</h2>
-        <p id="sync-venue"></p>
-        <p id="sync-status">Waiting for both users to confirm...</p>
+        <h2>VENUE LOCKED</h2><p id="sync-venue"></p><p id="sync-status">Waiting for both users to confirm...</p>
         <button class="sync-btn" id="sync-confirm-btn" onclick="confirmProceed()">[ CONFIRM & PROCEED ]</button>
     </div>
     <div id="rate-panel">
-        <h2>MEET COMPLETE</h2>
-        <p>How was your experience?</p>
+        <h2>MEET COMPLETE</h2><p>How was your experience?</p>
         <button class="rate-btn" onclick="submitRating(1)">👍</button>
         <button class="rate-btn" onclick="submitRating(-1)">👎</button>
     </div>
     <div id="nav-hud">
-        <h3 id="target-name">MATCHED</h3>
-        <p id="meet-timer"></p>
-        <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
+        <h3 id="target-name">MATCHED</h3><p id="meet-timer"></p>
+        <button class="hud-btn" id="terminate-btn">TERMINATE</button>
+    </div>
+    <div id="receipt-overlay">
+        <div class="receipt-card">
+            <div style="font-size:18px;font-weight:bold;border-bottom:1px solid #FFD700;padding-bottom:5px;margin-bottom:10px;">SESSION //REDACTED</div>
+            <div class="redacted-bar">█████ PURGED █████</div>
+            <div style="margin-top:10px;">VERIFY: <span class="hash" id="receipt-hash"></span></div>
+            <div class="ttl" id="receipt-ttl"></div>
+        </div>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
@@ -88,23 +107,24 @@
 
         const FAKE_LAT = 25.0800, FAKE_LNG = 55.1400;
         const params = new URLSearchParams(window.location.search);
-        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
+        // ===== MEET DURATION SET TO 2 MINUTES FOR TESTING =====
+        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
 
         const intentColors = {
             '☕ Coffee':'#FFD700','🚶 Walk':'#00FF88','🍽️ Food':'#FF6B6B','📚 Study':'#6BCBFF',
             '🏋️ Gym':'#FF8C42','🍺 Drinks':'#C084FC','⚽ Sports':'#4ADE80','💬 Chat':'#F472B6',
             '☕ Coffee & Conversation':'#FFD700','🍽️ Foodie Meetup':'#FF6B6B',
-            '🌙 Night Out':'#C084FC','🧘 Chill & Wellness':'#6BCBFF',
+            '🌙 Night Out':'#C084FC','📸 Social Collab':'#FFD700',
             '⚽ Football':'#4ADE80','🏏 Cricket':'#4ADE80','🎾 Tennis':'#4ADE80',
-            '🔨 I Can Help':'#FF8C42','☕ Co‑Working / Study':'#FF8C42','💡 Creative Collab':'#FF8C42',
+            '🔨 I Can Help':'#FF8C42','☕ Co‑Working / Study':'#FF8C42',
             '🧸 Kids’ Playdate':'#C084FC','🤱 Mum2Mum':'#C084FC','👨 Dad’s Crew':'#C084FC','👨‍👩‍👧 Family Hangout':'#C084FC'
         };
         const intentEmojis = {
             '☕ Coffee':'☕','🚶 Walk':'🚶','🍽️ Food':'🍽️','📚 Study':'📚','🏋️ Gym':'🏋️',
             '🍺 Drinks':'🍺','⚽ Sports':'⚽','💬 Chat':'💬',
-            '☕ Coffee & Conversation':'☕','🍽️ Foodie Meetup':'🍽️','🌙 Night Out':'🌙','🧘 Chill & Wellness':'🧘',
+            '☕ Coffee & Conversation':'☕','🍽️ Foodie Meetup':'🍽️','🌙 Night Out':'🌙','📸 Social Collab':'📸',
             '⚽ Football':'⚽','🏏 Cricket':'🏏','🎾 Tennis':'🎾',
-            '🔨 I Can Help':'🔧','☕ Co‑Working / Study':'☕','💡 Creative Collab':'💡',
+            '🔨 I Can Help':'🔧','☕ Co‑Working / Study':'☕',
             '🧸 Kids’ Playdate':'🧒','🤱 Mum2Mum':'🤱','👨 Dad’s Crew':'👨','👨‍👩‍👧 Family Hangout':'👨‍👩‍👧'
         };
         const defaultColor = '#AAAAAA';
@@ -112,7 +132,7 @@
             '☕ Coffee & Conversation': {q:'What kind of coffee vibe?', a:'Loud & social', b:'Quiet & intimate'},
             '🍽️ Foodie Meetup': {q:'What cuisine mood?', a:'Adventurous / new', b:'Comfort / familiar'},
             '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'},
-            '🧘 Chill & Wellness': {q:'How should we chill?', a:'Silent parallel time', b:'Chat while walking'}
+            '📸 Social Collab': {q:'What type of content?', a:'Video / Reels', b:'Photography'}
         };
 
         let myUserId = localStorage.getItem('vessel_user_id');
@@ -133,7 +153,6 @@
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;}
         function clearStatus(){document.getElementById('status-bar').style.display='none';}
 
-        // ===== CONNECTION DETECTION =====
         window.addEventListener('offline', () => setStatus('warning', '⚠️ Connection lost – waiting...'));
         window.addEventListener('online', () => { clearStatus(); });
 
@@ -237,7 +256,7 @@
             }, 2000);
         }
 
-        // ---------- Chat (realtime ONLY) ----------
+        // ---------- Chat (realtime only) ----------
         function addMessageToChat(msg) {
             const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
             if (msg.sender === 'SEEKER') msgDiv.classList.add('msg-right');
@@ -327,13 +346,36 @@
             const rp = document.getElementById('rate-panel'); rp.style.display = 'block';
             setTimeout(() => rp.style.opacity = '1', 10);
         }
+
+        // ===== RECEIPT & MODIFIED RATING =====
+        async function showReceipt(bridgeId) {
+            const plain = bridgeId + '|' + Date.now();
+            const encoder = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(plain));
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+            const shortHash = hashHex.slice(0,16) + '...' + hashHex.slice(-16);
+            try { await supabaseClient.from('deletion_receipts').upsert({ bridge_id: bridgeId, hash: hashHex }); } catch(e) {}
+            document.getElementById('receipt-hash').innerText = shortHash;
+            document.getElementById('receipt-ttl').innerText = 'TTL EXPIRES: ' + new Date(Date.now() + 30*60*1000).toLocaleTimeString();
+            document.getElementById('receipt-overlay').style.display = 'flex';
+            setTimeout(() => { location.reload(); }, 3000);
+        }
+
         window.submitRating = async function(r) {
-            if (meetRated) return; meetRated = true;
+            if (meetRated) return;
+            meetRated = true;
             document.getElementById('rate-panel').style.display = 'none';
             await supabaseClient.from('oracle_sessions').update({ u2_rating: r }).eq('bridge_id', currentN.id);
             setStatus('success', 'Thanks for rating!');
-            setTimeout(() => location.reload(), 3000);
+            showReceipt(currentN.id);
         };
+
+        document.getElementById('terminate-btn').addEventListener('click', () => {
+            if (currentN && currentN.id) showReceipt(currentN.id);
+            else location.reload();
+        });
+
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) {
             try {
                 const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + mapboxgl.accessToken;
@@ -346,7 +388,7 @@
             } catch (e) {}
         }
 
-        // ========== VIEWPORT‑BASED NODE SCANNING ==========
+        // ===== VIEWPORT‑BASED NODE SCANNING =====
         map.on('load', () => {
             map.addSource('nodes-source', {
                 type: 'geojson',
@@ -385,9 +427,7 @@
             });
 
             document.getElementById('status-bar').innerText = 'Scanning...';
-            scan(); // initial load
-
-            // Refresh nodes when the user stops moving the map
+            scan();
             map.on('moveend', scan);
         });
 
@@ -395,15 +435,12 @@
             const now = new Date().toISOString();
             const bounds = map.getBounds();
             if (!bounds) return;
-
             const sw = bounds.getSouthWest();
             const ne = bounds.getNorthEast();
-            // Expand bounds slightly to preload nearby nodes
             const latMin = sw.lat - 0.02;
             const latMax = ne.lat + 0.02;
             const lngMin = sw.lng - 0.02;
             const lngMax = ne.lng + 0.02;
-
             const { data, error } = await supabaseClient.from('nodes')
                 .select('*')
                 .eq('status','active')
@@ -412,10 +449,8 @@
                 .lte('lat', latMax)
                 .gte('lng', lngMin)
                 .lte('lng', lngMax)
-                .limit(200); // safety limit
-
+                .limit(200);
             if (error) { setStatus('error','Connection issue'); return; }
-
             const features = (data || []).map(node => ({
                 type: 'Feature',
                 geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
@@ -431,16 +466,9 @@
                     expires_at: node.expires_at
                 }
             }));
-
-            if (map.getSource('nodes-source')) {
-                map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
-            }
-
-            if (features.length === 0) {
-                setStatus('info','No active nodes in this area. Scanning...');
-            } else {
-                document.getElementById('status-bar').style.display = 'none';
-            }
+            if (map.getSource('nodes-source')) map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
+            if (features.length === 0) setStatus('info','No active nodes in this area. Scanning...');
+            else document.getElementById('status-bar').style.display='none';
         }
     </script>
 </body>

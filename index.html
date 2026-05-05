@@ -52,6 +52,21 @@
         .inbox-item .info .name{color:#FFD700;font-size:14px}
         .inbox-item .info .detail{color:#aaa}
         .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #FFD700;color:#FFD700;cursor:pointer;padding:5px 10px}
+        /* Receipt overlay */
+        #receipt-overlay{
+            display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+            background:rgba(0,0,0,0.95); z-index:9999;
+            justify-content:center; align-items:center; flex-direction:column;
+            color:#FFD700; font-family:monospace;
+        }
+        .receipt-card{
+            border:2px solid #FFD700; padding:25px; max-width:320px; width:90%;
+            text-align:left; font-size:14px; line-height:1.6;
+            background:#000; position:relative;
+        }
+        .receipt-card .hash{word-break:break-all; color:#e6b800; font-size:12px;}
+        .receipt-card .ttl{color:#aaa; font-size:11px;}
+        .redacted-bar{background:#FFD700; color:#000; padding:2px 0; margin:5px 0; text-align:center; font-weight:bold; letter-spacing:2px;}
     </style>
 </head>
 <body>
@@ -60,18 +75,12 @@
     <button id="profile-gear" onclick="openProfilePanel()" title="Profile">⚙️</button>
     <div id="profile-panel">
         <h3 style="margin-top:0;text-align:center">YOUR PROFILE</h3>
-        <label>Display Name</label>
-        <input type="text" id="prof-name" placeholder="Your public name">
-        <label>Avatar Emoji</label>
-        <input type="text" id="prof-emoji" placeholder="🤖" maxlength="2">
-        <label>Age</label>
-        <input type="number" id="prof-age" placeholder="25" min="13" max="120">
-        <label>Nationality</label>
-        <input type="text" id="prof-nationality" placeholder="e.g. Indian, Emirati">
-        <label>Profession</label>
-        <input type="text" id="prof-profession" placeholder="e.g. Designer, Student">
-        <label>Vibe Tags (comma separated)</label>
-        <input type="text" id="prof-tags" placeholder="e.g. Creative, Night Owl">
+        <label>Display Name</label><input type="text" id="prof-name" placeholder="Your public name">
+        <label>Avatar Emoji</label><input type="text" id="prof-emoji" placeholder="🤖" maxlength="2">
+        <label>Age</label><input type="number" id="prof-age" placeholder="25" min="13" max="120">
+        <label>Nationality</label><input type="text" id="prof-nationality" placeholder="e.g. Indian, Emirati">
+        <label>Profession</label><input type="text" id="prof-profession" placeholder="e.g. Designer, Student">
+        <label>Vibe Tags (comma separated)</label><input type="text" id="prof-tags" placeholder="e.g. Creative, Night Owl">
         <button class="profile-save-btn" onclick="saveProfile()">SAVE</button>
         <button class="profile-close-btn" onclick="closeProfilePanel()">CLOSE</button>
     </div>
@@ -88,21 +97,25 @@
         </div>
     </div>
     <div id="sync-panel">
-        <h2>VENUE LOCKED</h2>
-        <p id="sync-venue"></p>
-        <p id="sync-status">Waiting for both users to confirm...</p>
+        <h2>VENUE LOCKED</h2><p id="sync-venue"></p><p id="sync-status">Waiting for both users to confirm...</p>
         <button class="sync-btn" id="sync-confirm-btn" onclick="confirmProceed()">[ CONFIRM & PROCEED ]</button>
     </div>
     <div id="rate-panel">
-        <h2>MEET COMPLETE</h2>
-        <p>How was your experience?</p>
+        <h2>MEET COMPLETE</h2><p>How was your experience?</p>
         <button class="rate-btn" onclick="submitRating(1)">👍</button>
         <button class="rate-btn" onclick="submitRating(-1)">👎</button>
     </div>
     <div id="nav-hud">
-        <h3 id="target-name">MATCHED</h3>
-        <p id="meet-timer"></p>
-        <button class="hud-btn" onclick="location.reload()">TERMINATE</button>
+        <h3 id="target-name">MATCHED</h3><p id="meet-timer"></p>
+        <button class="hud-btn" id="terminate-btn">TERMINATE</button>
+    </div>
+    <div id="receipt-overlay">
+        <div class="receipt-card">
+            <div style="font-size:18px;font-weight:bold;border-bottom:1px solid #FFD700;padding-bottom:5px;margin-bottom:10px;">SESSION //REDACTED</div>
+            <div class="redacted-bar">█████ PURGED █████</div>
+            <div style="margin-top:10px;">VERIFY: <span class="hash" id="receipt-hash"></span></div>
+            <div class="ttl" id="receipt-ttl"></div>
+        </div>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
@@ -114,9 +127,9 @@
 
         const MAX_VENUE_DISTANCE_KM = 20, NODE_EXPIRY_MINUTES = 30;
         const params = new URLSearchParams(window.location.search);
-        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 25;
+        // ===== MEET DURATION SET TO 2 MINUTES FOR TESTING =====
+        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
 
-        // Updated categories: replaced Chill & Wellness with Social Collab, removed Creative Collab
         const categories = {
             social: { label:'🍻 Social', presets:['☕ Coffee & Conversation','🍽️ Foodie Meetup','🌙 Night Out','📸 Social Collab'] },
             games: { label:'⚽ Games', presets:['⚽ Football','🏏 Cricket','🎾 Tennis'] },
@@ -407,7 +420,38 @@
             }, 1000);
         }
         function showRatingPanel() { document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300); const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10); }
-        window.submitRating = async (r) => { if (meetRated) return; meetRated = true; document.getElementById('rate-panel').style.display = 'none'; await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id); setStatus('success', 'Thanks for rating!'); setTimeout(() => location.reload(), 3000); };
+
+        // ===== RECEIPT & MODIFIED RATING =====
+        async function showReceipt(bridgeId) {
+            const plain = bridgeId + '|' + Date.now();
+            const encoder = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(plain));
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+            const shortHash = hashHex.slice(0,16) + '...' + hashHex.slice(-16);
+            try { await _supabase.from('deletion_receipts').upsert({ bridge_id: bridgeId, hash: hashHex }); } catch(e) {}
+            document.getElementById('receipt-hash').innerText = shortHash;
+            document.getElementById('receipt-ttl').innerText = 'TTL EXPIRES: ' + new Date(Date.now() + 30*60*1000).toLocaleTimeString();
+            document.getElementById('receipt-overlay').style.display = 'flex';
+            setTimeout(() => { location.reload(); }, 3000);
+        }
+
+        window.submitRating = async (r) => {
+            if (meetRated) return;
+            meetRated = true;
+            document.getElementById('rate-panel').style.display = 'none';
+            await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id);
+            setStatus('success', 'Thanks for rating!');
+            showReceipt(currentN.id);
+        };
+
+        // Terminate button
+        document.getElementById('terminate-btn').addEventListener('click', () => {
+            if (currentN && currentN.id) showReceipt(currentN.id);
+            else location.reload();
+        });
+
+        // Route drawing (unchanged)
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
     </script>
 </body>

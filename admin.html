@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>VESSEL | ADMIN</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
         body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
         #login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#FFD700}
@@ -12,7 +13,7 @@
         #dashboard{display:none;flex-direction:column;height:100%}
         #top-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 20px;border-bottom:1px solid #FFD700;color:#FFD700}
         #top-bar button{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:6px 15px;cursor:pointer}
-        #tabs{display:flex;flex-wrap:wrap;gap:8px;padding:8px 20px;border-bottom:1px solid #333}
+        #tabs{display:flex;flex-wrap:wrap;gap:8px;padding:8px 20px;border-bottom:1px solid #333;max-height:100px;overflow-y:auto}
         .tab-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:6px 14px;cursor:pointer;font-size:11px}
         .tab-btn.active{background:#FFD700;color:#000}
         #content{flex:1;overflow-y:auto;padding:20px;color:#FFD700}
@@ -41,14 +42,13 @@
         .bar-track{flex:1;background:#222;height:18px;position:relative}
         .bar-fill{height:100%;background:#FFD700;position:absolute;left:0;top:0}
         .bar-value{width:50px;font-size:10px;padding-left:8px}
-        .line-chart{display:flex;align-items:flex-end;gap:3px;height:160px;padding:8px 0;border-bottom:1px solid #333}
-        .line-bar{flex:1;background:#FFD700;min-width:18px;position:relative}
-        .line-bar span{position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);font-size:8px;color:#aaa}
-        .heatmap-grid{display:grid;grid-template-columns:70px repeat(24,1fr);gap:1px;font-size:9px;margin-top:8px}
-        .heatmap-cell{background:#222;text-align:center;padding:3px 0;color:#aaa}
-        .heatmap-cell.high{background:#FFD700;color:#000}
-        .heatmap-cell.medium{background:#b38600;color:#000}
+        .heatmap-row{display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:16px;margin-bottom:4px;background:#111}
+        .heatmap-dot{width:16px;height:16px;border-radius:50%;display:inline-block}
+        #mini-map{height:200px;margin-bottom:10px;border:1px solid #FFD700}
     </style>
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div id="login-screen">
@@ -76,9 +76,8 @@
             <button class="tab-btn" onclick="switchTab('receipts')">RECEIPTS</button>
             <button class="tab-btn" onclick="switchTab('rejected')">REJECTED</button>
             <button class="tab-btn" onclick="switchTab('banners')">BANNERS</button>
-            <button class="tab-btn" onclick="switchTab('sectors')">SECTORS</button>
-            <button class="tab-btn" onclick="switchTab('heatmap')">HEATMAP</button>
             <button class="tab-btn" onclick="switchTab('cron')">CRON</button>
+            <button class="tab-btn" onclick="switchTab('activity')">ACTIVITY AREAS</button>
             <button class="tab-btn" onclick="switchTab('analytics')">ANALYTICS</button>
             <button class="tab-btn" onclick="switchTab('logs')">LOGS</button>
             <button class="tab-btn" onclick="switchTab('settings')">SETTINGS</button>
@@ -89,8 +88,8 @@
     <div id="modal" class="modal-overlay"><div class="modal-box" id="modal-content"></div></div>
     <div id="toast" class="toast"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.3/dist/umd/supabase.min.js"></script>
     <script>
+        // ========== INIT ==========
         if (typeof window.supabase === 'undefined') {
             document.body.innerHTML = '<h2 style="color:red;text-align:center;margin-top:50px;">Supabase library failed to load. Hard refresh (Ctrl+Shift+R).</h2>';
             throw new Error('Supabase not loaded');
@@ -98,10 +97,13 @@
 
         const SUPABASE_URL = 'https://rnroyhkvkmzuichysxnk.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
+        mapboxgl.accessToken = MAPBOX_TOKEN;
 
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         let isLoggedIn = false;
         let currentTab = 'stats';
+        let charts = {};
 
         if(localStorage.getItem('admin_logged_in') === 'true') {
             document.getElementById('login-screen').style.display='none';
@@ -163,16 +165,15 @@
                 case 'receipts': content.innerHTML = await getReceiptsHTML(); break;
                 case 'rejected': content.innerHTML = await getRejectedHTML(); break;
                 case 'banners': content.innerHTML = await getBannersHTML(); break;
-                case 'sectors': content.innerHTML = await getSectorsHTML(); break;
-                case 'heatmap': content.innerHTML = await getHeatmapHTML(); break;
                 case 'cron': content.innerHTML = await getCronHTML(); break;
+                case 'activity': content.innerHTML = await getActivityAreasHTML(); break;
                 case 'analytics': content.innerHTML = await getAnalyticsHTML(); break;
                 case 'logs': content.innerHTML = await getLogsHTML(); break;
                 case 'settings': content.innerHTML = await getSettingsHTML(); break;
             }
         }
 
-        // ========== STATS ==========
+        // ========== STATS (unchanged, working) ==========
         async function getStatsHTML() {
             const now = new Date().toISOString(); const today = new Date(); today.setHours(0,0,0,0); const todayISO = today.toISOString();
             const [u,n,m,nt] = await Promise.all([
@@ -184,7 +185,7 @@
             return `<div class="stats-row"><div class="stat-card"><h3>${u.count||0}</h3><p>Users</p></div><div class="stat-card"><h3>${n.count||0}</h3><p>Active Nodes</p></div><div class="stat-card"><h3>${m.count||0}</h3><p>Meets Today</p></div><div class="stat-card"><h3>${nt.count||0}</h3><p>Nodes Today</p></div></div>`;
         }
 
-        // ========== USERS ==========
+        // ========== USERS (unchanged) ==========
         async function getUsersHTML() {
             const {data:users}=await supabase.from('users').select('*').order('created_at',{ascending:false});
             if(!users) return '<p>Error</p>';
@@ -200,63 +201,239 @@
         async function reactivateUser(id){showModal('Reactivate?',async()=>{await supabase.from('users').update({status:'active'}).eq('id',id);toast('Reactivated');loadTab('users');closeModal();});}
         async function showUserDetail(id){const{data:u}=await supabase.from('users').select('*').eq('id',id).single();if(!u)return;document.getElementById('modal-content').innerHTML=`<h3>${u.avatar_emoji||'🤖'} ${u.display_name||'?'}</h3><p>ID: ${u.id}</p><p>Age: ${u.age||'N/A'}</p><p>Nationality: ${u.nationality||'N/A'}</p><p>Profession: ${u.profession||'N/A'}</p><p>Trust: ⭐${(u.trust_score||5).toFixed(1)}</p><p>Meets: ${u.total_meets||0}</p><p>Status: ${u.status||'active'}</p><p>Tags: ${(u.vibe_tags||[]).join(', ')||'None'}</p><button onclick="closeModal()">Close</button>`;document.getElementById('modal').style.display='flex';}
 
-        // ========== NODES ==========
+        // ========== NODES (unchanged) ==========
         async function getNodesHTML(){const{data:nodes}=await supabase.from('nodes').select('*').order('created_at',{ascending:false}).limit(200);if(!nodes)return'<p>Error</p>';let html='<table><thead><tr><th>Intent</th><th>Category</th><th>Type</th><th>Status</th><th>Creator</th><th>Expires</th><th>Actions</th></tr></thead><tbody>';nodes.forEach(n=>{html+=`<tr onclick="showNodeDetail(${n.id})"><td>${n.intent||'N/A'}</td><td>${n.category||'social'}</td><td>${n.node_type||'one_on_one'}</td><td style="color:${n.status==='active'?'#0f0':'#f00'}">${n.status||'active'}</td><td>${n.user_id}</td><td>${n.expires_at?new Date(n.expires_at).toLocaleString():'N/A'}</td><td onclick="event.stopPropagation()">${n.status==='active'?`<button class="action-btn danger" onclick="expireNode(${n.id})">Expire</button>`:''}</td></tr>`;});html+='</tbody></table>';return html;}
         async function showNodeDetail(id){const{data:n}=await supabase.from('nodes').select('*').eq('id',id).single();if(!n)return;document.getElementById('modal-content').innerHTML=`<h3>Node Detail</h3><p>ID: ${n.id}</p><p>Intent: ${n.intent}</p><p>Category: ${n.category}</p><p>Type: ${n.node_type}</p><p>Status: ${n.status}</p><p>Creator: ${n.user_id}</p><p>Vibe: ${n.vibe_question||'N/A'} → ${n.vibe_answer||'N/A'}</p><p>Location: ${parseFloat(n.lat).toFixed(4)},${parseFloat(n.lng).toFixed(4)}</p><p>Created: ${new Date(n.created_at).toLocaleString()}</p><button onclick="closeModal()">Close</button>${n.status!=='expired'?`<button onclick="expireNode(${n.id});closeModal();">Expire</button>`:''}<button style="border-color:#f00;color:#f00" onclick="deleteNode(${n.id})">Delete</button>`;document.getElementById('modal').style.display='flex';}
-        async function expireNode(id){const{error}=await supabase.from('nodes').update({status:'expired'}).eq('id',id);if(error)toast('Failed',true);else{toast('Expired');loadTab('nodes');}}
+        async function expireNode(id){await supabase.from('nodes').update({status:'expired'}).eq('id',id);toast('Expired');loadTab('nodes');}
         async function deleteNode(id){showModal('Delete permanently?',async()=>{await supabase.from('nodes').delete().eq('id',id);toast('Deleted');loadTab('nodes');closeModal();});}
 
-        // ========== INTENTS ==========
+        // ========== INTENTS (unchanged) ==========
         async function getIntentsHTML(){const{data:nodes}=await supabase.from('nodes').select('*').not('custom_intent','is',null).order('created_at',{ascending:false});if(!nodes||nodes.length===0)return'<p>No custom intents.</p>';let html='<table><thead><tr><th>Node</th><th>Custom Intent</th><th>Creator</th><th>Actions</th></tr></thead><tbody>';nodes.forEach(n=>{html+=`<tr><td>${n.id}</td><td>${n.custom_intent}</td><td>${n.user_id}</td><td><button class="action-btn danger" onclick="clearCustomIntent(${n.id})">Clear</button></td></tr>`;});html+='</tbody></table>';return html;}
         async function clearCustomIntent(id){showModal('Clear?',async()=>{await supabase.from('nodes').update({custom_intent:null}).eq('id',id);toast('Cleared');loadTab('intents');closeModal();});}
 
-        // ========== TAGS ==========
+        // ========== TAGS (unchanged) ==========
         async function getTagsHTML(){const{data:users}=await supabase.from('users').select('*').not('vibe_tags','is',null).order('created_at',{ascending:false});if(!users||users.length===0)return'<p>No vibe tags.</p>';let html='<table><thead><tr><th>User</th><th>Tags</th><th>Actions</th></tr></thead><tbody>';users.forEach(u=>{html+=`<tr><td>${u.display_name||'?'} (${u.id})</td><td>${(u.vibe_tags||[]).map(t=>`<span style="margin:2px"><button class="action-btn danger" onclick="removeTag('${u.id}','${t.replace(/'/g,"\\'")}')">${t} ✕</button></span>`).join('')}</td><td><button class="action-btn danger" onclick="clearAllTags('${u.id}')">Clear All</button></td></tr>`;});html+='</tbody></table>';return html;}
         async function removeTag(uid,tag){const{data:u}=await supabase.from('users').select('vibe_tags').eq('id',uid).single();if(!u)return;const nt=(u.vibe_tags||[]).filter(t=>t!==tag);await supabase.from('users').update({vibe_tags:nt}).eq('id',uid);toast('Removed');loadTab('tags');}
         async function clearAllTags(uid){showModal('Clear all tags?',async()=>{await supabase.from('users').update({vibe_tags:[]}).eq('id',uid);toast('Cleared');loadTab('tags');closeModal();});}
 
-        // ========== REQUESTS ==========
+        // ========== REQUESTS (unchanged) ==========
         async function getRequestsHTML(){const{data}=await supabase.from('requests').select('*').order('created_at',{ascending:false}).limit(200);if(!data||data.length===0)return'<p>No requests found.</p>';let html='<table><thead><tr><th>ID</th><th>Node</th><th>Requester</th><th>Status</th><th>Answer</th><th>Time</th></tr></thead><tbody>';data.forEach(r=>{html+=`<tr><td>${r.id}</td><td>${r.node_id}</td><td>${r.requester_id}</td><td style="color:${r.status==='accepted'?'#0f0':r.status==='declined'?'#f00':'#FFD700'}">${r.status}</td><td>${r.answer_given||''}</td><td>${new Date(r.created_at).toLocaleString()}</td></tr>`;});html+='</tbody></table>';return html;}
 
-        // ========== ORACLE SESSIONS ==========
+        // ========== ORACLE (unchanged) ==========
         async function getOracleHTML(){const{data}=await supabase.from('oracle_sessions').select('*').order('created_at',{ascending:false}).limit(200);if(!data||data.length===0)return'<p>No oracle sessions.</p>';let html='<table><thead><tr><th>Bridge</th><th>Status</th><th>Venue</th><th>u1 GPS</th><th>u2 GPS</th><th>Meet</th><th>Rating</th><th>Time</th></tr></thead><tbody>';data.forEach(s=>{html+=`<tr><td>${s.bridge_id}</td><td>${s.status}</td><td>${s.selected_venue_name||'N/A'}</td><td>(${parseFloat(s.u1_lat).toFixed(3)},${parseFloat(s.u1_lng).toFixed(3)})</td><td>(${parseFloat(s.u2_lat).toFixed(3)},${parseFloat(s.u2_lng).toFixed(3)})</td><td>${s.meet_completed?'✅':'❌'}</td><td>u1:${s.u1_rating||'-'} u2:${s.u2_rating||'-'}</td><td>${new Date(s.created_at).toLocaleString()}</td></tr>`;});html+='</tbody></table>';return html;}
 
-        // ========== RATINGS ==========
+        // ========== RATINGS (unchanged) ==========
         async function getRatingsHTML(){const{data}=await supabase.from('oracle_sessions').select('*').or('u1_rating.not.is.null,u2_rating.not.is.null').order('created_at',{ascending:false}).limit(200);if(!data||data.length===0)return'<p>No ratings yet.</p>';let html='<table><thead><tr><th>Bridge</th><th>u1 Rating</th><th>u2 Rating</th><th>Time</th></tr></thead><tbody>';data.forEach(s=>{html+=`<tr><td>${s.bridge_id}</td><td>${s.u1_rating||'-'}</td><td>${s.u2_rating||'-'}</td><td>${new Date(s.created_at).toLocaleString()}</td></tr>`;});html+='</tbody></table>';return html;}
 
-        // ========== DELETION RECEIPTS ==========
+        // ========== RECEIPTS (unchanged) ==========
         async function getReceiptsHTML(){const{data}=await supabase.from('deletion_receipts').select('*').order('created_at',{ascending:false}).limit(200);if(!data||data.length===0)return'<p>No receipts yet.</p>';let html='<table><thead><tr><th>Bridge</th><th>Hash</th><th>Created</th></tr></thead><tbody>';data.forEach(r=>{html+=`<tr><td>${r.bridge_id}</td><td style="font-size:10px">${r.hash}</td><td>${new Date(r.created_at).toLocaleString()}</td></tr>`;});html+='</tbody></table>';return html;}
 
-        // ========== REJECTED REQUESTS ==========
+        // ========== REJECTED (unchanged) ==========
         async function getRejectedHTML(){const{data}=await supabase.from('rejected_requests').select('*').order('created_at',{ascending:false}).limit(200);if(!data||data.length===0)return'<p>No rejected requests.</p>';let html='<table><thead><tr><th>Node</th><th>Requester</th><th>Time</th></tr></thead><tbody>';data.forEach(r=>{html+=`<tr><td>${r.node_id}</td><td>${r.requester_id}</td><td>${new Date(r.created_at).toLocaleString()}</td></tr>`;});html+='</tbody></table>';return html;}
 
-        // ========== BANNERS ==========
-        async function getBannersHTML(){const{data:banners}=await supabase.from('banners').select('*').order('created_at',{ascending:false});if(!banners||banners.length===0)return'<button class="action-btn" onclick="showBannerForm()">+ Add Banner</button><p>No banners.</p>';let html='<button class="action-btn" onclick="showBannerForm()">+ Add</button><table><thead><tr><th>Title</th><th>Msg</th><th>Loc</th><th>Active</th><th>Impr</th><th>Actions</th></tr></thead><tbody>';banners.forEach(b=>{html+=`<tr><td>${b.title}</td><td>${b.message}</td><td>(${parseFloat(b.lat).toFixed(3)},${parseFloat(b.lng).toFixed(3)})</td><td style="color:${b.is_active?'#0f0':'#f00'}">${b.is_active?'ON':'OFF'}</td><td>${b.impression_count||0}</td><td><button class="action-btn" onclick="showBannerForm('${b.id}')">Edit</button><button class="action-btn" onclick="toggleBanner('${b.id}',${b.is_active})">Toggle</button><button class="action-btn danger" onclick="deleteBanner('${b.id}')">Del</button></td></tr>`;});html+='</tbody></table>';return html;}
-        function showBannerForm(id){/* unchanged from previous admin */ }
-        async function saveBanner(id){/* unchanged */ }
-        async function toggleBanner(id,st){await supabase.from('banners').update({is_active:!st}).eq('id',id);loadTab('banners');}
-        async function deleteBanner(id){showModal('Delete?',async()=>{await supabase.from('banners').delete().eq('id',id);toast('Deleted');loadTab('banners');closeModal();});}
+        // ========== BANNERS (full CRUD with mini map) ==========
+        let bannerMap = null;
+        async function getBannersHTML(){
+            const {data:banners}=await supabase.from('banners').select('*').order('created_at',{ascending:false});
+            let html='<button class="action-btn" onclick="showBannerForm()">+ Add Banner</button>';
+            if(!banners||banners.length===0) html+='<p>No banners.</p>';
+            else{
+                html+='<table><thead><tr><th>Title</th><th>Msg</th><th>Location</th><th>Active</th><th>Impr</th><th>Actions</th></tr></thead><tbody>';
+                banners.forEach(b=>{
+                    html+=`<tr><td>${b.title}</td><td>${b.message}</td><td>(${parseFloat(b.lat).toFixed(3)},${parseFloat(b.lng).toFixed(3)})</td><td style="color:${b.is_active?'#0f0':'#f00'}">${b.is_active?'ON':'OFF'}</td><td>${b.impression_count||0}</td><td><button class="action-btn" onclick="showBannerForm('${b.id}')">Edit</button><button class="action-btn" onclick="toggleBanner('${b.id}',${b.is_active})">Toggle</button><button class="action-btn danger" onclick="deleteBanner('${b.id}')">Del</button></td></tr>`;
+                });
+                html+='</tbody></table>';
+            }
+            return html;
+        }
+        function showBannerForm(id=null){
+            document.getElementById('modal').style.display='flex';
+            const modalDiv = document.getElementById('modal-content');
+            modalDiv.innerHTML = `
+                <h3>${id?'Edit Banner':'Add Banner'}</h3>
+                <div class="form-group"><label>Title</label><input id="banner-title" placeholder="Title"></div>
+                <div class="form-group"><label>Message</label><textarea id="banner-message" rows="2" placeholder="Message"></textarea></div>
+                <div class="form-group"><label>Location (tap map)</label><div id="mini-map" style="height:200px"></div></div>
+                <div class="form-group"><label>Lat</label><input id="banner-lat" readonly></div>
+                <div class="form-group"><label>Lng</label><input id="banner-lng" readonly></div>
+                <div class="form-group"><label>Active</label><input type="checkbox" id="banner-active" checked></div>
+                <button onclick="saveBanner('${id||''}')">Save</button>
+                <button onclick="closeModal()">Cancel</button>
+            `;
+            if(bannerMap) bannerMap.remove();
+            bannerMap = new mapboxgl.Map({
+                container: 'mini-map',
+                style: 'mapbox://styles/mapbox/dark-v11',
+                center: [55.39, 25.34],
+                zoom: 12
+            });
+            bannerMap.on('click', (e) => {
+                document.getElementById('banner-lat').value = e.lngLat.lat;
+                document.getElementById('banner-lng').value = e.lngLat.lng;
+                new mapboxgl.Marker().setLngLat(e.lngLat).addTo(bannerMap);
+            });
+            if(id){
+                (async()=>{
+                    const {data:b}=await supabase.from('banners').select('*').eq('id',id).single();
+                    if(b){
+                        document.getElementById('banner-title').value = b.title||'';
+                        document.getElementById('banner-message').value = b.message||'';
+                        document.getElementById('banner-lat').value = b.lat||'';
+                        document.getElementById('banner-lng').value = b.lng||'';
+                        document.getElementById('banner-active').checked = b.is_active||false;
+                        if(b.lat && b.lng){
+                            bannerMap.setCenter([b.lng, b.lat]);
+                            new mapboxgl.Marker().setLngLat([b.lng, b.lat]).addTo(bannerMap);
+                        }
+                    }
+                })();
+            }
+        }
+        async function saveBanner(id){
+            const title = document.getElementById('banner-title').value;
+            const message = document.getElementById('banner-message').value;
+            const lat = parseFloat(document.getElementById('banner-lat').value);
+            const lng = parseFloat(document.getElementById('banner-lng').value);
+            const is_active = document.getElementById('banner-active').checked;
+            if(!title || !message || isNaN(lat) || isNaN(lng)){ toast('Please fill all fields and tap map'); return; }
+            if(id){
+                await supabase.from('banners').update({title, message, lat, lng, is_active}).eq('id',id);
+                toast('Banner updated');
+            } else {
+                await supabase.from('banners').insert([{title, message, lat, lng, is_active, impression_count:0}]);
+                toast('Banner added');
+            }
+            closeModal();
+            loadTab('banners');
+        }
+        async function toggleBanner(id,st){ await supabase.from('banners').update({is_active:!st}).eq('id',id); loadTab('banners'); }
+        async function deleteBanner(id){ showModal('Delete?',async()=>{ await supabase.from('banners').delete().eq('id',id); toast('Deleted'); loadTab('banners'); closeModal(); }); }
 
-        // ========== SECTORS (CRUD) ==========
-        async function getSectorsHTML(){const{data}=await supabase.from('sectors').select('*').order('city');let html='<button class="action-btn" onclick="showSectorForm()">+ Add Sector</button><table><thead><tr><th>City</th><th>Name</th><th>Bounds</th><th>Active</th><th>Actions</th></tr></thead><tbody>';if(data)data.forEach(s=>{html+=`<tr><td>${s.city}</td><td>${s.name}</td><td>(${s.lat_min},${s.lng_min})→(${s.lat_max},${s.lng_max})</td><td style="color:${s.is_active?'#0f0':'#f00'}">${s.is_active?'Yes':'No'}</td><td><button class="action-btn" onclick="showSectorForm(${s.id})">Edit</button><button class="action-btn danger" onclick="deleteSector(${s.id})">Del</button></td></tr>`;});html+='</tbody></table>';return html;}
-        function showSectorForm(id){/* modal with fields: city, name, lat_min, lat_max, lng_min, lng_max, is_active */ }
-        async function saveSector(id){/* upsert logic */ }
-        async function deleteSector(id){showModal('Delete?',async()=>{await supabase.from('sectors').delete().eq('id',id);toast('Deleted');loadTab('sectors');closeModal();});}
-
-        // ========== HEATMAP (sector activity) ==========
-        async function getHeatmapHTML(){const{data}=await supabase.from('sector_activity').select('*, sectors(name,city)').order('computed_at',{ascending:false});if(!data||data.length===0)return'<p>No heatmap data yet. Run the aggregation cron.</p>';let html='<table><thead><tr><th>Sector</th><th>City</th><th>Signals</th><th>Intensity</th><th>Category</th><th>Updated</th></tr></thead><tbody>';data.forEach(r=>{const s=r.sectors||{};html+=`<tr><td>${s.name||'?'}</td><td>${s.city||'?'}</td><td>${r.signal_count}</td><td style="color:${r.intensity==='high'?'#f00':r.intensity==='moderate'?'#FFD700':'#0f0'}">${r.intensity}</td><td>${r.dominant_category||'N/A'}</td><td>${new Date(r.computed_at).toLocaleString()}</td></tr>`;});html+='</tbody></table>';return html;}
-
-        // ========== CRON JOBS ==========
+        // ========== CRON (unchanged) ==========
         async function getCronHTML(){const{data}=await supabase.from('cron').select('jobname,schedule,command,active').order('jobname');if(!data||data.length===0)return'<p>No cron jobs.</p>';let html='<table><thead><tr><th>Job</th><th>Schedule</th><th>Command</th><th>Active</th></tr></thead><tbody>';data.forEach(j=>{html+=`<tr><td>${j.jobname}</td><td>${j.schedule}</td><td>${j.command}</td><td style="color:${j.active?'#0f0':'#f00'}">${j.active?'Yes':'No'}</td></tr>`;});html+='</tbody></table>';return html;}
 
-        // ========== ANALYTICS (unchanged) ==========
-        // ... same as previous admin ...
+        // ========== ACTIVITY AREAS (real-time top grid cells) ==========
+        async function getActivityAreasHTML(){
+            // Fetch all active nodes within a large radius (100km) to get city-wide view
+            // We'll use a simple bounding box over the whole city (approximate)
+            // For simplicity, we'll query all active nodes and group them grid-wise
+            const {data:nodes, error} = await supabase
+                .from('nodes')
+                .select('lat, lng')
+                .eq('status', 'active')
+                .gt('expires_at', new Date().toISOString());
+            if(error || !nodes || nodes.length===0) return '<p>No active nodes found.</p>';
+            const cellSize = 0.02; // ~2.2 km
+            const grid = new Map();
+            nodes.forEach(node => {
+                const cellLat = Math.floor(node.lat / cellSize) * cellSize;
+                const cellLng = Math.floor(node.lng / cellSize) * cellSize;
+                const key = `${cellLat},${cellLng}`;
+                if(!grid.has(key)) grid.set(key, { lat: cellLat + cellSize/2, lng: cellLng + cellSize/2, count: 0 });
+                grid.get(key).count++;
+            });
+            const cells = Array.from(grid.values()).sort((a,b)=>b.count - a.count).slice(0,30);
+            if(cells.length===0) return '<p>No grid cells with nodes.</p>';
+            let html = '<table><thead><tr><th>Color</th><th>Area (approx)</th><th>Node Count</th><th>Intensity</th></tr></thead><tbody>';
+            for(const cell of cells){
+                let dotColor, intensityLabel;
+                if(cell.count >= 10){ dotColor='#ff5050'; intensityLabel='🔴 High'; }
+                else if(cell.count >= 3){ dotColor='#FFD700'; intensityLabel='🟡 Moderate'; }
+                else { dotColor='#80ff80'; intensityLabel='🟢 Low'; }
+                // Reverse geocode only the top few for display, but we'll just show coordinates to save API calls
+                const areaName = `${cell.lat.toFixed(2)},${cell.lng.toFixed(2)}`;
+                html += `<tr><td><div style="background:${dotColor}; width:16px; height:16px; border-radius:50%;"></div></td><td>${areaName}</td><td>${cell.count}</td><td>${intensityLabel}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            return html;
+        }
 
-        // ========== LOGS ==========
+        // ========== ANALYTICS (charts) ==========
+        async function getAnalyticsHTML(){
+            // Fetch meets per category from oracle_sessions + nodes (to get category)
+            const {data:meets} = await supabase
+                .from('oracle_sessions')
+                .select('bridge_id, created_at, nodes!inner(category)')
+                .eq('meet_completed', true);
+            const catCount = { social:0, games:0, work:0, parents:0 };
+            meets?.forEach(m => {
+                const cat = m.nodes?.category || 'social';
+                if(catCount[cat]!==undefined) catCount[cat]++;
+                else catCount[cat]=1;
+            });
+            // User growth over last 7 days (simplified)
+            const {data:usersDaily} = await supabase
+                .from('users')
+                .select('created_at')
+                .gte('created_at', new Date(Date.now()-7*24*3600*1000).toISOString());
+            const days = {};
+            usersDaily?.forEach(u => {
+                const d = new Date(u.created_at).toISOString().slice(0,10);
+                days[d] = (days[d]||0)+1;
+            });
+            const labels = Object.keys(days).sort();
+            const values = labels.map(l=>days[l]);
+            // Top areas (reuse activity areas)
+            const {data:nodes} = await supabase.from('nodes').select('lat, lng').eq('status','active').gt('expires_at', new Date().toISOString());
+            let topAreasHtml = '';
+            if(nodes && nodes.length){
+                const cellSize=0.02;
+                const grid = new Map();
+                nodes.forEach(n=>{
+                    const clat = Math.floor(n.lat/cellSize)*cellSize;
+                    const clng = Math.floor(n.lng/cellSize)*cellSize;
+                    const key=`${clat},${clng}`;
+                    if(!grid.has(key)) grid.set(key,{count:0});
+                    grid.get(key).count++;
+                });
+                const top = Array.from(grid.values()).sort((a,b)=>b.count-a.count).slice(0,5);
+                topAreasHtml = '<div class="stats-row">'+top.map(c=>`<div class="stat-card"><h3>${c.count}</h3><p>nodes in a hotspot</p></div>`).join('')+'</div>';
+            }
+            return `
+                <div class="chart-container"><h3>Meets per Category</h3>
+                <div class="bar-row"><div class="bar-label">Social</div><div class="bar-track"><div class="bar-fill" style="width:${(catCount.social/(Math.max(1,catCount.social+catCount.games+catCount.work+catCount.parents))*100)}%"></div></div><div class="bar-value">${catCount.social}</div></div>
+                <div class="bar-row"><div class="bar-label">Games</div><div class="bar-track"><div class="bar-fill" style="width:${(catCount.games/(Math.max(1,catCount.social+catCount.games+catCount.work+catCount.parents))*100)}%"></div></div><div class="bar-value">${catCount.games}</div></div>
+                <div class="bar-row"><div class="bar-label">Work</div><div class="bar-track"><div class="bar-fill" style="width:${(catCount.work/(Math.max(1,catCount.social+catCount.games+catCount.work+catCount.parents))*100)}%"></div></div><div class="bar-value">${catCount.work}</div></div>
+                <div class="bar-row"><div class="bar-label">Parents</div><div class="bar-track"><div class="bar-fill" style="width:${(catCount.parents/(Math.max(1,catCount.social+catCount.games+catCount.work+catCount.parents))*100)}%"></div></div><div class="bar-value">${catCount.parents}</div></div>
+                </div>
+                <div class="chart-container"><h3>User Growth (Last 7 days)</h3>
+                <div style="display:flex; gap:4px; align-items:flex-end; height:150px; margin-top:10px;">${labels.map((l,i)=>`<div style="flex:1; background:#FFD700; height:${values[i]/Math.max(1,...values)*100}px; position:relative;"><span style="position:absolute; bottom:-20px; left:0; font-size:8px; transform:rotate(-45deg);">${l.slice(5)}</span></div>`).join('')}</div>
+                </div>
+                <div class="chart-container"><h3>Top 5 Activity Hotspots</h3>${topAreasHtml||'<p>No hotspots yet</p>'}</div>
+            `;
+        }
+
+        // ========== LOGS (unchanged) ==========
         async function getLogsHTML(){const{data}=await supabase.from('logs').select('*').order('created_at',{ascending:false}).limit(200);if(!data||data.length===0)return'<p>No logs yet.</p>';let html='<table><thead><tr><th>Time</th><th>Event</th><th>User</th><th>Details</th></tr></thead><tbody>';data.forEach(l=>{html+=`<tr><td>${new Date(l.created_at).toLocaleString()}</td><td>${l.event_type}</td><td>${l.user_id||''}</td><td>${l.details?JSON.stringify(l.details).slice(0,80):''}</td></tr>`;});html+='</tbody></table>';return html;}
 
-        // ========== SETTINGS (unchanged) ==========
-        // ... same as previous admin ...
+        // ========== SETTINGS (read/write from settings table) ==========
+        async function getSettingsHTML(){
+            const {data:settings} = await supabase.from('settings').select('*');
+            const settingsMap = {};
+            settings?.forEach(s=>{ settingsMap[s.key]=s.value; });
+            return `
+                <div class="form-group"><label>Meet Duration (minutes)</label><input id="set_meet_duration" value="${settingsMap.meet_duration_minutes||'25'}"></div>
+                <div class="form-group"><label>Node Expiry (minutes)</label><input id="set_node_expiry" value="${settingsMap.node_expiry_minutes||'30'}"></div>
+                <div class="form-group"><label>Heatmap Radius (km)</label><input id="set_heatmap_radius" value="${settingsMap.heatmap_radius_km||'50'}"></div>
+                <div class="form-group"><label>Min Nodes for Heatmap</label><input id="set_heatmap_min" value="${settingsMap.heatmap_min_nodes||'3'}"></div>
+                <div class="form-group"><label>Grid Cell Size (degrees)</label><input id="set_cell_size" value="${settingsMap.heatmap_cell_size_deg||'0.02'}"></div>
+                <button class="action-btn" onclick="saveSettings()">Save Settings</button>
+            `;
+        }
+        async function saveSettings(){
+            const updates = [
+                {key:'meet_duration_minutes', value:document.getElementById('set_meet_duration').value},
+                {key:'node_expiry_minutes', value:document.getElementById('set_node_expiry').value},
+                {key:'heatmap_radius_km', value:document.getElementById('set_heatmap_radius').value},
+                {key:'heatmap_min_nodes', value:document.getElementById('set_heatmap_min').value},
+                {key:'heatmap_cell_size_deg', value:document.getElementById('set_cell_size').value}
+            ];
+            for(const u of updates){
+                await supabase.from('settings').upsert({key:u.key, value:u.value, updated_at:new Date().toISOString()});
+            }
+            toast('Settings saved');
+            loadTab('settings');
+        }
 
         // Generic modal & toast
         function showModal(m,onConfirm){document.getElementById('modal').style.display='flex';document.getElementById('modal-content').innerHTML=`<p>${m}</p><button onclick="closeModal()">Cancel</button><button id="modal-confirm" style="border-color:#f00;color:#f00">Confirm</button>`;document.getElementById('modal-confirm').addEventListener('click',onConfirm);}

@@ -6,56 +6,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        *{box-sizing:border-box}body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
+        /* ========== ALL STYLES (merged from both files) ========== */
+        body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
         #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
-        #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #FFD700;z-index:3000;padding:10px;text-align:center;color:#FFD700;font-size:12px;border-radius:30px}
-        #mode-toggle{position:absolute;top:20px;right:20px;z-index:2000;background:#000;border:2px solid #FFD700;border-radius:30px;display:flex}
-        .mode-btn{padding:8px 16px;background:transparent;border:none;color:#FFD700;font-family:monospace;font-size:12px;cursor:pointer}
+        #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #FFD700;z-index:3000;padding:10px;text-align:center;color:#FFD700;font-size:12px;box-sizing:border-box;border-radius:30px}
+        #mode-toggle{position:absolute;top:20px;right:20px;z-index:2000;background:#000;border:2px solid #FFD700;border-radius:30px;display:flex;overflow:hidden}
+        .mode-btn{padding:8px 16px;background:transparent;border:none;color:#FFD700;font-family:monospace;font-size:12px;cursor:pointer;transition:0.2s}
         .mode-btn.active{background:#FFD700;color:#000}
-        #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #FFD700}
-        #profile-gear{position:absolute;top:20px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:20px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
-        #heatmap-toggle-btn{position:absolute;top:70px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:18px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center}
-        #emergency-btn{position:absolute;bottom:30px;left:20px;width:50px;height:50px;background:#f00;border:2px solid #fff;border-radius:50%;color:#fff;font-size:22px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px rgba(255,0,0,0.5)}
+        #fab{position:absolute;bottom:30px;right:30px;width:70px;height:70px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:35px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 15px #FFD700;transition:0.2s}
+        #fab:hover{background:#FFD700;color:#000}
+        #profile-gear{position:absolute;top:20px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:20px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700;transition:0.2s}
+        #profile-gear:hover{background:#FFD700;color:#000}
+        #heatmap-toggle-btn{position:absolute;top:70px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:18px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700;transition:all 0.2s}
         #heatmap-loading{position:absolute;top:115px;left:70px;background:#000;border:1px solid #FFD700;padding:4px 8px;font-size:10px;color:#FFD700;z-index:2000;display:none;border-radius:20px}
-        .heatmap-toast{position:fixed;background:#000;border:1px solid #FFD700;color:#FFD700;padding:8px 12px;border-radius:20px;font-size:11px;z-index:10000;max-width:260px;pointer-events:none}
+        .heatmap-toast{position:fixed;background:#000;border:1px solid #FFD700;color:#FFD700;padding:8px 12px;border-radius:20px;font-size:11px;z-index:10000;max-width:260px;pointer-events:none;box-shadow:0 0 15px rgba(255,215,0,0.3);transition:opacity 0.2s}
         #heatmap-panel{position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:16px;padding:10px;display:none;flex-direction:column;gap:6px;z-index:2000;min-width:180px;max-width:240px;max-height:250px;overflow-y:auto;backdrop-filter:blur(8px)}
         .total-count{font-size:13px;color:#FFD700;border-bottom:1px solid #FFD700;padding-bottom:6px;margin-bottom:6px;text-align:center;font-weight:bold}
-        .heatmap-row{display:flex;align-items:center;gap:10px;cursor:pointer;padding:5px 8px;border-radius:20px}
+        .heatmap-row{display:flex;align-items:center;gap:10px;cursor:pointer;padding:5px 8px;border-radius:20px;transition:all 0.2s}
         .heatmap-row:hover{background:rgba(255,215,0,0.15)}
-        .heatmap-dot{width:16px;height:16px;border-radius:50%;display:inline-block}
+        .heatmap-dot{width:16px;height:16px;border-radius:50%;display:inline-block;box-shadow:0 0 4px currentColor}
         .heatmap-label{font-size:12px;color:#FFD700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .heatmap-count{font-size:11px;color:#aaa;margin-left:auto}
-        #terminal{display:none;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #FFD700;z-index:2000;flex-direction:column;padding:15px;border-radius:20px}
-        .terminal-header{display:flex;justify-content:space-between;margin-bottom:8px}
-        .three-dots{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:4px 10px;border-radius:20px;cursor:pointer}
-        #inbox-panel{display:none;border:1px solid #FFD700;padding:10px;margin-bottom:10px;max-height:200px;overflow-y:auto;border-radius:16px}
+        #terminal{display:none;position:fixed;bottom:10px;left:5%;width:90%;background:rgba(0,10,0,0.95);border:1px solid #FFD700;z-index:2000;flex-direction:column;padding:15px;box-sizing:border-box;border-radius:20px;backdrop-filter:blur(4px)}
+        #inbox-panel{display:none;border:1px solid #FFD700;padding:10px;margin-bottom:10px;max-height:200px;overflow-y:auto;color:#FFD700;border-radius:16px}
         #msg-box{height:150px;overflow-y:auto;color:#FFD700;margin-bottom:10px;border:1px solid #332200;padding:5px;display:flex;flex-direction:column;border-radius:16px}
-        .chat-msg{max-width:80%;padding:8px 12px;margin:4px 0;border-radius:18px;word-wrap:break-word;font-size:13px}
+        .chat-msg{max-width:80%;padding:8px 12px;margin:4px 0;border-radius:18px;word-wrap:break-word;font-size:13px;line-height:1.4}
         .msg-left{align-self:flex-start;background:#111;border:1px solid #FFD700;color:#FFD700;border-radius:18px 18px 18px 4px}
         .msg-right{align-self:flex-end;background:#FFD700;color:#000;border-radius:18px 18px 4px 18px}
-        #oracle-ballot{display:none;border:1px solid #FFD700;padding:10px;margin-bottom:10px;background:rgba(255,215,0,0.1);text-align:center;border-radius:12px}
-        #sync-panel,#rate-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #FFD700;z-index:5000;padding:30px;text-align:center;border-radius:24px}
-        #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #FFD700;z-index:4000;padding:20px;text-align:center}
-        .hud-btn,.sync-btn,.rate-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:12px;margin:10px 5px;cursor:pointer;border-radius:30px}
-        #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:6000;padding:20px;width:85%;max-width:320px;border-radius:24px}
+        #oracle-ballot{display:none;color:#FFD700;border:1px solid #FFD700;padding:10px;margin-bottom:10px;background:rgba(255,215,0,0.1);font-size:11px;text-align:center;border-radius:12px}
+        #sync-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #FFD700;z-index:5000;padding:30px;text-align:center;color:#FFD700;border-radius:24px}
+        #rate-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.95);border:2px solid #FFD700;z-index:5000;padding:30px;text-align:center;color:#FFD700;border-radius:24px}
+        #nav-hud{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.95);border-top:2px solid #FFD700;z-index:4000;padding:20px;text-align:center;color:#FFD700;box-sizing:border-box}
+        .hud-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:12px;margin:10px 5px;cursor:pointer;font-family:monospace;text-transform:uppercase;border-radius:30px;transition:0.2s}
+        .hud-btn:hover{background:#FFD700;color:#000}
+        .sync-btn{background:transparent;border:2px solid #FFD700;color:#FFD700;padding:15px 30px;cursor:pointer;font-family:monospace;font-size:16px;margin:10px;border-radius:40px}
+        .rate-btn{background:transparent;border:2px solid #FFD700;color:#FFD700;padding:15px 25px;cursor:pointer;font-family:monospace;font-size:24px;margin:10px;border-radius:50px}
+        #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:6000;padding:20px;color:#FFD700;width:85%;max-width:320px;box-sizing:border-box;border-radius:24px}
+        #profile-panel label{display:block;margin:10px 0 4px;font-size:12px}
         #profile-panel input{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;border-radius:12px}
-        #intent-panel{display:none;position:fixed;bottom:110px;left:5%;width:90%;background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:5000;padding:0;border-radius:20px;max-height:60vh;overflow-y:auto}
+        .profile-save-btn,.profile-close-btn{border-radius:30px}
+        #intent-panel{display:none;position:fixed;bottom:110px;left:5%;width:90%;background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:5000;padding:0;box-sizing:border-box;max-height:60vh;overflow-y:auto;border-radius:20px}
         .accordion-section{border-bottom:1px solid #FFD700}
-        .accordion-header{width:100%;background:transparent;border:none;color:#FFD700;padding:12px 15px;text-align:left;font-size:14px;cursor:pointer;display:flex;justify-content:space-between}
+        .accordion-header{width:100%;background:transparent;border:none;color:#FFD700;padding:12px 15px;text-align:left;font-family:monospace;font-size:14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+        .accordion-header:hover{background:rgba(255,215,0,0.05)}
         .accordion-body{display:none;padding:0 15px 12px}
-        .intent-btn{background:transparent;border:1px solid #FFD700;border-radius:30px;padding:8px 12px;margin:4px;cursor:pointer}
-        .intent-btn.selected{background:#FFD700;color:#000}
-        .vibe-option{border-radius:30px}
+        .accordion-body.open{display:block}
+        .btn-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+        .intent-btn{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 12px;cursor:pointer;font-family:monospace;font-size:12px;display:flex;align-items:center;gap:5px;white-space:nowrap;border-radius:30px}
+        .intent-btn:hover,.intent-btn.selected{background:#FFD700;color:#000}
+        .intent-btn.custom{border-style:dashed}
+        .node-type-row{margin:8px 0;display:flex;gap:10px;align-items:center}
+        .vibe-row{margin:8px 0}
+        .vibe-option{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:5px 10px;cursor:pointer;font-family:monospace;font-size:11px;margin-right:5px;border-radius:30px}
+        .vibe-option.selected{background:#FFD700;color:#000}
+        .custom-input{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;margin-top:5px;font-family:monospace;font-size:12px;display:none;border-radius:12px}
+        .done-btn{display:none;margin-top:8px;background:#FFD700;color:#000;border:none;padding:8px 16px;cursor:pointer;font-family:monospace;border-radius:30px}
+        .close-btn{display:block;width:100%;background:transparent;border:none;border-top:1px solid #f00;color:#f00;padding:12px;text-align:center;font-family:monospace;cursor:pointer;border-radius:0 0 20px 20px}
         .inbox-item{display:flex;align-items:center;margin-bottom:8px;padding:8px;border:1px solid #FFD700;border-radius:16px}
+        .inbox-item .avatar{font-size:28px;margin-right:10px}
+        .inbox-item .info{flex:1;font-size:12px}
+        .inbox-item .info .name{color:#FFD700;font-size:14px}
+        .inbox-item .info .detail{color:#aaa}
         .inbox-actions button{margin-left:5px;background:transparent;border:1px solid #FFD700;color:#FFD700;cursor:pointer;padding:5px 10px;border-radius:20px}
-        #profile-card{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.97);border-top:2px solid #FFD700;z-index:4500;padding:20px;border-radius:20px 20px 0 0;max-height:55vh;overflow-y:auto}
-        .safety-buttons{display:flex;gap:10px;margin-top:10px;justify-content:center}
-        .safety-btn{border-radius:20px;padding:6px 12px;background:transparent;border:1px solid #FFD700;color:#FFD700;cursor:pointer}
-        .safety-btn.danger{border-color:#f00;color:#f00}
-        .send-btn{display:block;width:100%;background:#FFD700;color:#000;border:none;padding:12px;margin-top:15px;border-radius:30px;font-weight:bold;cursor:pointer}
-        .close-card{background:transparent;border:1px solid #f00;color:#f00;padding:10px;border-radius:30px;width:100%;margin-top:8px;cursor:pointer}
-        #receipt-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:9999;justify-content:center;align-items:center;color:#FFD700}
-        .receipt-card{border:2px solid #FFD700;padding:25px;max-width:320px;background:#000;border-radius:24px}
+        #profile-card{display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(0,10,0,0.97);border-top:2px solid #FFD700;z-index:4500;padding:20px;color:#FFD700;box-sizing:border-box;max-height:55vh;overflow-y:auto;border-radius:20px 20px 0 0}
+        #profile-card .emoji{font-size:40px;text-align:center}
+        #profile-card .name{font-size:18px;text-align:center;margin:5px 0}
+        #profile-card .stats{text-align:center;font-size:12px;color:#aaa;margin-bottom:10px}
+        #profile-card .row{display:flex;justify-content:space-between;font-size:13px;margin:4px 0}
+        #profile-card .tags{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+        #profile-card .tag{background:rgba(255,215,0,0.15);border:1px solid #FFD700;padding:3px 8px;font-size:11px;border-radius:20px}
+        #profile-card .vibe-section{margin-top:12px;border-top:1px solid #FFD700;padding-top:10px}
+        #profile-card .vibe-opt{background:transparent;border:1px solid #FFD700;color:#FFD700;padding:8px 15px;cursor:pointer;font-family:monospace;font-size:12px;margin:5px;border-radius:30px}
+        #profile-card .vibe-opt.selected{background:#FFD700;color:#000}
+        #profile-card .send-btn{display:block;width:100%;margin-top:15px;background:#FFD700;color:#000;border:none;padding:12px;cursor:pointer;font-family:monospace;font-size:15px;font-weight:bold;border-radius:30px}
+        #profile-card .close-card{display:block;width:100%;margin-top:8px;background:transparent;border:1px solid #f00;color:#f00;padding:10px;cursor:pointer;font-family:monospace;border-radius:30px}
+        .node-popup .mapboxgl-popup-content{background:#000!important;border:1px solid #FFD700!important;color:#FFD700!important;font-family:monospace;padding:6px 10px!important;border-radius:8px!important;box-shadow:0 0 10px #FFD700}
+        .node-popup .mapboxgl-popup-tip{border-top-color:#FFD700!important}
+        #receipt-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:9999;justify-content:center;align-items:center;flex-direction:column;color:#FFD700;font-family:monospace}
+        .receipt-card{border:2px solid #FFD700;padding:25px;max-width:320px;width:90%;text-align:left;font-size:14px;line-height:1.6;background:#000;position:relative;border-radius:24px}
+        .receipt-card .hash{word-break:break-all;color:#e6b800;font-size:12px}
+        .receipt-card .ttl{color:#aaa;font-size:11px}
+        .redacted-bar{background:#FFD700;color:#000;padding:2px 0;margin:5px 0;text-align:center;font-weight:bold;letter-spacing:2px}
     </style>
 </head>
 <body>
@@ -66,31 +97,25 @@
         <button id="mode-create" class="mode-btn">CREATE</button>
     </div>
     <div id="heatmap-loading" class="heatmap-loading">Loading...</div>
-    <button id="profile-gear" style="display:none;">⚙️</button>
-    <button id="heatmap-toggle-btn">🔥</button>
-    <button id="emergency-btn">🆘</button>
-    <button id="fab" style="display:none;">+</button>
-
+    <button id="profile-gear" style="display:none;" onclick="openProfilePanel()" title="Profile">⚙️</button>
+    <button id="heatmap-toggle-btn" title="Heatmap">🔥</button>
+    <button id="fab" style="display:none;" onclick="openIntentPanel()">+</button>
     <div id="profile-panel">
-        <h3>YOUR PROFILE</h3>
-        <label>Display Name</label><input type="text" id="prof-name">
-        <label>Avatar Emoji</label><input type="text" id="prof-emoji" maxlength="2">
-        <label>Age</label><input type="number" id="prof-age">
-        <label>Nationality</label><input type="text" id="prof-nationality">
-        <label>Profession</label><input type="text" id="prof-profession">
-        <label>Vibe Tags (comma separated)</label><input type="text" id="prof-tags">
+        <h3 style="margin-top:0;text-align:center">YOUR PROFILE</h3>
+        <label>Display Name</label><input type="text" id="prof-name" placeholder="Your public name">
+        <label>Avatar Emoji</label><input type="text" id="prof-emoji" placeholder="🤖" maxlength="2">
+        <label>Age</label><input type="number" id="prof-age" placeholder="25" min="13" max="120">
+        <label>Nationality</label><input type="text" id="prof-nationality" placeholder="e.g. Indian, Emirati">
+        <label>Profession</label><input type="text" id="prof-profession" placeholder="e.g. Designer, Student">
+        <label>Vibe Tags (comma separated)</label><input type="text" id="prof-tags" placeholder="e.g. Creative, Night Owl">
         <button class="profile-save-btn" onclick="saveProfile()">SAVE</button>
         <button class="profile-close-btn" onclick="closeProfilePanel()">CLOSE</button>
     </div>
     <div id="intent-panel"></div>
     <div id="terminal">
-        <div class="terminal-header">
-            <span>💬 CHAT</span>
-            <button class="three-dots" id="chat-menu-btn">⋮</button>
-        </div>
         <div id="inbox-panel"></div>
         <div id="oracle-ballot">STATUS: PENDING</div>
-        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;">[ SYNC GPS WITH ORACLE ]</button>
+        <button id="oracle-btn" onclick="initiateOracle()" style="display:none;width:100%;padding:12px;background:transparent;border:1px solid #FFD700;color:#FFD700;margin-bottom:10px;border-radius:30px">[ SYNC GPS WITH ORACLE ]</button>
         <div id="msg-box"></div>
         <div style="display:flex">
             <input type="text" id="chat-in" placeholder="TYPE..." onkeypress="if(event.key==='Enter')sendMsg()" style="flex:1;background:#000;border:1px solid #FFD700;color:#FFD700;padding:10px;border-radius:30px 0 0 30px">
@@ -106,11 +131,9 @@
         <div class="row"><span>Profession</span><span id="card-profession"></span></div>
         <div class="tags" id="card-tags"></div>
         <div class="vibe-section" id="card-vibe" style="display:none"></div>
-        <div class="safety-buttons" id="card-safety-buttons"></div>
         <button class="send-btn" id="card-send-btn">[ SEND REQUEST ]</button>
         <button class="close-card" onclick="closeProfileCard()">CLOSE</button>
     </div>
-
     <div id="sync-panel">
         <h2>VENUE LOCKED</h2><p id="sync-venue"></p><p id="sync-status">Waiting for both users to confirm...</p>
         <button class="sync-btn" id="sync-confirm-btn" onclick="confirmProceed()">[ CONFIRM & PROCEED ]</button>
@@ -126,23 +149,29 @@
     </div>
     <div id="receipt-overlay">
         <div class="receipt-card">
-            <div style="font-size:18px;">SESSION //REDACTED</div>
+            <div style="font-size:18px;font-weight:bold;border-bottom:1px solid #FFD700;padding-bottom:5px;margin-bottom:10px;">SESSION //REDACTED</div>
             <div class="redacted-bar">█████ PURGED █████</div>
-            <div>VERIFY: <span id="receipt-hash"></span></div>
-            <div id="receipt-ttl"></div>
+            <div style="margin-top:10px;">VERIFY: <span class="hash" id="receipt-hash"></span></div>
+            <div class="ttl" id="receipt-ttl"></div>
         </div>
     </div>
 
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        // ========== INIT ==========
+        // ========== SUPABASE & MAPBOX ==========
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
 
-        const MAX_VENUE_DISTANCE_KM = 20, NODE_EXPIRY_MINUTES = 30, HEATMAP_RADIUS_KM = 50, HEATMAP_CELL_SIZE_DEG = 0.02, MIN_NODES_FOR_HEATMAP = 3;
-        const MEET_DURATION_MINUTES = new URLSearchParams(window.location.search).get('debug') ? parseInt(new URLSearchParams(window.location.search).get('debug')) : 2;
+        // Constants
+        const MAX_VENUE_DISTANCE_KM = 20;
+        const NODE_EXPIRY_MINUTES = 30;
+        const HEATMAP_RADIUS_KM = 50;
+        const HEATMAP_CELL_SIZE_DEG = 0.02;
+        const MIN_NODES_FOR_HEATMAP = 3;
+        const params = new URLSearchParams(window.location.search);
+        const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
 
         const categories = {
             social: { label:'🍻 Social', presets:['☕ Coffee & Conversation','🍽️ Foodie Meetup','🌙 Night Out','📸 Social Collab'] },
@@ -157,413 +186,687 @@
             '📸 Social Collab': {q:'What type of content?', a:'Video / Reels', b:'Photography'}
         };
 
+        // Global state
         let myUserId = localStorage.getItem('vessel_user_id');
         if (!myUserId) { myUserId = 'u_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); localStorage.setItem('vessel_user_id', myUserId); }
-        let currentMode = 'browse', currentN = null, myLoc = {lat:0,lng:0}, gpsReady = false, gpsFailures = 0;
-        let meetRated = false, myConfirmed = false, meetTimerInterval = null, oracleProcessed = false, acceptancePoll = null, lastMsgId = 0;
-        let selectedCategory = 'social', selectedIntent = '☕ Coffee & Conversation', customIntentText = '', selectedNodeType = 'one_on_one', selectedMaxParticipants = null, selectedVibeAnswer = null;
-        let pendingNodeProps = null, seekerVibeAnswer = null, selectedVenueCoords = null;
-        let heatmapOn = false, reverseGeocodeCache = new Map();
+        let currentMode = 'browse';
+        let currentN = null;
+        let myLoc = {lat:0,lng:0};
+        let gpsReady = false, gpsFailures = 0;
+        let meetRated = false, myConfirmed = false, meetTimerInterval = null;
+        let oracleProcessed = false;
+        let acceptancePoll = null;
+        let lastMsgId = 0;
+        let selectedVenueCoords = null;
+
+        // Creator-specific
+        let selectedCategory = 'social';
+        let selectedIntent = '☕ Coffee & Conversation';
+        let customIntentText = '';
+        let selectedNodeType = 'one_on_one';
+        let selectedMaxParticipants = null;
+        let selectedVibeAnswer = null;
+
+        // Seeker-specific
+        let pendingNodeProps = null;
+        let seekerVibeAnswer = null;
 
         const map = new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/dark-v11',center:[55.39,25.34],zoom:12});
 
-        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t];b.style.color=c[t];b.innerText=m;setTimeout(()=>{if(b.innerText===m)b.style.display='none'},3000);}
+        function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;setTimeout(()=>{if(document.getElementById('status-bar').innerText===m)b.style.display='none'},3000);}
         function clearStatus(){document.getElementById('status-bar').style.display='none';}
-        function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
-        function bbox(midLat,midLng,r){const dLat=r/111.32,dLng=r/(111.32*Math.cos(midLat*Math.PI/180));return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat);}
+
+        window.addEventListener('offline', () => setStatus('warning', '⚠️ Connection lost – waiting...'));
+        window.addEventListener('online', () => { clearStatus(); });
+
+        navigator.geolocation.watchPosition(p=>{myLoc={lat:p.coords.latitude,lng:p.coords.longitude};gpsReady=true;gpsFailures=0;clearStatus()},e=>{gpsFailures++;gpsReady=false;if(gpsFailures===1)setStatus('warning','GPS signal weak');if(gpsFailures>5)setStatus('error','GPS unavailable')},{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+        setStatus('info','Waiting for GPS...');
+
+        function haversine(lat1,lng1,lat2,lng2){const R=6371;const dLat=(lat2-lat1)*Math.PI/180,dLng=(lng2-lng1)*Math.PI/180;const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
+        function bbox(midLat,midLng,r){const dLat=r/111.32,dLng=r/(111.32*Math.cos(midLat*Math.PI/180));return (midLng-dLng)+','+(midLat-dLat)+','+(midLng+dLng)+','+(midLat+dLat)}
         async function ensureUser(){const{data}=await _supabase.from('users').select('id').eq('id',myUserId).limit(1);if(!data||data.length===0)await _supabase.from('users').insert([{id:myUserId,trust_score:5.0,total_meets:0}]);}
         ensureUser();
 
-        navigator.geolocation.watchPosition(p=>{myLoc={lat:p.coords.latitude,lng:p.coords.longitude};gpsReady=true;gpsFailures=0;clearStatus();},e=>{gpsFailures++;gpsReady=false;if(gpsFailures===1)setStatus('warning','GPS signal weak');if(gpsFailures>5)setStatus('error','GPS unavailable');},{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
-        setStatus('info','Waiting for GPS...');
-
-        // ========== SAFETY ==========
-        async function reportUser(reportedId, nodeId) {
-            let reason = prompt('Reason for report (optional):');
-            if (reason === null) reason = '';
-            await _supabase.from('reports').insert({reporter_id:myUserId, reported_id:reportedId, node_id:nodeId||null, reason:reason||'No reason'});
-            setStatus('success','Report sent');
-        }
-        async function blockUser(blockedId) {
-            await _supabase.from('blocks').insert({blocker_id:myUserId, blocked_id:blockedId});
-            setStatus('success','User blocked');
-            closeProfileCard();
-        }
-        async function isBlocked(userId){ const{data}=await _supabase.from('blocks').select('id').eq('blocker_id',myUserId).eq('blocked_id',userId).maybeSingle(); return !!data; }
-        function shareEmergencyLocation(){ if(!gpsReady){ setStatus('error','GPS not ready'); return; } const url=`https://maps.google.com/?q=${myLoc.lat},${myLoc.lng}`; if(navigator.share) navigator.share({title:'Emergency', text:`I need help. Location: ${url}`}); else alert(`Share this link: ${url}`); }
-        document.getElementById('emergency-btn').addEventListener('click', shareEmergencyLocation);
-
         // ========== PROFILE (creator) ==========
         window.openProfilePanel = async () => {
-            document.getElementById('profile-panel').style.display='block';
-            const{data}=await _supabase.from('users').select('display_name,avatar_emoji,age,nationality,profession,vibe_tags').eq('id',myUserId).single();
-            if(data){
-                document.getElementById('prof-name').value=data.display_name||'';
-                document.getElementById('prof-emoji').value=data.avatar_emoji||'🤖';
-                document.getElementById('prof-age').value=data.age||'';
-                document.getElementById('prof-nationality').value=data.nationality||'';
-                document.getElementById('prof-profession').value=data.profession||'';
-                document.getElementById('prof-tags').value=(data.vibe_tags||[]).join(', ');
+            document.getElementById('profile-panel').style.display = 'block';
+            const { data } = await _supabase.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags').eq('id', myUserId).single();
+            if (data) {
+                document.getElementById('prof-name').value = data.display_name || '';
+                document.getElementById('prof-emoji').value = data.avatar_emoji || '🤖';
+                document.getElementById('prof-age').value = data.age || '';
+                document.getElementById('prof-nationality').value = data.nationality || '';
+                document.getElementById('prof-profession').value = data.profession || '';
+                document.getElementById('prof-tags').value = (data.vibe_tags || []).join(', ');
             }
         };
-        function closeProfilePanel(){document.getElementById('profile-panel').style.display='none';}
+        function closeProfilePanel() { document.getElementById('profile-panel').style.display = 'none'; }
         window.saveProfile = async () => {
-            const displayName=document.getElementById('prof-name').value.trim();
-            const avatarEmoji=document.getElementById('prof-emoji').value.trim()||'🤖';
-            const age=parseInt(document.getElementById('prof-age').value)||null;
-            const nationality=document.getElementById('prof-nationality').value.trim();
-            const profession=document.getElementById('prof-profession').value.trim();
-            const tagsRaw=document.getElementById('prof-tags').value;
-            const vibeTags=tagsRaw?tagsRaw.split(',').map(t=>t.trim()).filter(t=>t.length>0):[];
-            await _supabase.from('users').upsert({id:myUserId, display_name:displayName, avatar_emoji:avatarEmoji, age:age, nationality:nationality||null, profession:profession||null, vibe_tags:vibeTags, trust_score:5.0, total_meets:0},{onConflict:'id'});
-            setStatus('success','Profile updated');
-            closeProfilePanel();
-        };
-        document.getElementById('profile-gear').onclick = openProfilePanel;
+            const displayName = document.getElementById('prof-name').value.trim();
+            const avatarEmoji = document.getElementById('prof-emoji').value.trim() || '🤖';
+            const age = parseInt(document.getElementById('prof-age').value) || null;
+            const nationality = document.getElementById('prof-nationality').value.trim();
+            const profession = document.getElementById('prof-profession').value.trim();
+            const tagsRaw = document.getElementById('prof-tags').value;
+            const vibeTags = tagsRaw ? tagsRaw.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
 
-        // ========== ACCORDION ==========
+            const { error } = await _supabase.from('users').upsert({
+                id: myUserId, display_name: displayName, avatar_emoji: avatarEmoji, age: age,
+                nationality: nationality || null, profession: profession || null, vibe_tags: vibeTags,
+                trust_score: 5.0, total_meets: 0
+            }, { onConflict: 'id' });
+            if (error) { alert('Failed to save profile: ' + error.message); }
+            else { closeProfilePanel(); setStatus('success', 'Profile updated!'); setTimeout(() => clearStatus(), 2000); }
+        };
+
+        // ========== INTENT ACCORDION (creator) ==========
         function buildAccordion(){
             const panel = document.getElementById('intent-panel');
             panel.innerHTML = '';
-            for(const cat in categories){
+            Object.keys(categories).forEach(cat => {
                 const section = document.createElement('div'); section.className = 'accordion-section';
                 const header = document.createElement('button'); header.className = 'accordion-header';
-                header.innerHTML = `<span>${categories[cat].label}</span><span>▼</span>`;
-                header.onclick = () => toggleAccordion(cat);
-                const body = document.createElement('div'); body.className = 'accordion-body'; body.id = 'body-'+cat;
+                header.innerHTML = `<span>${categories[cat].label}</span><span>▼</span>`; header.onclick = () => toggleAccordion(cat);
+                const body = document.createElement('div'); body.className = 'accordion-body'; body.id = 'body-' + cat;
+
                 const btnRow = document.createElement('div'); btnRow.className = 'btn-row';
                 categories[cat].presets.forEach(intent => {
                     const btn = document.createElement('button'); btn.className = 'intent-btn'; btn.innerText = intent;
-                    btn.onclick = (e) => { e.stopPropagation(); selectIntent(cat, intent, false); document.getElementById('done-btn-'+cat).style.display = 'inline-block'; };
+                    btn.onclick = (e) => { e.stopPropagation(); selectIntent(cat, intent, false); document.getElementById('done-btn-' + cat).style.display = 'inline-block'; };
                     btnRow.appendChild(btn);
                 });
                 const customBtn = document.createElement('button'); customBtn.className = 'intent-btn custom'; customBtn.innerText = '+ Custom';
-                customBtn.onclick = (e) => { e.stopPropagation(); selectIntent(cat, null, true); document.getElementById('custom-'+cat).style.display = 'block'; document.getElementById('done-btn-'+cat).style.display = 'inline-block'; };
+                customBtn.onclick = (e) => { e.stopPropagation(); selectIntent(cat, null, true); document.getElementById('custom-' + cat).style.display = 'block'; document.getElementById('done-btn-' + cat).style.display = 'inline-block'; };
                 btnRow.appendChild(customBtn);
                 body.appendChild(btnRow);
 
                 const typeRow = document.createElement('div'); typeRow.className = 'node-type-row';
-                typeRow.innerHTML = '<span>Type:</span>';
+                typeRow.innerHTML = '<span style="color:#FFD700;font-size:12px">Type:</span>';
                 ['one_on_one','group'].forEach(type => {
                     const typeBtn = document.createElement('button'); typeBtn.className = 'intent-btn';
-                    typeBtn.innerText = type==='one_on_one'?'🔒 1‑on‑1':'👥 Group';
+                    typeBtn.innerText = type === 'one_on_one' ? '🔒 1‑on‑1' : '👥 Group';
                     typeBtn.onclick = (e) => { e.stopPropagation(); selectedNodeType = type;
-                        document.querySelectorAll('#body-'+cat+' .node-type-row .intent-btn').forEach(b=>b.classList.remove('selected'));
+                        document.querySelectorAll('#body-' + cat + ' .node-type-row .intent-btn').forEach(b => b.classList.remove('selected'));
                         typeBtn.classList.add('selected');
-                        if(type==='group'){ document.getElementById('max-part-'+cat).style.display='inline-block'; const vr=document.getElementById('vibe-row-'+cat); if(vr) vr.style.display='none'; }
-                        else{ document.getElementById('max-part-'+cat).style.display='none'; if(cat==='social' && selectedIntent!=='Custom' && vibeChecks[selectedIntent]){ const vr=document.getElementById('vibe-row-'+cat); if(vr) vr.style.display='block'; } }
+                        if (type === 'group') { document.getElementById('max-part-' + cat).style.display = 'inline-block'; const vibeRow = document.getElementById('vibe-row-' + cat); if (vibeRow) vibeRow.style.display = 'none'; }
+                        else { document.getElementById('max-part-' + cat).style.display = 'none'; if (cat === 'social' && selectedIntent !== 'Custom' && vibeChecks[selectedIntent]) { const vibeRow = document.getElementById('vibe-row-' + cat); if (vibeRow) vibeRow.style.display = 'block'; } }
                     };
                     typeRow.appendChild(typeBtn);
                 });
-                const maxInput = document.createElement('input'); maxInput.type='number'; maxInput.min=2; maxInput.max=20; maxInput.placeholder='Max (opt)';
-                maxInput.className='custom-input'; maxInput.id='max-part-'+cat; maxInput.style.display='none';
+                const maxInput = document.createElement('input'); maxInput.type = 'number'; maxInput.min = 2; maxInput.max = 20; maxInput.placeholder = 'Max (opt)';
+                maxInput.className = 'custom-input'; maxInput.id = 'max-part-' + cat; maxInput.style.width = '60px'; maxInput.style.display = 'none';
                 maxInput.onchange = () => selectedMaxParticipants = maxInput.value ? parseInt(maxInput.value) : null;
                 typeRow.appendChild(maxInput);
                 body.appendChild(typeRow);
 
-                if(cat === 'social'){
-                    const vibeRow = document.createElement('div'); vibeRow.className='vibe-row'; vibeRow.id='vibe-row-'+cat; vibeRow.style.display='none';
-                    body.appendChild(vibeRow);
-                }
-                const customInput = document.createElement('input'); customInput.className='custom-input'; customInput.id='custom-'+cat;
-                customInput.placeholder = 'Describe your '+categories[cat].label.split(' ')[1]+' intent...';
+                if (cat === 'social') { const vibeRow = document.createElement('div'); vibeRow.className = 'vibe-row'; vibeRow.id = 'vibe-row-' + cat; vibeRow.style.display = 'none'; body.appendChild(vibeRow); }
+
+                const customInput = document.createElement('input'); customInput.className = 'custom-input'; customInput.id = 'custom-' + cat;
+                customInput.placeholder = 'Describe your ' + categories[cat].label.split(' ')[1] + ' intent...';
                 customInput.oninput = (e) => { customIntentText = e.target.value; };
-                const doneBtn = document.createElement('button'); doneBtn.className='done-btn'; doneBtn.id='done-btn-'+cat; doneBtn.innerText='DONE';
-                doneBtn.onclick = () => { closeIntentPanel(); startCreation(); };
+                const doneBtn = document.createElement('button'); doneBtn.className = 'done-btn'; doneBtn.id = 'done-btn-' + cat;
+                doneBtn.innerText = 'DONE'; doneBtn.onclick = () => { closeIntentPanel(); startCreation(); };
                 body.appendChild(customInput); body.appendChild(doneBtn);
                 section.appendChild(header); section.appendChild(body);
                 panel.appendChild(section);
-            }
-            const closeBtn = document.createElement('button'); closeBtn.className='close-btn'; closeBtn.innerText='CLOSE';
-            closeBtn.onclick = closeIntentPanel;
-            panel.appendChild(closeBtn);
-        }
-        function toggleAccordion(cat){ document.querySelectorAll('.accordion-body').forEach(b=>b.classList.remove('open')); document.getElementById('body-'+cat).classList.toggle('open'); }
-        function closeIntentPanel(){ document.getElementById('intent-panel').style.display='none'; }
-        window.openIntentPanel = () => { if(gpsReady) document.getElementById('intent-panel').style.display='block'; else setStatus('warning','GPS not ready'); };
-        function selectIntent(cat, intent, isCustom){
-            selectedCategory = cat;
-            if(isCustom){
-                selectedIntent='Custom'; customIntentText=''; document.querySelectorAll('.custom-input').forEach(i=>i.style.display='none'); document.getElementById('custom-'+cat).style.display='block'; const vr=document.getElementById('vibe-row-'+cat); if(vr) vr.style.display='none'; selectedVibeAnswer=null;
-            } else {
-                selectedIntent=intent; customIntentText=''; document.querySelectorAll('.custom-input').forEach(i=>i.style.display='none');
-                if(cat==='social' && selectedNodeType==='one_on_one' && vibeChecks[intent]){
-                    const vr=document.getElementById('vibe-row-'+cat); if(vr){
-                        vr.style.display='block'; const ck=vibeChecks[intent];
-                        vr.innerHTML = `<span>Vibe: ${ck.q}</span><br><button class="vibe-option" data-vibe="a">${ck.a}</button><button class="vibe-option" data-vibe="b">${ck.b}</button>`;
-                        vr.querySelectorAll('.vibe-option').forEach(btn=>{btn.onclick=(e)=>{vr.querySelectorAll('.vibe-option').forEach(b=>b.classList.remove('selected')); btn.classList.add('selected'); selectedVibeAnswer=btn.dataset.vibe;};});
-                    }
-                } else { const vr=document.getElementById('vibe-row-'+cat); if(vr) vr.style.display='none'; selectedVibeAnswer=null; }
-            }
-            document.querySelectorAll('.intent-btn').forEach(b=>b.classList.remove('selected'));
-            if(!isCustom) document.getElementById('body-'+cat).querySelectorAll('.intent-btn').forEach(b=>{if(b.innerText===intent) b.classList.add('selected');});
+            });
+            const closeBtn = document.createElement('button'); closeBtn.className = 'close-btn'; closeBtn.innerText = 'CLOSE';
+            closeBtn.onclick = closeIntentPanel; panel.appendChild(closeBtn);
         }
         buildAccordion();
-        document.getElementById('fab').onclick = openIntentPanel;
 
-        // ========== NODE CREATION ==========
+        function toggleAccordion(cat) { document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open')); document.getElementById('body-' + cat).classList.toggle('open'); }
+        function collapseAll() { document.querySelectorAll('.accordion-body').forEach(b => b.classList.remove('open')); }
+
+        function selectIntent(cat, intent, isCustom) {
+            selectedCategory = cat;
+            if (isCustom) { selectedIntent = 'Custom'; customIntentText = ''; document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none'); document.getElementById('custom-' + cat).style.display = 'block'; const vibeRow = document.getElementById('vibe-row-' + cat); if (vibeRow) vibeRow.style.display = 'none'; selectedVibeAnswer = null; }
+            else { selectedIntent = intent; customIntentText = ''; document.querySelectorAll('.custom-input').forEach(i => i.style.display = 'none');
+                if (cat === 'social' && selectedNodeType === 'one_on_one' && vibeChecks[intent]) { const vibeRow = document.getElementById('vibe-row-' + cat);
+                    if (vibeRow) { vibeRow.style.display = 'block'; const ck = vibeChecks[intent];
+                        vibeRow.innerHTML = `<span style="color:#FFD700;font-size:12px">Vibe: ${ck.q}</span><br><button class="vibe-option" data-vibe="a">${ck.a}</button><button class="vibe-option" data-vibe="b">${ck.b}</button>`;
+                        vibeRow.querySelectorAll('.vibe-option').forEach(btn => { btn.onclick = (e) => { e.stopPropagation(); vibeRow.querySelectorAll('.vibe-option').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); selectedVibeAnswer = btn.dataset.vibe; }; });
+                    } } else { const vibeRow = document.getElementById('vibe-row-' + cat); if (vibeRow) vibeRow.style.display = 'none'; selectedVibeAnswer = null; }
+            }
+            document.querySelectorAll('.intent-btn').forEach(b => b.classList.remove('selected'));
+            if (!isCustom) { document.getElementById('body-' + cat).querySelectorAll('.intent-btn').forEach(b => { if (b.innerText === intent) b.classList.add('selected'); }); }
+        }
+
+        window.openIntentPanel = () => { if (!gpsReady) { setStatus('warning', 'GPS not ready'); return; } document.getElementById('intent-panel').style.display = 'block'; };
+        function closeIntentPanel() { document.getElementById('intent-panel').style.display = 'none'; collapseAll(); }
+
+        // ========== NODE CREATION (creator) ==========
         window.startCreation = () => {
-            const finalIntent = selectedIntent==='Custom'?customIntentText:selectedIntent;
-            if(!finalIntent.trim()){ setStatus('error','Please select or enter an intent'); return; }
+            const finalIntent = selectedIntent === 'Custom' ? customIntentText : selectedIntent;
+            if (!finalIntent.trim()) { setStatus('error', 'Please select or enter an intent'); return; }
             const vibeRow = document.getElementById('vibe-row-social');
-            if(selectedCategory==='social' && selectedNodeType==='one_on_one' && vibeRow && vibeRow.style.display!=='none' && !selectedVibeAnswer){ setStatus('error','Please select a vibe before dropping'); return; }
+            if (selectedCategory === 'social' && selectedNodeType === 'one_on_one' && vibeRow && vibeRow.style.display !== 'none' && !selectedVibeAnswer) { setStatus('error', 'Please select a vibe before dropping'); return; }
             closeIntentPanel();
-            setStatus('info','Tap anywhere on the map to drop your "'+finalIntent+'" node');
-            map.once('click', async (e)=>{
-                setStatus('info','Creating node...');
-                const nodeData = { lat:e.lngLat.lat, lng:e.lngLat.lng, intent:finalIntent, category:selectedCategory, node_type:selectedNodeType, max_participants:selectedNodeType==='group'?selectedMaxParticipants:null, status:'active', user_id:myUserId, expires_at:new Date(Date.now()+NODE_EXPIRY_MINUTES*60*1000).toISOString() };
-                if(selectedCategory==='social' && selectedNodeType==='one_on_one' && selectedVibeAnswer && vibeChecks[selectedIntent]){ nodeData.vibe_question=vibeChecks[selectedIntent].q; nodeData.vibe_answer=selectedVibeAnswer; }
-                const {data,error}=await _supabase.from('nodes').insert([nodeData]).select();
-                if(error){ setStatus('error','Failed to create node: '+error.message); return; }
+            setStatus('info', 'Tap anywhere on the map to drop your "' + finalIntent + '" node');
+            map.once('click', async (e) => {
+                setStatus('info', 'Creating node...');
+                const nodeData = { lat: e.lngLat.lat, lng: e.lngLat.lng, intent: finalIntent, category: selectedCategory, node_type: selectedNodeType, max_participants: selectedNodeType === 'group' ? selectedMaxParticipants : null, status: 'active', user_id: myUserId, expires_at: new Date(Date.now() + NODE_EXPIRY_MINUTES * 60 * 1000).toISOString() };
+                if (selectedCategory === 'social' && selectedNodeType === 'one_on_one' && selectedVibeAnswer && vibeChecks[selectedIntent]) { nodeData.vibe_question = vibeChecks[selectedIntent].q; nodeData.vibe_answer = selectedVibeAnswer; }
+                const { data, error } = await _supabase.from('nodes').insert([nodeData]).select();
+                if (error) { setStatus('error', 'Failed to create node: ' + error.message); return; }
                 currentN = data[0];
-                clearStatus(); setStatus('success','"'+finalIntent+'" node active! '+NODE_EXPIRY_MINUTES+' mins.');
-                new mapboxgl.Marker({color:'#FFD700'}).setLngLat([e.lngLat.lng,e.lngLat.lat]).addTo(map);
-                await _supabase.from('logs').insert([{event_type:'node_created', user_id:myUserId, details:{node_id:currentN.id, intent:finalIntent}}]).catch(()=>{});
-                _supabase.channel('reqs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'requests',filter:'node_id=eq.'+currentN.id},()=>{clearStatus();setStatus('success','Someone wants to connect!');document.getElementById('terminal').style.display='flex';loadInbox();}).subscribe();
+                clearStatus(); setStatus('success', '"' + finalIntent + '" node active! ' + NODE_EXPIRY_MINUTES + ' mins.');
+                new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map);
+                try { await _supabase.from('logs').insert([{event_type:'node_created', user_id:myUserId, details:{node_id:currentN.id, intent:finalIntent}}]); } catch(e) {}
+                _supabase.channel('reqs-' + currentN.id)
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requests', filter: 'node_id=eq.' + currentN.id }, () => {
+                        clearStatus();
+                        setStatus('success', 'Someone wants to connect!');
+                        document.getElementById('terminal').style.display = 'flex';
+                        loadInbox();
+                    }).subscribe();
             });
         };
 
-        // ========== INBOX ==========
+        // ========== INBOX (creator) ==========
         async function loadInbox(){
             if(!currentN) return;
-            const{data:requests}=await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
-            const inbox=document.getElementById('inbox-panel');
+            const{data:requests} = await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
+            const inbox = document.getElementById('inbox-panel');
             if(!requests||requests.length===0){inbox.style.display='none';return;}
             inbox.style.display='block';
-            inbox.innerHTML='<div style="color:#FFD700;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
+            inbox.innerHTML = '<div style="color:#FFD700;margin-bottom:5px">📩 Pending Requests ('+requests.length+')</div>';
             for(let req of requests){
-                const{data:user}=await _supabase.from('users').select('display_name,avatar_emoji,age,nationality,profession,vibe_tags,trust_score,total_meets').eq('id',req.requester_id).single();
-                const emoji=user?.avatar_emoji||'🤖', name=user?.display_name||'Unknown', trust=user?.trust_score||5.0, meets=user?.total_meets||0, age=user?.age||'N/A', tags=user?.vibe_tags||[];
-                const item=document.createElement('div'); item.className='inbox-item';
-                const avatarDiv=document.createElement('div'); avatarDiv.className='avatar'; avatarDiv.innerText=emoji;
-                const infoDiv=document.createElement('div'); infoDiv.className='info';
-                infoDiv.innerHTML=`<div class="name">${name}</div><div class="detail">⭐${trust.toFixed(1)} · ${meets} meets · Age ${age}</div><div class="detail">${user?.nationality||''} ${user?.profession?'· '+user.profession:''}</div><div class="tags">${tags.map(t=>`<span style="background:rgba(255,215,0,0.15);border:1px solid #FFD700;padding:2px 6px;margin-right:4px">${t}</span>`).join('')}</div>`;
-                if(req.answer_given){ const vibeLabel=req.answer_given==='a'?(vibeChecks[currentN.intent]?.a||'Option A'):(vibeChecks[currentN.intent]?.b||'Option B'); infoDiv.innerHTML+=`<div>Vibe: ${vibeLabel}</div>`; }
-                const actionsDiv=document.createElement('div'); actionsDiv.className='inbox-actions';
-                const acceptBtn=document.createElement('button'); acceptBtn.innerText='ACCEPT'; acceptBtn.onclick=()=>handleRequest(req.id,'accepted');
-                const declineBtn=document.createElement('button'); declineBtn.innerText='DECLINE'; declineBtn.onclick=()=>handleRequest(req.id,'declined');
-                const reportBtn=document.createElement('button'); reportBtn.innerText='⚠️'; reportBtn.style.borderColor='#f00'; reportBtn.style.color='#f00'; reportBtn.onclick=()=>reportUser(req.requester_id, currentN.id);
-                actionsDiv.appendChild(acceptBtn); actionsDiv.appendChild(declineBtn); actionsDiv.appendChild(reportBtn);
+                const{data:user} = await _supabase.from('users').select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets').eq('id',req.requester_id).single();
+                const emoji = user?.avatar_emoji || '🤖'; const name = user?.display_name || 'Unknown'; const trust = user?.trust_score || 5.0; const meets = user?.total_meets || 0; const age = user?.age || 'N/A'; const tags = user?.vibe_tags || [];
+                const item = document.createElement('div'); item.className='inbox-item';
+                const avatarDiv = document.createElement('div'); avatarDiv.className='avatar'; avatarDiv.innerText = emoji;
+                const infoDiv = document.createElement('div'); infoDiv.className='info';
+                infoDiv.innerHTML = `<div class="name">${name}</div><div class="detail">⭐${trust.toFixed(1)} · ${meets} meets · Age ${age}</div><div class="detail">${user?.nationality||''} ${user?.profession?'· '+user.profession:''}</div><div class="tags" style="margin-top:4px">${tags.map(t=>`<span style="background:rgba(255,215,0,0.15);border:1px solid #FFD700;padding:2px 6px;font-size:10px;margin-right:4px;border-radius:12px">${t}</span>`).join('')}</div>`;
+                if(req.answer_given){ const vibeLabel = req.answer_given === 'a' ? (vibeChecks[currentN.intent]?.a || 'Option A') : (vibeChecks[currentN.intent]?.b || 'Option B'); infoDiv.innerHTML += `<div style="color:#FFD700;margin-top:3px">Vibe: ${vibeLabel}</div>`; }
+                const actionsDiv = document.createElement('div'); actionsDiv.className='inbox-actions';
+                const acceptBtn = document.createElement('button'); acceptBtn.innerText='ACCEPT'; acceptBtn.onclick=()=>handleRequest(req.id,'accepted');
+                const declineBtn = document.createElement('button'); declineBtn.innerText='DECLINE'; declineBtn.onclick=()=>handleRequest(req.id,'declined');
+                actionsDiv.appendChild(acceptBtn); actionsDiv.appendChild(declineBtn);
                 item.appendChild(avatarDiv); item.appendChild(infoDiv); item.appendChild(actionsDiv);
                 inbox.appendChild(item);
             }
         }
+
         async function handleRequest(requestId,newStatus){
             await _supabase.from('requests').update({status:newStatus}).eq('id',requestId);
+            try { await _supabase.from('logs').insert([{event_type:'request_'+newStatus, user_id:myUserId, details:{request_id:requestId, node_id:currentN.id}}]); } catch(e) {}
             if(newStatus==='accepted'){
                 document.getElementById('inbox-panel').style.display='none';
-                if(currentN.node_type==='one_on_one') await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id);
+                if(currentN.node_type === 'one_on_one'){ await _supabase.from('nodes').update({status:'engaged'}).eq('id',currentN.id); }
                 startChatSync(); startOracleLive();
             }
             loadInbox();
         }
 
         // ========== CHAT ==========
-        function addMessageToChat(msg){
-            const div=document.createElement('div'); div.className='chat-msg';
-            if(msg.sender==='CREATOR' || (currentMode!=='create' && msg.sender===myUserId)) div.classList.add('msg-right');
-            else div.classList.add('msg-left');
-            div.innerText=msg.content;
-            document.getElementById('msg-box').appendChild(div);
-            document.getElementById('msg-box').scrollTop=document.getElementById('msg-box').scrollHeight;
-            document.getElementById('oracle-btn').style.display='block';
+        function addMessageToChat(msg) {
+            const msgDiv = document.createElement('div'); msgDiv.className = 'chat-msg';
+            if (msg.sender === 'CREATOR' || (currentMode !== 'create' && msg.sender === myUserId)) msgDiv.classList.add('msg-right'); else msgDiv.classList.add('msg-left');
+            msgDiv.innerText = msg.content;
+            document.getElementById('msg-box').appendChild(msgDiv);
+            document.getElementById('msg-box').scrollTop = document.getElementById('msg-box').scrollHeight;
+            document.getElementById('oracle-btn').style.display = 'block';
         }
-        window.sendMsg=async()=>{
-            const val=document.getElementById('chat-in').value; if(!val.trim()) return;
-            const sender=currentMode==='create'?'CREATOR':'SEEKER';
-            await _supabase.from('messages').insert([{node_id:currentN.id, sender:sender, content:val}]);
-            document.getElementById('chat-in').value='';
+        window.sendMsg = async () => {
+            const val = document.getElementById('chat-in').value; if (!val.trim()) return;
+            const sender = currentMode === 'create' ? 'CREATOR' : 'SEEKER';
+            const { error } = await _supabase.from('messages').insert([{node_id: currentN.id, sender: sender, content: val}]);
+            if (error) { setStatus('error', 'Failed to send'); return; }
+            document.getElementById('chat-in').value = '';
         };
-        function startChatSync(){
-            _supabase.channel('msgs-'+currentN.id).on('postgres_changes',{event:'INSERT',schema:'public',table:'messages',filter:'node_id=eq.'+currentN.id},p=>{if(p.new.id>lastMsgId){addMessageToChat(p.new);lastMsgId=p.new.id;}}).subscribe();
+        function startChatSync() {
+            _supabase.channel('msgs-' + currentN.id)
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'node_id=eq.' + currentN.id }, p => {
+                    if (p.new.id > lastMsgId) { addMessageToChat(p.new); lastMsgId = p.new.id; }
+                }).subscribe();
         }
 
         // ========== ORACLE ==========
-        window.initiateOracle=async()=>{
-            if(!gpsReady || myLoc.lat===0){ setStatus('error','GPS not ready'); return; }
-            setStatus('info','Syncing GPS...');
-            if(currentMode==='create') await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id, u1_lat:myLoc.lat, u1_lng:myLoc.lng},{onConflict:'bridge_id'});
-            else await _supabase.from('oracle_sessions').upsert({bridge_id:currentN.id, u2_lat:myLoc.lat, u2_lng:myLoc.lng},{onConflict:'bridge_id'});
-        };
-        function startOracleLive(){
-            _supabase.channel('oracle-'+currentN.id).on('postgres_changes',{event:'*',schema:'public',table:'oracle_sessions',filter:'bridge_id=eq.'+currentN.id},async p=>{
-                const s=p.new; if(s.error_state){setStatus('error',s.error_state);return;}
-                document.getElementById('oracle-ballot').innerText='STATUS: '+s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display='block';
-                const hasGPS=(s.u1_lat && s.u1_lng && s.u2_lat && s.u2_lng && s.u1_lat!==0 && s.u2_lat!==0);
-                if(!hasGPS && s.status==='pending') setStatus('warning','Waiting for both users GPS...');
-                if(hasGPS && s.status==='pending'){ setStatus('info','Oracle calculating...'); await _supabase.from('oracle_sessions').update({status:'ready'}).eq('bridge_id',currentN.id); }
-                if(s.status==='ready' && !s.options_generated && !oracleProcessed){ oracleProcessed=true; await runOracleBrain(s); }
-                if(s.status==='matched'){ clearStatus(); triggerSync(s); }
-                if(s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
-                if(s.meet_completed && !meetRated) showRatingPanel();
-            }).subscribe();
-        }
-        async function runOracleBrain(s){
-            const midLat=(s.u1_lat+s.u2_lat)/2, midLng=(s.u1_lng+s.u2_lng)/2;
-            const queries=['cafe','coffee shop','restaurant','mall','park']; let bestVenue=null;
-            for(const q of queries){
-                for(const r of [3,6,10,15,MAX_VENUE_DISTANCE_KM]){
-                    if(bestVenue) break;
-                    const box=bbox(midLat,midLng,r);
-                    const url=`https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}&proximity=${midLng},${midLat}&bbox=${box}&limit=10&access_token=${MAPBOX_TOKEN}`;
-                    try{
-                        const res=await fetch(url); const d=await res.json();
-                        if(d.features && d.features.length>0){
-                            const nearby=d.features.filter(f=>f.geometry.coordinates[1]&&f.geometry.coordinates[0]).map(f=>({name:f.properties.name||f.properties.full_address||'Venue', lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0], dist:haversine(midLat,midLng,f.geometry.coordinates[1],f.geometry.coordinates[0])})).filter(v=>v.dist<=MAX_VENUE_DISTANCE_KM).sort((a,b)=>a.dist-b.dist);
-                            if(nearby.length>0) bestVenue=nearby[0];
-                        }
-                    }catch(e){}
-                }
-                if(bestVenue) break;
+        window.initiateOracle = async () => {
+            if (!gpsReady || myLoc.lat === 0) { setStatus('error', 'GPS not ready'); return; }
+            setStatus('info', 'Syncing GPS...');
+            if (currentMode === 'create') {
+                await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u1_lat: myLoc.lat, u1_lng: myLoc.lng }, { onConflict: 'bridge_id' });
+            } else {
+                await _supabase.from('oracle_sessions').upsert({ bridge_id: currentN.id, u2_lat: myLoc.lat, u2_lng: myLoc.lng }, { onConflict: 'bridge_id' });
             }
-            if(bestVenue) await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:bestVenue.name,selected_lat:bestVenue.lat,selected_lng:bestVenue.lng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id);
-            else await _supabase.from('oracle_sessions').update({status:'matched',options_generated:true,error_state:null,selected_venue_name:'Midpoint Meeting Spot',selected_lat:midLat,selected_lng:midLng,meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()}).eq('bridge_id',currentN.id);
-        }
-        function triggerSync(s){
-            document.getElementById('terminal').style.display='none'; const syncPanel=document.getElementById('sync-panel'); syncPanel.style.display='block'; setTimeout(()=>syncPanel.style.opacity='1',10);
-            document.getElementById('sync-venue').innerText='Venue: '+s.selected_venue_name; document.getElementById('sync-confirm-btn').style.display='block'; myConfirmed=false;
-            selectedVenueCoords={lat:+s.selected_lat, lng:+s.selected_lng};
-            const u1lat=+s.u1_lat, u1lng=+s.u1_lng, u2lat=+s.u2_lat, u2lng=+s.u2_lng, vlat=+s.selected_lat, vlng=+s.selected_lng;
-            new mapboxgl.Marker({color:'#FFD700'}).setLngLat([u1lng,u1lat]).addTo(map);
-            new mapboxgl.Marker({color:'#e6b800'}).setLngLat([u2lng,u2lat]).addTo(map);
-            new mapboxgl.Marker({color:'#fff'}).setLngLat([vlng,vlat]).addTo(map);
-            drawRoute('rA',u1lng,u1lat,vlng,vlat,'#FFD700'); drawRoute('rB',u2lng,u2lat,vlng,vlat,'#e6b800');
-            map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng,u1lat]).extend([u2lng,u2lat]).extend([vlng,vlat]),{padding:80,duration:2000});
-        }
-        window.confirmProceed=async()=>{
-            myConfirmed=true; document.getElementById('sync-confirm-btn').style.display='none'; document.getElementById('sync-status').innerText='Waiting for other user...';
-            if(currentMode==='create') await _supabase.from('oracle_sessions').update({u1_confirmed:true}).eq('bridge_id',currentN.id);
-            else await _supabase.from('oracle_sessions').update({u2_confirmed:true}).eq('bridge_id',currentN.id);
         };
-        function startMeetTimer(s){
-            document.getElementById('sync-panel').style.opacity='0'; setTimeout(()=>document.getElementById('sync-panel').style.display='none',300);
-            const navHud=document.getElementById('nav-hud'); navHud.style.display='block'; setTimeout(()=>navHud.style.opacity='1',10);
-            document.getElementById('target-name').innerText='MEET AT: '+s.selected_venue_name.toUpperCase();
-            let remaining=MEET_DURATION_MINUTES*60;
-            meetTimerInterval=setInterval(async()=>{remaining--; const mins=Math.floor(remaining/60), secs=remaining%60; document.getElementById('meet-timer').innerText=`MEET WINDOW: ${mins}m ${secs}s`; if(remaining<=0){ clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({meet_completed:true}).eq('bridge_id',currentN.id); } },1000);
+        function startOracleLive() {
+            _supabase.channel('oracle-' + currentN.id)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'oracle_sessions', filter: 'bridge_id=eq.' + currentN.id }, async payload => {
+                    const s = payload.new; if (s.error_state) { setStatus('error', s.error_state); return; }
+                    document.getElementById('oracle-ballot').innerText = 'STATUS: ' + s.status.toUpperCase(); document.getElementById('oracle-ballot').style.display = 'block';
+                    const hasGPS = (s.u1_lat && s.u1_lng && s.u2_lat && s.u2_lng && s.u1_lat !== 0 && s.u2_lat !== 0);
+                    if (!hasGPS && s.status === 'pending') setStatus('warning', 'Waiting for both users GPS...');
+                    if (hasGPS && s.status === 'pending') { setStatus('info', 'Oracle calculating...'); await _supabase.from('oracle_sessions').update({ status: 'ready' }).eq('bridge_id', currentN.id); }
+                    if (s.status === 'ready' && !s.options_generated && !oracleProcessed) { oracleProcessed = true; await runOracleBrain(s); }
+                    if (s.status === 'matched') { clearStatus(); triggerSync(s); }
+                    if (s.u1_confirmed && s.u2_confirmed && !meetRated) startMeetTimer(s);
+                    if (s.meet_completed && !meetRated) showRatingPanel();
+                }).subscribe();
         }
-        function showRatingPanel(){ document.getElementById('nav-hud').style.opacity='0'; setTimeout(()=>document.getElementById('nav-hud').style.display='none',300); document.getElementById('rate-panel').style.display='block'; setTimeout(()=>document.getElementById('rate-panel').style.opacity='1',10); }
-        async function showReceipt(bridgeId){
-            const plain=bridgeId+'|'+Date.now(); const encoder=new TextEncoder(); const hashBuffer=await crypto.subtle.digest('SHA-256',encoder.encode(plain)); const hashArray=Array.from(new Uint8Array(hashBuffer)); const hashHex=hashArray.map(b=>b.toString(16).padStart(2,'0')).join(''); const shortHash=hashHex.slice(0,16)+'...'+hashHex.slice(-16);
-            await _supabase.from('deletion_receipts').upsert({bridge_id:bridgeId,hash:hashHex}).catch(()=>{});
-            document.getElementById('receipt-hash').innerText=shortHash; document.getElementById('receipt-ttl').innerText='TTL EXPIRES: '+new Date(Date.now()+30*60*1000).toLocaleTimeString(); document.getElementById('receipt-overlay').style.display='flex'; setTimeout(()=>location.reload(),3000);
+        async function runOracleBrain(s) {
+            const midLat = (s.u1_lat + s.u2_lat) / 2, midLng = (s.u1_lng + s.u2_lng) / 2;
+            const queries = ['cafe', 'coffee shop', 'restaurant', 'mall', 'park']; let bestVenue = null;
+            for (const q of queries) { for (const r of [3, 6, 10, 15, MAX_VENUE_DISTANCE_KM]) { if (bestVenue) break;
+                const box = bbox(midLat, midLng, r);
+                const url = 'https://api.mapbox.com/search/geocode/v6/forward?q=' + encodeURIComponent(q) + '&proximity=' + midLng + ',' + midLat + '&bbox=' + box + '&limit=10&access_token=' + MAPBOX_TOKEN;
+                try { const res = await fetch(url); const d = await res.json();
+                    if (d.features && d.features.length > 0) { const nearby = d.features.filter(f => f.geometry.coordinates[1] && f.geometry.coordinates[0]).map(f => ({ name: f.properties.name || f.properties.full_address || 'Venue', lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], dist: haversine(midLat, midLng, f.geometry.coordinates[1], f.geometry.coordinates[0]) })).filter(v => v.dist <= MAX_VENUE_DISTANCE_KM).sort((a, b) => a.dist - b.dist);
+                        if (nearby.length > 0) { bestVenue = nearby[0]; } }
+                } catch (e) { } }
+                if (bestVenue) break;
+            }
+            if (bestVenue) { await _supabase.from('oracle_sessions').update({ status: 'matched', options_generated: true, error_state: null, selected_venue_name: bestVenue.name, selected_lat: bestVenue.lat, selected_lng: bestVenue.lng, meet_expires_at: new Date(Date.now() + MEET_DURATION_MINUTES * 60 * 1000).toISOString() }).eq('bridge_id', currentN.id); }
+            else { await _supabase.from('oracle_sessions').update({ status: 'matched', options_generated: true, error_state: null, selected_venue_name: 'Midpoint Meeting Spot', selected_lat: midLat, selected_lng: midLng, meet_expires_at: new Date(Date.now() + MEET_DURATION_MINUTES * 60 * 1000).toISOString() }).eq('bridge_id', currentN.id); }
         }
-        window.submitRating=async(r)=>{ if(meetRated) return; meetRated=true; document.getElementById('rate-panel').style.display='none'; if(currentMode==='create') await _supabase.from('oracle_sessions').update({u1_rating:r}).eq('bridge_id',currentN.id); else await _supabase.from('oracle_sessions').update({u2_rating:r}).eq('bridge_id',currentN.id); setStatus('success','Thanks for rating!'); showReceipt(currentN.id); };
-        document.getElementById('terminate-btn').addEventListener('click',()=>{ if(currentN && currentN.id) showReceipt(currentN.id); else location.reload(); });
-        async function drawRoute(id,sLng,sLat,eLng,eLat,color){ try{ const url=`https://api.mapbox.com/directions/v5/mapbox/driving/${sLng},${sLat};${eLng},${eLat}?geometries=geojson&access_token=${MAPBOX_TOKEN}`; const r=await(await fetch(url)).json(); if(!r.routes||!r.routes[0]) return; if(map.getLayer(id)) map.removeLayer(id); if(map.getSource(id)) map.removeSource(id); map.addSource(id,{type:'geojson',data:{type:'Feature',geometry:r.routes[0].geometry}}); map.addLayer({id,type:'line',source:id,paint:{'line-color':color,'line-width':5}}); }catch(e){} }
+        function triggerSync(s) {
+            document.getElementById('terminal').style.display = 'none'; const syncPanel = document.getElementById('sync-panel'); syncPanel.style.display = 'block'; setTimeout(() => syncPanel.style.opacity = '1', 10);
+            document.getElementById('sync-venue').innerText = 'Venue: ' + s.selected_venue_name; document.getElementById('sync-confirm-btn').style.display = 'block'; myConfirmed = false;
+            selectedVenueCoords = { lat: +s.selected_lat, lng: +s.selected_lng };
+            const u1lat = +s.u1_lat, u1lng = +s.u1_lng, u2lat = +s.u2_lat, u2lng = +s.u2_lng, vlat = +s.selected_lat, vlng = +s.selected_lng;
+            new mapboxgl.Marker({ color: '#FFD700' }).setLngLat([u1lng, u1lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#e6b800' }).setLngLat([u2lng, u2lat]).addTo(map);
+            new mapboxgl.Marker({ color: '#fff' }).setLngLat([vlng, vlat]).addTo(map);
+            drawRoute('rA', u1lng, u1lat, vlng, vlat, '#FFD700'); drawRoute('rB', u2lng, u2lat, vlng, vlat, '#e6b800');
+            map.fitBounds(new mapboxgl.LngLatBounds().extend([u1lng, u1lat]).extend([u2lng, u2lat]).extend([vlng, vlat]), { padding: 80, duration: 2000 });
+        }
+        window.confirmProceed = async () => {
+            myConfirmed = true;
+            document.getElementById('sync-confirm-btn').style.display = 'none';
+            document.getElementById('sync-status').innerText = 'Waiting for other user...';
+            if (currentMode === 'create') {
+                await _supabase.from('oracle_sessions').update({ u1_confirmed: true }).eq('bridge_id', currentN.id);
+            } else {
+                await _supabase.from('oracle_sessions').update({ u2_confirmed: true }).eq('bridge_id', currentN.id);
+            }
+        };
+        function startMeetTimer(s) {
+            document.getElementById('sync-panel').style.opacity = '0'; setTimeout(() => document.getElementById('sync-panel').style.display = 'none', 300);
+            const navHud = document.getElementById('nav-hud'); navHud.style.display = 'block'; setTimeout(() => navHud.style.opacity = '1', 10);
+            document.getElementById('target-name').innerText = 'MEET AT: ' + s.selected_venue_name.toUpperCase();
+            let remaining = MEET_DURATION_MINUTES * 60;
+            meetTimerInterval = setInterval(async () => { remaining--; const mins = Math.floor(remaining / 60), secs = remaining % 60;
+                document.getElementById('meet-timer').innerText = 'MEET WINDOW: ' + mins + 'm ' + secs + 's';
+                if (remaining <= 0) { clearInterval(meetTimerInterval); await _supabase.from('oracle_sessions').update({ meet_completed: true }).eq('bridge_id', currentN.id); }
+            }, 1000);
+        }
+        function showRatingPanel() { document.getElementById('nav-hud').style.opacity = '0'; setTimeout(() => document.getElementById('nav-hud').style.display = 'none', 300); const rp = document.getElementById('rate-panel'); rp.style.display = 'block'; setTimeout(() => rp.style.opacity = '1', 10); }
 
-        // ========== SEEKER FUNCTIONS ==========
-        async function openProfileCard(nodeProps){
-            pendingNodeProps=nodeProps; seekerVibeAnswer=null;
-            const card=document.getElementById('profile-card');
-            const{data:user}=await _supabase.from('users').select('display_name,avatar_emoji,age,nationality,profession,vibe_tags,trust_score,total_meets').eq('id',nodeProps.user_id).single();
-            const emoji=user?.avatar_emoji||'🤖', name=user?.display_name||'Unknown', trust=user?.trust_score||5.0, meets=user?.total_meets||0;
-            document.getElementById('card-emoji').innerText=emoji; document.getElementById('card-name').innerText=name; document.getElementById('card-stats').innerHTML=`⭐${trust.toFixed(1)} · ${meets} meets`;
-            document.getElementById('card-age').innerText=user?.age||'N/A'; document.getElementById('card-nationality').innerText=user?.nationality||'N/A'; document.getElementById('card-profession').innerText=user?.profession||'N/A';
-            const tagsDiv=document.getElementById('card-tags'); tagsDiv.innerHTML=''; if(user?.vibe_tags) user.vibe_tags.forEach(t=>{const span=document.createElement('span'); span.className='tag'; span.innerText=t; tagsDiv.appendChild(span);});
-            const vibeDiv=document.getElementById('card-vibe');
-            if(nodeProps.category==='social' && nodeProps.node_type==='one_on_one' && nodeProps.vibe_question){
-                vibeDiv.style.display='block'; const ck=vibeChecks[nodeProps.intent];
-                if(ck){ vibeDiv.innerHTML=`<p>${ck.q}</p><button class="vibe-opt" data-vibe="a">${ck.a}</button><button class="vibe-opt" data-vibe="b">${ck.b}</button>`;
-                vibeDiv.querySelectorAll('.vibe-opt').forEach(btn=>{btn.onclick=()=>{vibeDiv.querySelectorAll('.vibe-opt').forEach(b=>b.classList.remove('selected')); btn.classList.add('selected'); seekerVibeAnswer=btn.dataset.vibe;};});}
-            } else vibeDiv.style.display='none';
-            const safetyDiv=document.getElementById('card-safety-buttons'); safetyDiv.innerHTML=`<button class="safety-btn" onclick="reportUser('${nodeProps.user_id}', ${nodeProps.id})">⚠️ Report</button><button class="safety-btn danger" onclick="blockUser('${nodeProps.user_id}')">🚫 Block</button>`;
-            card.style.display='block';
+        async function showReceipt(bridgeId) {
+            const plain = bridgeId + '|' + Date.now();
+            const encoder = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(plain));
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2,'0')).join('');
+            const shortHash = hashHex.slice(0,16) + '...' + hashHex.slice(-16);
+            try { await _supabase.from('deletion_receipts').upsert({ bridge_id: bridgeId, hash: hashHex }); } catch(e) {}
+            document.getElementById('receipt-hash').innerText = shortHash;
+            document.getElementById('receipt-ttl').innerText = 'TTL EXPIRES: ' + new Date(Date.now() + 30*60*1000).toLocaleTimeString();
+            document.getElementById('receipt-overlay').style.display = 'flex';
+            setTimeout(() => { location.reload(); }, 3000);
         }
-        function closeProfileCard(){ document.getElementById('profile-card').style.display='none'; pendingNodeProps=null; seekerVibeAnswer=null; }
-        async function sendRequestFromCard(){
-            if(!pendingNodeProps) return;
-            const nodeProps=pendingNodeProps;
-            if(nodeProps.category==='social' && nodeProps.node_type==='one_on_one' && nodeProps.vibe_question){
-                if(!seekerVibeAnswer){ setStatus('error','Please choose a vibe'); return; }
-                if(seekerVibeAnswer!==nodeProps.vibe_answer){ setStatus('error','Not my vibe'); closeProfileCard(); return; }
+        window.submitRating = async (r) => {
+            if (meetRated) return;
+            meetRated = true;
+            document.getElementById('rate-panel').style.display = 'none';
+            if (currentMode === 'create') {
+                await _supabase.from('oracle_sessions').update({ u1_rating: r }).eq('bridge_id', currentN.id);
+            } else {
+                await _supabase.from('oracle_sessions').update({ u2_rating: r }).eq('bridge_id', currentN.id);
             }
-            closeProfileCard(); await sendRequest(nodeProps, seekerVibeAnswer);
+            try { await _supabase.from('logs').insert([{event_type:'meet_rated', user_id:myUserId, details:{bridge_id:currentN.id, rating:r}}]); } catch(e) {}
+            setStatus('success', 'Thanks for rating!');
+            showReceipt(currentN.id);
+        };
+        document.getElementById('terminate-btn').addEventListener('click', () => {
+            if (currentN && currentN.id) showReceipt(currentN.id);
+            else location.reload();
+        });
+        async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
+
+        // ========== SEEKER PROFILE CARD & REQUESTS ==========
+        async function openProfileCard(nodeProps) {
+            pendingNodeProps = nodeProps;
+            seekerVibeAnswer = null;
+            const card = document.getElementById('profile-card');
+            const { data: user } = await _supabase.from('users')
+                .select('display_name, avatar_emoji, age, nationality, profession, vibe_tags, trust_score, total_meets')
+                .eq('id', nodeProps.user_id).single();
+            const emoji = user?.avatar_emoji || '🤖';
+            const name = user?.display_name || 'Unknown';
+            const trust = user?.trust_score || 5.0;
+            const meets = user?.total_meets || 0;
+            document.getElementById('card-emoji').innerText = emoji;
+            document.getElementById('card-name').innerText = name;
+            document.getElementById('card-stats').innerHTML = `⭐${trust.toFixed(1)} · ${meets} meets`;
+            document.getElementById('card-age').innerText = user?.age || 'N/A';
+            document.getElementById('card-nationality').innerText = user?.nationality || 'N/A';
+            document.getElementById('card-profession').innerText = user?.profession || 'N/A';
+            const tagsDiv = document.getElementById('card-tags');
+            tagsDiv.innerHTML = '';
+            if (user?.vibe_tags && user.vibe_tags.length > 0) {
+                user.vibe_tags.forEach(tag => {
+                    const span = document.createElement('span');
+                    span.className = 'tag'; span.innerText = tag;
+                    tagsDiv.appendChild(span);
+                });
+            }
+            const vibeDiv = document.getElementById('card-vibe');
+            if (nodeProps.category === 'social' && nodeProps.node_type === 'one_on_one' && nodeProps.vibe_question) {
+                vibeDiv.style.display = 'block';
+                const ck = vibeChecks[nodeProps.intent];
+                if (ck) {
+                    vibeDiv.innerHTML = `<p>${ck.q}</p>
+                        <button class="vibe-opt" data-vibe="a">${ck.a}</button>
+                        <button class="vibe-opt" data-vibe="b">${ck.b}</button>`;
+                    vibeDiv.querySelectorAll('.vibe-opt').forEach(btn => {
+                        btn.onclick = (e) => {
+                            vibeDiv.querySelectorAll('.vibe-opt').forEach(b => b.classList.remove('selected'));
+                            btn.classList.add('selected');
+                            seekerVibeAnswer = btn.dataset.vibe;
+                        };
+                    });
+                }
+            } else { vibeDiv.style.display = 'none'; }
+            card.style.display = 'block';
+        }
+        function closeProfileCard() { document.getElementById('profile-card').style.display = 'none'; pendingNodeProps = null; seekerVibeAnswer = null; }
+        async function sendRequestFromCard() {
+            if (!pendingNodeProps) return;
+            const nodeProps = pendingNodeProps;
+            if (nodeProps.category === 'social' && nodeProps.node_type === 'one_on_one' && nodeProps.vibe_question) {
+                if (!seekerVibeAnswer) { setStatus('error', 'Please choose a vibe'); return; }
+                if (seekerVibeAnswer !== nodeProps.vibe_answer) { setStatus('error', 'Not my vibe'); closeProfileCard(); return; }
+            }
+            closeProfileCard();
+            await sendRequest(nodeProps, seekerVibeAnswer);
         }
         document.getElementById('card-send-btn').addEventListener('click', sendRequestFromCard);
-        async function sendRequest(nodeProps, answer_given){
+        async function sendRequest(nodeProps, answer_given) {
             setStatus('info','Sending request...');
-            if(await isBlocked(nodeProps.user_id)){ setStatus('error','You have blocked this user'); return; }
-            const payload={node_id:nodeProps.id, requester_id:myUserId, status:'pending'}; if(answer_given) payload.answer_given=answer_given;
-            const{error}=await _supabase.from('requests').insert([payload]);
-            if(error){ setStatus('error','Request failed: '+error.message); return; }
+            const payload = { node_id: nodeProps.id, requester_id: myUserId, status: 'pending' };
+            if (answer_given) payload.answer_given = answer_given;
+            const { error } = await _supabase.from('requests').insert([payload]);
+            if (error) { setStatus('error','Request failed: ' + error.message); return; }
+            try { await _supabase.from('logs').insert([{event_type:'request_sent', user_id:myUserId, details:{node_id:nodeProps.id}}]); } catch(e) {}
             setStatus('success','Request sent. Waiting for creator...');
-            if(acceptancePoll) clearInterval(acceptancePoll);
-            acceptancePoll=setInterval(async()=>{
-                const{data}=await _supabase.from('requests').select('status').eq('node_id',nodeProps.id).eq('requester_id',myUserId).maybeSingle();
-                if(!data) return;
-                if(data.status==='accepted'){
-                    clearInterval(acceptancePoll); acceptancePoll=null;
-                    currentN={id:nodeProps.id, intent:nodeProps.intent, category:nodeProps.category, node_type:nodeProps.node_type};
-                    document.getElementById('terminal').style.display='flex'; document.getElementById('oracle-btn').style.display='block';
-                    startChatSync(); startOracleLive();
-                } else if(data.status==='declined'){
-                    clearInterval(acceptancePoll); acceptancePoll=null; setStatus('error','Creator declined'); currentN=null;
+            if (acceptancePoll) clearInterval(acceptancePoll);
+            acceptancePoll = setInterval(async () => {
+                const { data } = await _supabase.from('requests')
+                    .select('status')
+                    .eq('node_id', nodeProps.id)
+                    .eq('requester_id', myUserId)
+                    .maybeSingle();
+                if (!data) return;
+                if (data.status === 'accepted') {
+                    clearInterval(acceptancePoll);
+                    acceptancePoll = null;
+                    currentN = { id: nodeProps.id, intent: nodeProps.intent, category: nodeProps.category, node_type: nodeProps.node_type };
+                    document.getElementById('terminal').style.display = 'flex';
+                    document.getElementById('oracle-btn').style.display = 'block';
+                    startChatSync();
+                    startOracleLive();
+                } else if (data.status === 'declined') {
+                    clearInterval(acceptancePoll);
+                    acceptancePoll = null;
+                    setStatus('error','Creator declined');
+                    currentN = null;
                 }
-            },2000);
+            }, 2000);
         }
 
-        // ========== NODE SCANNING (with block filtering) ==========
-        map.on('load',()=>{
-            map.addSource('nodes-source',{type:'geojson',data:{type:'FeatureCollection',features:[]},cluster:true,clusterMaxZoom:14,clusterRadius:50});
-            map.addLayer({id:'nodes-clusters',type:'circle',source:'nodes-source',filter:['has','point_count'],paint:{'circle-color':'#111','circle-stroke-color':'#FFD700','circle-stroke-width':2,'circle-radius':['step',['get','point_count'],20,10,25,30,35],'circle-opacity':0.9}});
-            map.addLayer({id:'nodes-cluster-count',type:'symbol',source:'nodes-source',filter:['has','point_count'],layout:{'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14},paint:{'text-color':'#FFD700'}});
-            map.addLayer({id:'nodes-unclustered',type:'circle',source:'nodes-source',filter:['!',['has','point_count']],paint:{'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5}});
-            map.addLayer({id:'nodes-emoji',type:'symbol',source:'nodes-source',filter:['!',['has','point_count']],layout:{'text-field':['get','emoji'],'text-font':['Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Arial Unicode MS Bold'],'text-size':16,'text-allow-overlap':true},paint:{'text-color':'#fff','text-halo-color':'#000','text-halo-width':1}});
-            const popup=new mapboxgl.Popup({closeButton:false,closeOnClick:false,className:'node-popup'});
-            map.on('mouseenter','nodes-unclustered',(e)=>{map.getCanvas().style.cursor='pointer'; const props=e.features[0].properties; const timeLeft=Math.max(0,Math.floor((new Date(props.expires_at)-Date.now())/60000)); popup.setLngLat(e.lngLat).setHTML(props.intent+' ['+timeLeft+'m]').addTo(map);});
-            map.on('mouseleave','nodes-unclustered',()=>{map.getCanvas().style.cursor=''; popup.remove();});
-            map.on('click','nodes-unclustered',async(e)=>{ if(currentMode!=='browse') return; if(currentN) return; const nodeProps=e.features[0].properties; openProfileCard(nodeProps); });
-            map.on('click','nodes-clusters',(e)=>{const features=map.queryRenderedFeatures(e.point,{layers:['nodes-clusters']}); const clusterId=features[0].properties.cluster_id; map.getSource('nodes-source').getClusterExpansionZoom(clusterId,(err,zoom)=>{if(!err) map.easeTo({center:features[0].geometry.coordinates,zoom});});});
-            scan(); map.on('moveend',scan);
+        // ========== NODE SCANNING (seeker + always active) ==========
+        map.on('load', () => {
+            map.addSource('nodes-source', {
+                type: 'geojson',
+                data: { type: 'FeatureCollection', features: [] },
+                cluster: true, clusterMaxZoom: 14, clusterRadius: 50
+            });
+            map.addLayer({ id:'nodes-clusters', type:'circle', source:'nodes-source', filter:['has','point_count'],
+                paint:{ 'circle-color':'#111','circle-stroke-color':'#FFD700','circle-stroke-width':2,
+                    'circle-radius':['step',['get','point_count'],20,10,25,30,35],'circle-opacity':0.9 } });
+            map.addLayer({ id:'nodes-cluster-count', type:'symbol', source:'nodes-source', filter:['has','point_count'],
+                layout:{ 'text-field':'{point_count_abbreviated}','text-font':['DIN Offc Pro Medium','Arial Unicode MS Bold'],'text-size':14 },
+                paint:{ 'text-color':'#FFD700' } });
+            map.addLayer({ id:'nodes-unclustered', type:'circle', source:'nodes-source', filter:['!',['has','point_count']],
+                paint:{ 'circle-color':['get','color'],'circle-radius':8,'circle-opacity':0.9,'circle-stroke-color':'#fff','circle-stroke-width':1.5 } });
+            map.addLayer({ id:'nodes-emoji', type:'symbol', source:'nodes-source', filter:['!',['has','point_count']],
+                layout:{ 'text-field':['get','emoji'], 'text-font':['Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Arial Unicode MS Bold'], 'text-size':16, 'text-allow-overlap':true },
+                paint:{ 'text-color':'#fff', 'text-halo-color':'#000', 'text-halo-width':1 } });
+            const popup = new mapboxgl.Popup({ closeButton:false, closeOnClick:false, className:'node-popup' });
+            map.on('mouseenter', 'nodes-unclustered', (e) => {
+                map.getCanvas().style.cursor = 'pointer';
+                const props = e.features[0].properties;
+                const timeLeft = Math.max(0, Math.floor((new Date(props.expires_at) - Date.now()) / 60000));
+                popup.setLngLat(e.lngLat).setHTML(props.intent + ' [' + timeLeft + 'm]').addTo(map);
+            });
+            map.on('mouseleave', 'nodes-unclustered', () => { map.getCanvas().style.cursor = ''; popup.remove(); });
+            map.on('click', 'nodes-unclustered', async (e) => {
+                if (currentMode !== 'browse') return;
+                if (currentN) return;
+                const nodeProps = e.features[0].properties;
+                openProfileCard(nodeProps);
+            });
+            map.on('click', 'nodes-clusters', (e) => {
+                const features = map.queryRenderedFeatures(e.point, { layers:['nodes-clusters'] });
+                const clusterId = features[0].properties.cluster_id;
+                map.getSource('nodes-source').getClusterExpansionZoom(clusterId, (err, zoom) => { if (!err) map.easeTo({ center:features[0].geometry.coordinates, zoom }); });
+            });
+            scan();
+            map.on('moveend', scan);
         });
         async function scan(){
-            const now=new Date().toISOString(); const bounds=map.getBounds(); if(!bounds) return; const sw=bounds.getSouthWest(), ne=bounds.getNorthEast();
-            const latMin=sw.lat-0.02, latMax=ne.lat+0.02, lngMin=sw.lng-0.02, lngMax=ne.lng+0.02;
-            let {data,error}=await _supabase.from('nodes').select('*').eq('status','active').gt('expires_at',now).gte('lat',latMin).lte('lat',latMax).gte('lng',lngMin).lte('lng',lngMax).limit(200);
-            if(error){ setStatus('error','Connection issue'); return; }
-            if(data){ const blocks=await _supabase.from('blocks').select('blocked_id').eq('blocker_id',myUserId); const blockedIds=blocks.data?.map(b=>b.blocked_id)||[]; data=data.filter(node=>!blockedIds.includes(node.user_id)); }
-            const features=(data||[]).map(node=>({type:'Feature',geometry:{type:'Point',coordinates:[parseFloat(node.lng),parseFloat(node.lat)]},properties:{id:node.id,intent:node.intent||'Coffee',category:node.category||'social',node_type:node.node_type||'one_on_one',vibe_question:node.vibe_question,vibe_answer:node.vibe_answer,user_id:node.user_id,color:'#FFD700',emoji:'📍',expires_at:node.expires_at}}));
-            if(map.getSource('nodes-source')) map.getSource('nodes-source').setData({type:'FeatureCollection',features});
-            if(features.length===0) setStatus('info','No active nodes in this area. Scanning...'); else document.getElementById('status-bar').style.display='none';
+            const now = new Date().toISOString();
+            const bounds = map.getBounds();
+            if (!bounds) return;
+            const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
+            const latMin = sw.lat - 0.02, latMax = ne.lat + 0.02;
+            const lngMin = sw.lng - 0.02, lngMax = ne.lng + 0.02;
+            const { data, error } = await _supabase.from('nodes')
+                .select('*').eq('status','active').gt('expires_at', now)
+                .gte('lat', latMin).lte('lat', latMax)
+                .gte('lng', lngMin).lte('lng', lngMax).limit(200);
+            if (error) { setStatus('error','Connection issue'); return; }
+            const features = (data || []).map(node => ({
+                type: 'Feature',
+                geometry: { type:'Point', coordinates: [parseFloat(node.lng), parseFloat(node.lat)] },
+                properties: {
+                    id: node.id, intent: node.intent || 'Coffee',
+                    category: node.category || 'social',
+                    node_type: node.node_type || 'one_on_one',
+                    vibe_question: node.vibe_question,
+                    vibe_answer: node.vibe_answer,
+                    user_id: node.user_id,
+                    color: '#FFD700',
+                    emoji: '📍',
+                    expires_at: node.expires_at
+                }
+            }));
+            if (map.getSource('nodes-source')) map.getSource('nodes-source').setData({ type:'FeatureCollection', features });
+            if (features.length === 0) setStatus('info','No active nodes in this area. Scanning...');
+            else document.getElementById('status-bar').style.display='none';
         }
 
-        // ========== HEATMAP ==========
-        const heatmapPanel=document.createElement('div'); heatmapPanel.id='heatmap-panel'; heatmapPanel.style.cssText='position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:16px;padding:10px;display:none;flex-direction:column;gap:6px;z-index:2000;min-width:180px;max-width:240px;max-height:250px;overflow-y:auto;backdrop-filter:blur(8px)';
+        // ========== HEATMAP (shared) ==========
+        const heatmapPanel = document.createElement('div');
+        heatmapPanel.id = 'heatmap-panel';
+        heatmapPanel.style.cssText = 'position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:16px;padding:10px;display:none;flex-direction:column;gap:6px;z-index:2000;min-width:180px;max-width:240px;max-height:250px;overflow-y:auto;backdrop-filter:blur(8px)';
         document.body.appendChild(heatmapPanel);
-        const heatmapToggleBtn=document.getElementById('heatmap-toggle-btn');
-        async function getAreaName(lng,lat){ const key=`${lng.toFixed(3)},${lat.toFixed(3)}`; if(reverseGeocodeCache.has(key)) return reverseGeocodeCache.get(key); try{ const url=`https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=place,neighborhood,locality`; const res=await fetch(url); const data=await res.json(); let name=''; if(data.features && data.features.length){ const feat=data.features.find(f=>f.place_type.includes('neighborhood'))||data.features.find(f=>f.place_type.includes('locality'))||data.features[0]; name=feat.text; if(feat.context){ const city=feat.context.find(c=>c.id.includes('place')); if(city) name+=`, ${city.text}`; } } if(!name) name=`${lat.toFixed(2)},${lng.toFixed(2)}`; reverseGeocodeCache.set(key,name); return name; }catch(e){ return `${lat.toFixed(2)},${lng.toFixed(2)}`; } }
-        async function fetchNodesWithinRadius(centerLat,centerLng,radiusKm){ const delta=radiusKm/111; const latMin=centerLat-delta, latMax=centerLat+delta; const lngMin=centerLng-delta/Math.cos(centerLat*Math.PI/180), lngMax=centerLng+delta/Math.cos(centerLat*Math.PI/180); const{data,error}=await _supabase.from('nodes').select('id,lat,lng').eq('status','active').gt('expires_at',new Date().toISOString()).gte('lat',latMin).lte('lat',latMax).gte('lng',lngMin).lte('lng',lngMax); if(error) throw error; return (data||[]).filter(node=>haversine(centerLat,centerLng,node.lat,node.lng)<=radiusKm); }
-        function groupNodesByGrid(nodes,cellSizeDeg=0.02){ const grid=new Map(); nodes.forEach(node=>{ const cellLat=Math.floor(node.lat/cellSizeDeg)*cellSizeDeg, cellLng=Math.floor(node.lng/cellSizeDeg)*cellSizeDeg, key=`${cellLat},${cellLng}`; if(!grid.has(key)) grid.set(key,{lat:cellLat+cellSizeDeg/2,lng:cellLng+cellSizeDeg/2,count:0}); grid.get(key).count++; }); return Array.from(grid.values()).sort((a,b)=>b.count-a.count); }
-        function showToast(message,targetElement){ const toast=document.createElement('div'); toast.className='heatmap-toast'; toast.innerText=message; document.body.appendChild(toast); const rect=targetElement.getBoundingClientRect(); toast.style.left=rect.right+10+'px'; toast.style.top=rect.top+(rect.height/2)-10+'px'; toast.style.opacity='1'; setTimeout(()=>{toast.style.opacity='0'; setTimeout(()=>toast.remove(),300);},3000); }
-        async function updateHeatmapPanel(){ if(!heatmapOn) return; const loadingDiv=document.getElementById('heatmap-loading'); if(loadingDiv) loadingDiv.style.display='block'; try{ let centerLat=myLoc.lat, centerLng=myLoc.lng; if(!centerLat||centerLat===0){ const c=map.getCenter(); centerLat=c.lat; centerLng=c.lng; } const nodes=await fetchNodesWithinRadius(centerLat,centerLng,HEATMAP_RADIUS_KM); const totalNodes=nodes.length; if(!nodes.length){ heatmapPanel.innerHTML='<div style="color:#aaa;font-size:11px;padding:5px">No active nodes nearby</div>'; return; } const cells=groupNodesByGrid(nodes,HEATMAP_CELL_SIZE_DEG); const eligibleCells=cells.filter(cell=>cell.count>=MIN_NODES_FOR_HEATMAP); let html=`<div class="total-count">📊 TOTAL ACTIVE NODES: ${totalNodes}</div>`; if(eligibleCells.length===0){ html+=`<div style="color:#aaa;font-size:11px;padding:5px">No area with ≥${MIN_NODES_FOR_HEATMAP} nodes</div>`; }else{ for(const cell of eligibleCells){ let dotColor,intensityChar; if(cell.count>=10){ dotColor='#ff5050'; intensityChar='🔴'; }else if(cell.count>=3){ dotColor='#FFD700'; intensityChar='🟡'; }else{ dotColor='#80ff80'; intensityChar='🟢'; } const areaName=await getAreaName(cell.lng,cell.lat); html+=`<div class="heatmap-row" data-name="${areaName.replace(/"/g,'&quot;')}" data-count="${cell.count}" data-intensity="${intensityChar}"><div class="heatmap-dot" style="background:${dotColor}; box-shadow:0 0 4px ${dotColor};"></div><div class="heatmap-label">${intensityChar} ${areaName}</div><div class="heatmap-count">${cell.count} node${cell.count!==1?'s':''}</div></div>`; } } heatmapPanel.innerHTML=html; document.querySelectorAll('#heatmap-panel .heatmap-row').forEach(el=>{el.addEventListener('click',(e)=>{e.stopPropagation(); const name=el.dataset.name, count=el.dataset.count, intensity=el.dataset.intensity; showToast(`${intensity} ${count} node${count!==1?'s':''} in ${name}`,el);});}); }catch(err){ console.error(err); heatmapPanel.innerHTML='<div style="color:#f00;font-size:11px;padding:5px">Error loading data</div>'; }finally{ if(loadingDiv) loadingDiv.style.display='none'; } }
-        async function toggleHeatmap(){ heatmapOn=!heatmapOn; heatmapToggleBtn.style.background=heatmapOn?'#FFD700':'#000'; heatmapToggleBtn.style.color=heatmapOn?'#000':'#FFD700'; if(!heatmapOn){ heatmapPanel.style.display='none'; heatmapPanel.innerHTML=''; }else{ heatmapPanel.style.display='flex'; await updateHeatmapPanel(); } }
-        heatmapToggleBtn.addEventListener('click',toggleHeatmap); map.on('moveend',()=>{ if(heatmapOn) updateHeatmapPanel(); });
+        const heatmapToggleBtn = document.getElementById('heatmap-toggle-btn');
+        let heatmapOn = false;
+        let reverseGeocodeCache = new Map();
+
+        async function getAreaName(lng, lat) {
+            const key = `${lng.toFixed(3)},${lat.toFixed(3)}`;
+            if (reverseGeocodeCache.has(key)) return reverseGeocodeCache.get(key);
+            try {
+                const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${MAPBOX_TOKEN}&types=place,neighborhood,locality`;
+                const res = await fetch(url);
+                const data = await res.json();
+                let name = '';
+                if (data.features && data.features.length) {
+                    const feat = data.features.find(f => f.place_type.includes('neighborhood')) || 
+                                 data.features.find(f => f.place_type.includes('locality')) ||
+                                 data.features[0];
+                    name = feat.text;
+                    if (feat.context) {
+                        const city = feat.context.find(c => c.id.includes('place'));
+                        if (city) name += `, ${city.text}`;
+                    }
+                }
+                if (!name) name = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+                reverseGeocodeCache.set(key, name);
+                return name;
+            } catch (e) {
+                return `${lat.toFixed(2)},${lng.toFixed(2)}`;
+            }
+        }
+
+        async function fetchNodesWithinRadius(centerLat, centerLng, radiusKm) {
+            const delta = radiusKm / 111;
+            const latMin = centerLat - delta;
+            const latMax = centerLat + delta;
+            const lngMin = centerLng - delta / Math.cos(centerLat * Math.PI / 180);
+            const lngMax = centerLng + delta / Math.cos(centerLat * Math.PI / 180);
+            const { data, error } = await _supabase
+                .from('nodes')
+                .select('id, lat, lng')
+                .eq('status', 'active')
+                .gt('expires_at', new Date().toISOString())
+                .gte('lat', latMin)
+                .lte('lat', latMax)
+                .gte('lng', lngMin)
+                .lte('lng', lngMax);
+            if (error) throw error;
+            return (data || []).filter(node => haversine(centerLat, centerLng, node.lat, node.lng) <= radiusKm);
+        }
+
+        function groupNodesByGrid(nodes, cellSizeDeg = 0.02) {
+            const grid = new Map();
+            nodes.forEach(node => {
+                const cellLat = Math.floor(node.lat / cellSizeDeg) * cellSizeDeg;
+                const cellLng = Math.floor(node.lng / cellSizeDeg) * cellSizeDeg;
+                const key = `${cellLat},${cellLng}`;
+                if (!grid.has(key)) grid.set(key, { lat: cellLat + cellSizeDeg/2, lng: cellLng + cellSizeDeg/2, count: 0 });
+                grid.get(key).count++;
+            });
+            return Array.from(grid.values()).sort((a,b) => b.count - a.count);
+        }
+
+        function showToast(message, targetElement) {
+            const toast = document.createElement('div');
+            toast.className = 'heatmap-toast';
+            toast.innerText = message;
+            document.body.appendChild(toast);
+            const rect = targetElement.getBoundingClientRect();
+            toast.style.left = rect.right + 10 + 'px';
+            toast.style.top = rect.top + (rect.height/2) - 10 + 'px';
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        async function updateHeatmapPanel() {
+            if (!heatmapOn) return;
+            const loadingDiv = document.getElementById('heatmap-loading');
+            if (loadingDiv) loadingDiv.style.display = 'block';
+            try {
+                let centerLat = myLoc.lat;
+                let centerLng = myLoc.lng;
+                if (!centerLat || centerLat === 0) {
+                    const mapCenter = map.getCenter();
+                    centerLat = mapCenter.lat;
+                    centerLng = mapCenter.lng;
+                }
+                const nodes = await fetchNodesWithinRadius(centerLat, centerLng, HEATMAP_RADIUS_KM);
+                const totalNodes = nodes.length;
+                if (!nodes.length) {
+                    heatmapPanel.innerHTML = '<div style="color:#aaa;font-size:11px;padding:5px">No active nodes nearby</div>';
+                    return;
+                }
+                const cells = groupNodesByGrid(nodes, HEATMAP_CELL_SIZE_DEG);
+                const eligibleCells = cells.filter(cell => cell.count >= MIN_NODES_FOR_HEATMAP);
+                let html = `<div class="total-count">📊 TOTAL ACTIVE NODES: ${totalNodes}</div>`;
+                if (eligibleCells.length === 0) {
+                    html += `<div style="color:#aaa;font-size:11px;padding:5px">No area with ≥${MIN_NODES_FOR_HEATMAP} nodes</div>`;
+                } else {
+                    for (const cell of eligibleCells) {
+                        let dotColor, intensityChar;
+                        if (cell.count >= 10) { dotColor = '#ff5050'; intensityChar = '🔴'; }
+                        else if (cell.count >= 3) { dotColor = '#FFD700'; intensityChar = '🟡'; }
+                        else { dotColor = '#80ff80'; intensityChar = '🟢'; }
+                        const areaName = await getAreaName(cell.lng, cell.lat);
+                        html += `
+                            <div class="heatmap-row" data-name="${areaName.replace(/"/g, '&quot;')}" data-count="${cell.count}" data-intensity="${intensityChar}">
+                                <div class="heatmap-dot" style="background:${dotColor}; box-shadow:0 0 4px ${dotColor};"></div>
+                                <div class="heatmap-label">${intensityChar} ${areaName}</div>
+                                <div class="heatmap-count">${cell.count} node${cell.count !== 1 ? 's' : ''}</div>
+                            </div>
+                        `;
+                    }
+                }
+                heatmapPanel.innerHTML = html;
+                document.querySelectorAll('#heatmap-panel .heatmap-row').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const name = el.dataset.name;
+                        const count = el.dataset.count;
+                        const intensity = el.dataset.intensity;
+                        showToast(`${intensity} ${count} node${count !== 1 ? 's' : ''} in ${name}`, el);
+                    });
+                });
+            } catch (err) {
+                console.error(err);
+                heatmapPanel.innerHTML = '<div style="color:#f00;font-size:11px;padding:5px">Error loading data</div>';
+            } finally {
+                if (loadingDiv) loadingDiv.style.display = 'none';
+            }
+        }
+
+        async function toggleHeatmap() {
+            heatmapOn = !heatmapOn;
+            heatmapToggleBtn.style.background = heatmapOn ? '#FFD700' : '#000';
+            heatmapToggleBtn.style.color = heatmapOn ? '#000' : '#FFD700';
+            if (!heatmapOn) {
+                heatmapPanel.style.display = 'none';
+                heatmapPanel.innerHTML = '';
+            } else {
+                heatmapPanel.style.display = 'flex';
+                await updateHeatmapPanel();
+            }
+        }
+
+        heatmapToggleBtn.addEventListener('click', toggleHeatmap);
+        map.on('moveend', () => {
+            if (heatmapOn) updateHeatmapPanel();
+        });
 
         // ========== MODE TOGGLE ==========
         function setMode(mode){
-            if(currentN && currentN.id){ setStatus('error','Cannot switch mode while in an active connection. Terminate first.'); return; }
-            currentMode=mode;
-            document.getElementById('mode-browse').classList.toggle('active',mode==='browse');
-            document.getElementById('mode-create').classList.toggle('active',mode==='create');
-            document.getElementById('fab').style.display=mode==='create'?'flex':'none';
-            document.getElementById('profile-gear').style.display=mode==='create'?'flex':'none';
-            closeIntentPanel(); closeProfileCard();
-            if(mode==='browse') scan();
+            if (currentN && currentN.id){
+                setStatus('error','Cannot switch mode while in an active connection. Terminate first.');
+                return;
+            }
+            currentMode = mode;
+            document.getElementById('mode-browse').classList.toggle('active', mode === 'browse');
+            document.getElementById('mode-create').classList.toggle('active', mode === 'create');
+            // Show/hide creator-specific UI
+            document.getElementById('fab').style.display = mode === 'create' ? 'flex' : 'none';
+            document.getElementById('profile-gear').style.display = mode === 'create' ? 'flex' : 'none';
+            // Close any open panels
+            closeIntentPanel();
+            closeProfileCard();
+            if (mode === 'browse'){
+                scan();
+            }
         }
-        document.getElementById('mode-browse').onclick=()=>setMode('browse');
-        document.getElementById('mode-create').onclick=()=>setMode('create');
+        document.getElementById('mode-browse').addEventListener('click', ()=>setMode('browse'));
+        document.getElementById('mode-create').addEventListener('click', ()=>setMode('create'));
         setMode('browse');
-
-        // Chat menu (report/block)
-        document.getElementById('chat-menu-btn').addEventListener('click',()=>{
-            if(!currentN) return;
-            const otherUserId = currentMode==='create' ? (currentN.user_id || currentN.creator_id) : (currentN.user_id);
-            if(!otherUserId) return;
-            const action = confirm(`Report or block this user?\nOK = Report\nCancel = Block`);
-            if(action) reportUser(otherUserId, currentN.id);
-            else blockUser(otherUserId);
-        });
     </script>
 </body>
 </html>

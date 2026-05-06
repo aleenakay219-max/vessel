@@ -24,6 +24,12 @@
         #heatmap-toggle-btn{position:absolute;top:70px;left:20px;width:36px;height:36px;background:#000;border:2px solid #FFD700;border-radius:50%;color:#FFD700;font-size:18px;cursor:pointer;z-index:2000;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px #FFD700}
         #heatmap-loading{position:absolute;top:115px;left:70px;background:#000;border:1px solid #FFD700;padding:4px 8px;font-size:10px;color:#FFD700;z-index:2000;display:none}
         .heatmap-toast{position:fixed;background:#000;border:1px solid #FFD700;color:#FFD700;padding:8px 12px;border-radius:6px;font-size:11px;z-index:10000;max-width:260px;pointer-events:none;transition:opacity 0.2s}
+        #heatmap-panel{position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:8px;padding:10px;display:none;flex-direction:column;gap:6px;z-index:2000;min-width:180px;max-width:240px}
+        .heatmap-row{display:flex;align-items:center;gap:10px;cursor:pointer;padding:5px 8px;border-radius:16px;transition:all 0.2s}
+        .heatmap-row:hover{background:rgba(255,215,0,0.15)}
+        .heatmap-dot{width:16px;height:16px;border-radius:50%;display:inline-block}
+        .heatmap-label{font-size:12px;color:#FFD700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .heatmap-count{font-size:11px;color:#aaa;margin-left:auto}
         #profile-panel{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,10,0,0.97);border:2px solid #FFD700;z-index:6000;padding:20px;color:#FFD700;width:85%;max-width:320px;box-sizing:border-box}
         #profile-panel label{display:block;margin:10px 0 4px;font-size:12px}
         #profile-panel input,#profile-panel select{width:100%;padding:8px;background:#000;border:1px solid #FFD700;color:#FFD700;font-family:monospace;margin-bottom:5px}
@@ -60,13 +66,6 @@
         .receipt-card .hash{word-break:break-all;color:#e6b800;font-size:12px}
         .receipt-card .ttl{color:#aaa;font-size:11px}
         .redacted-bar{background:#FFD700;color:#000;padding:2px 0;margin:5px 0;text-align:center;font-weight:bold;letter-spacing:2px}
-        /* Heatmap panel */
-        #heatmap-panel{position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:8px;padding:10px;display:none;flex-direction:column;gap:8px;z-index:2000;min-width:200px;max-width:260px;max-height:60vh;overflow-y:auto}
-        .heatmap-circle{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 12px;border-radius:20px;transition:all 0.2s}
-        .heatmap-circle:hover{background:rgba(255,215,0,0.15)}
-        .circle-dot{width:20px;height:20px;border-radius:50%;display:inline-block}
-        .circle-label{font-size:12px;color:#FFD700;flex:1}
-        .circle-stats{font-size:10px;color:#aaa;margin-left:auto}
     </style>
 </head>
 <body>
@@ -133,6 +132,7 @@
         const NODE_EXPIRY_MINUTES = 30;
         const HEATMAP_RADIUS_KM = 50;
         const HEATMAP_CELL_SIZE_DEG = 0.02; // ~2.2 km
+        const TOP_AREAS_LIMIT = 5; // show top 5 areas only
 
         const params = new URLSearchParams(window.location.search);
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
@@ -165,7 +165,6 @@
         let currentN = null, myLoc = {lat:0,lng:0}, oracleProcessed = false, gpsReady = false, gpsFailures = 0, meetRated = false, myConfirmed = false, meetTimerInterval = null;
         let selectedVenueCoords = null;
 
-        // Helper functions
         function setStatus(t,m){const b=document.getElementById('status-bar');const c={info:'#FFD700',warning:'#f90',error:'#f00',success:'#FFD700'};b.style.display='block';b.style.borderColor=c[t]||'#FFD700';b.style.color=c[t]||'#FFD700';b.innerText=m;setTimeout(()=>{if(document.getElementById('status-bar').innerText===m)b.style.display='none'},3000);}
         function clearStatus(){document.getElementById('status-bar').style.display='none'}
 
@@ -461,17 +460,16 @@
 
         async function drawRoute(id, sLng, sLat, eLng, eLat, color) { try { const url = 'https://api.mapbox.com/directions/v5/mapbox/driving/' + sLng + ',' + sLat + ';' + eLng + ',' + eLat + '?geometries=geojson&access_token=' + MAPBOX_TOKEN; const r = await (await fetch(url)).json(); if (!r.routes || !r.routes[0]) return; if (map.getLayer(id)) map.removeLayer(id); if (map.getSource(id)) map.removeSource(id); map.addSource(id, { type: 'geojson', data: { type: 'Feature', geometry: r.routes[0].geometry } }); map.addLayer({ id, type: 'line', source: id, paint: { 'line-color': color, 'line-width': 5 } }); } catch (e) { } }
 
-        // ========== HEATMAP AREA PANEL (adds to existing file) ==========
+        // ========== AGGREGATED HEATMAP PANEL (TOP AREAS ONLY) ==========
         const heatmapPanel = document.createElement('div');
         heatmapPanel.id = 'heatmap-panel';
-        heatmapPanel.style.cssText = 'position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:8px;padding:10px;display:none;flex-direction:column;gap:8px;z-index:2000;min-width:200px;max-width:260px;max-height:60vh;overflow-y:auto';
+        heatmapPanel.style.cssText = 'position:absolute;top:115px;left:20px;background:rgba(0,0,0,0.9);border:1px solid #FFD700;border-radius:8px;padding:10px;display:none;flex-direction:column;gap:6px;z-index:2000;min-width:180px;max-width:240px';
         document.body.appendChild(heatmapPanel);
 
         const heatmapToggleBtn = document.getElementById('heatmap-toggle-btn');
         let heatmapOn = false;
         let reverseGeocodeCache = new Map();
 
-        // Helper: get area name from coordinates using Mapbox reverse geocoding
         async function getAreaName(lng, lat) {
             const key = `${lng.toFixed(3)},${lat.toFixed(3)}`;
             if (reverseGeocodeCache.has(key)) return reverseGeocodeCache.get(key);
@@ -494,12 +492,10 @@
                 reverseGeocodeCache.set(key, name);
                 return name;
             } catch (e) {
-                console.warn('Reverse geocode failed', e);
                 return `${lat.toFixed(2)},${lng.toFixed(2)}`;
             }
         }
 
-        // Fetch nodes within radius
         async function fetchNodesWithinRadius(centerLat, centerLng, radiusKm) {
             const delta = radiusKm / 111;
             const latMin = centerLat - delta;
@@ -521,7 +517,6 @@
             );
         }
 
-        // Group nodes into grid cells
         function groupNodesByGrid(nodes, cellSizeDeg = 0.02) {
             const grid = new Map();
             nodes.forEach(node => {
@@ -550,39 +545,36 @@
                 }
                 const nodes = await fetchNodesWithinRadius(centerLat, centerLng, HEATMAP_RADIUS_KM);
                 if (!nodes.length) {
-                    heatmapPanel.innerHTML = '<div style="color:#aaa;font-size:10px;padding:5px">No active nodes nearby</div>';
+                    heatmapPanel.innerHTML = '<div style="color:#aaa;font-size:11px;padding:5px">No active nodes nearby</div>';
                     return;
                 }
-                const cells = groupNodesByGrid(nodes, 0.02);
-                const topCells = cells.slice(0, 15); // limit to 15 for performance
+                const cells = groupNodesByGrid(nodes, HEATMAP_CELL_SIZE_DEG);
+                const topCells = cells.slice(0, TOP_AREAS_LIMIT);
                 let html = '';
                 for (const cell of topCells) {
-                    let color, intensityLabel, dotColor;
+                    let dotColor, intensityChar;
                     if (cell.count >= 10) {
-                        color = 'rgba(255,80,80,0.8)';
-                        intensityLabel = '🔴';
                         dotColor = '#ff5050';
+                        intensityChar = '🔴';
                     } else if (cell.count >= 3) {
-                        color = 'rgba(255,215,0,0.8)';
-                        intensityLabel = '🟡';
                         dotColor = '#FFD700';
+                        intensityChar = '🟡';
                     } else {
-                        color = 'rgba(80,255,80,0.8)';
-                        intensityLabel = '🟢';
                         dotColor = '#80ff80';
+                        intensityChar = '🟢';
                     }
                     const areaName = await getAreaName(cell.lng, cell.lat);
                     html += `
-                        <div class="heatmap-circle" data-lat="${cell.lat}" data-lng="${cell.lng}" data-count="${cell.count}" data-name="${areaName.replace(/"/g, '&quot;')}" data-intensity="${intensityLabel}">
-                            <div class="circle-dot" style="background:${color}; box-shadow:0 0 5px ${color};"></div>
-                            <div class="circle-label">${intensityLabel} ${areaName}</div>
-                            <div class="circle-stats">${cell.count} node${cell.count !== 1 ? 's' : ''}</div>
+                        <div class="heatmap-row" data-name="${areaName.replace(/"/g, '&quot;')}" data-count="${cell.count}" data-intensity="${intensityChar}">
+                            <div class="heatmap-dot" style="background:${dotColor}; box-shadow:0 0 4px ${dotColor};"></div>
+                            <div class="heatmap-label">${intensityChar} ${areaName}</div>
+                            <div class="heatmap-count">${cell.count} node${cell.count !== 1 ? 's' : ''}</div>
                         </div>
                     `;
                 }
                 heatmapPanel.innerHTML = html;
-                // Attach click handlers to show toast
-                document.querySelectorAll('#heatmap-panel .heatmap-circle').forEach(el => {
+                // attach click handlers
+                document.querySelectorAll('#heatmap-panel .heatmap-row').forEach(el => {
                     el.addEventListener('click', (e) => {
                         e.stopPropagation();
                         const name = el.dataset.name;
@@ -590,7 +582,7 @@
                         const intensity = el.dataset.intensity;
                         const toast = document.createElement('div');
                         toast.className = 'heatmap-toast';
-                        toast.innerText = `${intensity} ${count} nodes in ${name}`;
+                        toast.innerText = `${intensity} ${count} node${count !== 1 ? 's' : ''} in ${name}`;
                         document.body.appendChild(toast);
                         const rect = el.getBoundingClientRect();
                         toast.style.left = rect.right + 10 + 'px';
@@ -600,7 +592,7 @@
                 });
             } catch (err) {
                 console.error(err);
-                heatmapPanel.innerHTML = '<div style="color:#f00;font-size:10px;padding:5px">Error loading areas</div>';
+                heatmapPanel.innerHTML = '<div style="color:#f00;font-size:11px;padding:5px">Error loading data</div>';
             } finally {
                 if (loadingDiv) loadingDiv.style.display = 'none';
             }

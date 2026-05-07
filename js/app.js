@@ -36,3 +36,7 @@ document.getElementById('terminate-btn').addEventListener('click', () => {
     if (window.state.currentN && window.state.currentN.id) window.showReceipt(window.state.currentN.id);
     else location.reload();
 });
+window.openIntentPanel = function() {
+    console.log("openIntentPanel called");
+    document.getElementById('intent-panel').style.display = 'block';
+};

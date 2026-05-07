@@ -49,6 +49,15 @@
         .vibe-options { display: flex; gap: 10px; justify-content: center; margin: 10px 0; }
         .create-btn { background: #FFD700; color: #000; border: none; border-radius: 40px; padding: 10px; font-weight: bold; margin-top: 10px; }
         .back-btn { background: transparent; border: 1px solid #aaa; color: #aaa; border-radius: 40px; padding: 8px; margin-top: 8px; }
+
+        /* Fixed size bottom sheet */
+        #intent-panel {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        #dynamic-content {
+            min-height: 180px;
+        }
     </style>
 </head>
 <body>
@@ -78,7 +87,7 @@
     <div id="intent-panel" style="display:none; position:fixed; bottom:20px; left:5%; width:90%; background:rgba(0,0,0,0.95); border-radius:32px; border:1px solid #FFD700; padding:20px; flex-direction:column; gap:20px; z-index:5000; font-family:monospace;">
         <div style="text-align:center; font-size:18px; font-weight:bold; color:#FFD700;" id="intent-header">Choose your intent</div>
         <div id="category-row" style="display:flex; gap:8px; justify-content:space-between;"></div>
-        <div id="dynamic-content" style="display:flex; flex-direction:column; gap:12px;"></div>
+        <div id="dynamic-content" style="display:flex; flex-direction:column; gap:12px; min-height:180px;"></div>
         <button id="intent-cancel" style="background:transparent; border:1px solid #f00; color:#f00; padding:10px; border-radius:40px; width:100%; font-weight:bold; cursor:pointer;">Cancel</button>
     </div>
 
@@ -144,15 +153,15 @@
         const params = new URLSearchParams(window.location.search);
         const MEET_DURATION_MINUTES = params.get('debug') ? parseInt(params.get('debug')) : 2;
 
+        // Updated categories: removed Foodie Meetup from social, removed Family Hangout from parents
         const categories = {
-            social: { label:'🍻 Social', presets:['☕ Coffee & Conversation','🍽️ Foodie Meetup','🌙 Night Out','📸 Social Collab'] },
+            social: { label:'🍻 Social', presets:['☕ Coffee & Conversation','🌙 Night Out','📸 Social Collab'] },
             games: { label:'⚽ Games', presets:['⚽ Football','🏏 Cricket','🎾 Tennis'] },
             work: { label:'🔧 Work', presets:['🔨 I Can Help','☕ Co‑Working / Study'] },
-            parents: { label:'🧒 Parents', presets:['🧸 Kids’ Playdate','🤱 Mum2Mum','👨 Dad’s Crew','👨‍👩‍👧 Family Hangout'] }
+            parents: { label:'🧒 Parents', presets:['🧸 Kids’ Playdate','🤱 Mum2Mum','👨 Dad’s Crew'] }
         };
         const vibeChecks = {
             '☕ Coffee & Conversation': {q:'What kind of coffee vibe?', a:'Loud & social', b:'Quiet & intimate'},
-            '🍽️ Foodie Meetup': {q:'What cuisine mood?', a:'Adventurous / new', b:'Comfort / familiar'},
             '🌙 Night Out': {q:'Tonight feels like…', a:'Dancing & energy', b:'Deep talk over drinks'},
             '📸 Social Collab': {q:'What type of content?', a:'Video / Reels', b:'Photography'}
         };
@@ -226,7 +235,7 @@
             else { closeProfilePanel(); setStatus('success', 'Profile updated!'); setTimeout(() => clearStatus(), 2000); }
         };
 
-        // ========== BOTTOM SHEET (categories, intents, then node options) ==========
+        // ========== BOTTOM SHEET (fixed height) ==========
         let currentCategory = 'social';
         let selectedIntentObj = null;
         let tempNodeType = 'one_on_one';
@@ -238,7 +247,14 @@
             categoryRow.innerHTML = '';
             cats.forEach(cat => {
                 const btn = document.createElement('button');
-                btn.innerText = { social:'Social', games:'Games', work:'Work', parents:'Parents' }[cat];
+                let label = '';
+                switch(cat) {
+                    case 'social': label = '🍻 Social'; break;
+                    case 'games': label = '⚽ Games'; break;
+                    case 'work': label = '🔧 Work'; break;
+                    case 'parents': label = '🧒 Parents'; break;
+                }
+                btn.innerText = label;
                 btn.style.flex = '1';
                 btn.style.background = 'transparent';
                 btn.style.border = '1px solid #FFD700';
@@ -393,6 +409,7 @@
                 selectedNodeType = tempNodeType;
                 selectedVibeAnswer = tempVibeAnswer;
                 closeIntentPanel();
+                setStatus('info', 'Drop your node on the map');
                 startCreation();
             };
             dynamicDiv.appendChild(createBtn);
@@ -433,7 +450,7 @@
         document.getElementById('intent-cancel').addEventListener('click', closeIntentPanel);
         buildBottomSheet();
 
-        // ========== NODE CREATION (uses global vars set by bottom sheet) ==========
+        // ========== NODE CREATION (with status message) ==========
         window.startCreation = () => {
             const finalIntent = selectedIntentText === 'Custom' ? customIntentText : selectedIntentText;
             if (!finalIntent.trim()) { setStatus('error', 'Please select or enter an intent'); return; }
@@ -441,8 +458,7 @@
                 setStatus('error', 'Please select a vibe before dropping');
                 return;
             }
-            closeIntentPanel();
-            setStatus('info', 'Tap anywhere on the map to drop your "' + finalIntent + '" node');
+            setStatus('info', 'Tap anywhere on the map to drop your node');
             map.once('click', async (e) => {
                 setStatus('info', 'Creating node...');
                 const nodeData = {

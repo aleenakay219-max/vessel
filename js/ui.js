@@ -30,3 +30,5 @@ document.getElementById('heatmap-toggle-btn').addEventListener('click', async ()
     document.getElementById('heatmap-panel').style.display = 'flex';
     // updateHeatmapPanel logic from your anchor (using fetchNodesWithinRadius, groupNodesByGrid, etc.)
 });
+// At the end of ui.js
+buildAccordion();

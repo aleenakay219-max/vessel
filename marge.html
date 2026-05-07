@@ -6,7 +6,7 @@
     <title>VESSEL</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.css" rel="stylesheet">
     <style>
-        /* ========== ORIGINAL STYLES (unchanged) ========== */
+        /* ========== ORIGINAL STYLES (unchanged – keep all) ========== */
         body,html{margin:0;padding:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:monospace}
         #map{height:100%;width:100%;position:absolute;top:0;z-index:1}
         #status-bar{display:none;position:fixed;top:10px;left:5%;width:90%;background:rgba(0,0,0,0.9);border:1px solid #FFD700;z-index:3000;padding:10px;text-align:center;color:#FFD700;font-size:12px;border-radius:30px}
@@ -43,18 +43,14 @@
         .node-popup .mapboxgl-popup-content{background:#000!important;border:1px solid #FFD700!important;color:#FFD700!important;border-radius:8px!important}
         #receipt-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:9999;justify-content:center;align-items:center;color:#FFD700}
         .receipt-card{border:2px solid #FFD700;padding:25px;max-width:320px;background:#000;border-radius:24px}
-        .cat-btn, .intent-item, .option-btn, .create-btn, .back-btn { transition: 0.2s; cursor: pointer; }
-        .option-btn { background: transparent; border: 1px solid #FFD700; color: #FFD700; border-radius: 40px; padding: 8px 12px; font-size: 12px; margin: 4px; }
-        .option-btn.selected { background: #FFD700; color: #000; }
-        .vibe-options { display: flex; gap: 10px; justify-content: center; margin: 10px 0; }
-        .create-btn { background: #FFD700; color: #000; border: none; border-radius: 40px; padding: 10px; font-weight: bold; margin-top: 10px; }
-        .back-btn { background: transparent; border: 1px solid #aaa; color: #aaa; border-radius: 40px; padding: 8px; margin-top: 8px; }
-        #react-intent-panel {
+        
+        /* New bottom sheet styles (vanilla JS, no React) */
+        .vanilla-bottom-sheet {
             position: fixed;
             bottom: 20px;
             left: 5%;
             width: 90%;
-            background: rgba(0,0,0,0.95);
+            background: rgba(0,0,0,0.96);
             border-radius: 32px;
             border: 1px solid #FFD700;
             padding: 20px;
@@ -66,10 +62,19 @@
             flex-direction: column;
             gap: 16px;
         }
+        .sheet-header { text-align: center; font-size: 18px; font-weight: bold; color: #FFD700; margin-bottom: 8px; }
+        .category-row { display: flex; gap: 8px; justify-content: space-between; margin-bottom: 12px; }
+        .cat-btn { flex: 1; background: transparent; border: 1px solid #FFD700; color: #FFD700; border-radius: 40px; padding: 8px 0; font-weight: bold; cursor: pointer; }
+        .cat-btn.active { background: #FFD700; color: #000; }
+        .intents-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .intent-item { background: #111; border: 1px solid #FFD700; border-radius: 40px; padding: 10px 8px; text-align: center; font-size: 12px; color: #FFD700; cursor: pointer; }
+        .option-btn { background: transparent; border: 1px solid #FFD700; color: #FFD700; border-radius: 40px; padding: 8px 12px; font-size: 12px; margin: 4px; cursor: pointer; }
+        .option-btn.selected { background: #FFD700; color: #000; }
+        .vibe-options { display: flex; gap: 10px; justify-content: center; margin: 10px 0; }
+        .create-btn { background: #FFD700; color: #000; border: none; border-radius: 40px; padding: 10px; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        .back-btn { background: transparent; border: 1px solid #aaa; color: #aaa; border-radius: 40px; padding: 8px; margin-top: 8px; cursor: pointer; }
+        .sheet-cancel { background: transparent; border: 1px solid #f00; color: #f00; padding: 10px; border-radius: 40px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 8px; }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
 </head>
 <body>
     <div id="map"></div>
@@ -95,7 +100,13 @@
         <button class="profile-close-btn" onclick="closeProfilePanel()">CLOSE</button>
     </div>
 
-    <div id="react-intent-panel"></div>
+    <!-- Vanilla JS bottom sheet -->
+    <div id="bottom-sheet" class="vanilla-bottom-sheet">
+        <div class="sheet-header">Choose your intent</div>
+        <div class="category-row" id="sheet-category-row"></div>
+        <div id="sheet-dynamic-content"></div>
+        <button class="sheet-cancel" id="sheet-cancel">Cancel</button>
+    </div>
 
     <div id="terminal">
         <div id="inbox-panel"></div>
@@ -146,7 +157,7 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.14.1/mapbox-gl.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script>
-        // ========== ORIGINAL APP LOGIC (complete – from your working anchor) ==========
+        // ========== ORIGINAL APP LOGIC ==========
         const _supabase = supabase.createClient("https://rnroyhkvkmzuichysxnk.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucm95aGt2a216dWljaHlzeG5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MjIzMDAsImV4cCI6MjA5MjQ5ODMwMH0.O1poxwOr2kESKiqRTgkb86AFFwIN8wEMuW10UEsp_DU");
         const MAPBOX_TOKEN = 'pk.eyJ1IjoiYmFkYXJraGFuMTE1IiwiYSI6ImNtb2dybG02cDB6bXAyd3M2dDZoeGR3ZzAifQ.-Bepjo9kyGavV3lO3LOWug';
         mapboxgl.accessToken = MAPBOX_TOKEN;
@@ -183,7 +194,7 @@
         let lastMsgId = 0;
         let selectedVenueCoords = null;
 
-        // Creation state (used by React)
+        // Creation state (used by bottom sheet)
         let selectedCategory = 'social';
         let selectedIntentText = '☕ Coffee & Conversation';
         let customIntentText = '';
@@ -239,7 +250,7 @@
             else { closeProfilePanel(); setStatus('success', 'Profile updated!'); setTimeout(() => clearStatus(), 2000); }
         };
 
-        // ========== INBOX, CHAT, ORACLE, HEATMAP, SEEKER, SCAN, MODE (fully preserved) ==========
+        // ========== INBOX, CHAT, ORACLE, HEATMAP, SEEKER, SCAN, MODE (preserved) ==========
         async function loadInbox(){
             if(!currentN) return;
             const{data:requests}=await _supabase.from('requests').select('*').eq('node_id',currentN.id).eq('status','pending');
@@ -462,164 +473,190 @@
         document.getElementById('mode-browse').addEventListener('click', ()=>setMode('browse'));
         document.getElementById('mode-create').addEventListener('click', ()=>setMode('create'));
         setMode('browse');
-    </script>
-    <script type="text/babel">
-        // React bottom sheet component
-        const categoriesData = {
-            social: { label: '🍻 Social', intents: ['☕ Coffee & Conversation', '🌙 Night Out', '📸 Social Collab'], vibeChecks: {
-                '☕ Coffee & Conversation': { q: 'What kind of coffee vibe?', a: 'Loud & social', b: 'Quiet & intimate' },
-                '🌙 Night Out': { q: 'Tonight feels like…', a: 'Dancing & energy', b: 'Deep talk over drinks' },
-                '📸 Social Collab': { q: 'What type of content?', a: 'Video / Reels', b: 'Photography' }
-            } },
-            games: { label: '⚽ Games', intents: ['⚽ Football', '🏏 Cricket', '🎾 Tennis'], vibeChecks: {} },
-            work: { label: '🔧 Work', intents: ['🔨 I Can Help', '☕ Co‑Working / Study'], vibeChecks: {} },
-            parents: { label: '🧒 Parents', intents: ['🧸 Kids’ Playdate', '🤱 Mum2Mum', '👨 Dad’s Crew'], vibeChecks: {} }
-        };
 
-        function IntentPicker() {
-            const [currentCategory, setCurrentCategory] = React.useState('social');
-            const [selectedIntent, setSelectedIntent] = React.useState(null);
-            const [nodeType, setNodeType] = React.useState('one_on_one');
-            const [vibeAnswer, setVibeAnswer] = React.useState(null);
-            const [isCustomMode, setIsCustomMode] = React.useState(false);
-            const [customText, setCustomText] = React.useState('');
+        // ========== VANILLA BOTTOM SHEET (no React) ==========
+        const sheet = document.getElementById('bottom-sheet');
+        const categoryRow = document.getElementById('sheet-category-row');
+        const dynamicContent = document.getElementById('sheet-dynamic-content');
+        const cancelBtn = document.getElementById('sheet-cancel');
 
-            const handleCategoryClick = (catId) => {
-                setCurrentCategory(catId);
-                setSelectedIntent(null);
-                setNodeType('one_on_one');
-                setVibeAnswer(null);
-                setIsCustomMode(false);
-                setCustomText('');
-            };
-            const handleIntentClick = (intent) => {
-                setSelectedIntent(intent);
-                setNodeType('one_on_one');
-                setVibeAnswer(null);
-            };
-            const handleCustomClick = () => {
-                const custom = prompt('Enter your custom intent:');
-                if (custom && custom.trim()) {
-                    setSelectedIntent(custom.trim());
-                    setIsCustomMode(true);
-                    setCustomText(custom.trim());
+        let currentCat = 'social';
+        let chosenIntent = null;
+        let chosenIsCustom = false;
+        let chosenIntentText = '';
+        let tempNodeType = 'one_on_one';
+        let tempVibeAnswer = null;
+
+        function renderCategoryButtons() {
+            const cats = ['social', 'games', 'work', 'parents'];
+            categoryRow.innerHTML = '';
+            cats.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = 'cat-btn' + (currentCat === cat ? ' active' : '');
+                let label = '';
+                switch(cat) {
+                    case 'social': label = '🍻 Social'; break;
+                    case 'games': label = '⚽ Games'; break;
+                    case 'work': label = '🔧 Work'; break;
+                    case 'parents': label = '🧒 Parents'; break;
                 }
-            };
-            const handleCreate = () => {
-                if (!selectedIntent) return;
-                const finalIntent = isCustomMode ? customText : selectedIntent;
-                window.setNodeCreationParams(currentCategory, finalIntent, isCustomMode, nodeType, vibeAnswer);
-                document.getElementById('react-intent-panel').style.display = 'none';
-                window.startCreation();
-            };
-            const handleBack = () => {
-                setSelectedIntent(null);
-                setIsCustomMode(false);
-                setCustomText('');
-            };
-            const renderIntentsGrid = () => {
-                const intents = categoriesData[currentCategory].intents;
-                return React.createElement("div", { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' } },
-                    intents.map(intent => React.createElement("div", {
-                        key: intent,
-                        className: "intent-item",
-                        style: { background: '#111', border: '1px solid #FFD700', borderRadius: '40px', padding: '10px 8px', textAlign: 'center', fontSize: '12px', color: '#FFD700', cursor: 'pointer' },
-                        onClick: () => handleIntentClick(intent)
-                    }, intent)),
-                    React.createElement("div", {
-                        className: "intent-item",
-                        style: { background: '#111', border: '1px solid #FFD700', borderRadius: '40px', padding: '10px 8px', textAlign: 'center', fontSize: '12px', color: '#FFD700', cursor: 'pointer' },
-                        onClick: handleCustomClick
-                    }, "+ Custom")
-                );
-            };
-            const renderOptions = () => {
-                const intentObj = selectedIntent;
-                const isSocial = currentCategory === 'social' && !isCustomMode && categoriesData.social.vibeChecks[intentObj];
-                return React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
-                    React.createElement("div", null,
-                        React.createElement("div", { style: { color: '#FFD700', marginBottom: '8px', fontSize: '12px' } }, "Type:"),
-                        React.createElement("div", { style: { display: 'flex', gap: '10px', justifyContent: 'center' } },
-                            React.createElement("button", {
-                                className: `option-btn ${nodeType === 'one_on_one' ? 'selected' : ''}`,
-                                onClick: () => setNodeType('one_on_one')
-                            }, "🔒 1‑on‑1"),
-                            React.createElement("button", {
-                                className: `option-btn ${nodeType === 'group' ? 'selected' : ''}`,
-                                onClick: () => setNodeType('group')
-                            }, "👥 Group")
-                        )
-                    ),
-                    isSocial ? React.createElement("div", null,
-                        React.createElement("div", { style: { color: '#FFD700', marginTop: '12px', marginBottom: '8px', fontSize: '12px' } }, categoriesData.social.vibeChecks[intentObj].q),
-                        React.createElement("div", { className: "vibe-options" },
-                            React.createElement("button", {
-                                className: `option-btn ${vibeAnswer === 'a' ? 'selected' : ''}`,
-                                onClick: () => setVibeAnswer('a')
-                            }, categoriesData.social.vibeChecks[intentObj].a),
-                            React.createElement("button", {
-                                className: `option-btn ${vibeAnswer === 'b' ? 'selected' : ''}`,
-                                onClick: () => setVibeAnswer('b')
-                            }, categoriesData.social.vibeChecks[intentObj].b)
-                        )
-                    ) : null,
-                    React.createElement("button", { className: "create-btn", onClick: handleCreate }, "Create"),
-                    React.createElement("button", { className: "back-btn", onClick: handleBack }, "Back")
-                );
-            };
-            const categoryButtons = Object.keys(categoriesData).map(catId => {
-                const isActive = currentCategory === catId;
-                return React.createElement("button", {
-                    key: catId,
-                    className: "cat-btn",
-                    style: {
-                        flex: 1,
-                        background: isActive ? '#FFD700' : 'transparent',
-                        border: '1px solid #FFD700',
-                        color: isActive ? '#000' : '#FFD700',
-                        borderRadius: '40px',
-                        padding: '8px 0',
-                        fontWeight: 'bold',
-                        cursor: 'pointer'
-                    },
-                    onClick: () => handleCategoryClick(catId)
-                }, categoriesData[catId].label);
+                btn.innerText = label;
+                btn.onclick = () => {
+                    currentCat = cat;
+                    renderCategoryButtons();
+                    renderIntentsGrid();
+                };
+                categoryRow.appendChild(btn);
             });
-            return React.createElement("div", { style: { display: 'flex', flexDirection: 'column', gap: '20px' } },
-                React.createElement("div", { style: { textAlign: 'center', fontSize: '18px', fontWeight: 'bold', color: '#FFD700' } }, "Choose your intent"),
-                React.createElement("div", { style: { display: 'flex', gap: '8px', justifyContent: 'space-between' } }, categoryButtons),
-                selectedIntent ? renderOptions() : renderIntentsGrid(),
-                React.createElement("button", {
-                    style: { background: 'transparent', border: '1px solid #f00', color: '#f00', padding: '10px', borderRadius: '40px', width: '100%', fontWeight: 'bold', cursor: 'pointer' },
-                    onClick: () => { document.getElementById('react-intent-panel').style.display = 'none'; }
-                }, "Cancel")
-            );
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            const container = document.getElementById('react-intent-panel');
-            if (container) {
-                const root = ReactDOM.createRoot(container);
-                root.render(React.createElement(IntentPicker));
-            }
-        });
+        function renderIntentsGrid() {
+            dynamicContent.innerHTML = '';
+            const grid = document.createElement('div');
+            grid.className = 'intents-grid';
+            const intents = categories[currentCat].presets;
+            intents.forEach(intent => {
+                const item = document.createElement('div');
+                item.className = 'intent-item';
+                item.innerText = intent;
+                item.onclick = () => {
+                    chosenIntent = intent;
+                    chosenIsCustom = false;
+                    renderOptions();
+                };
+                grid.appendChild(item);
+            });
+            const customItem = document.createElement('div');
+            customItem.className = 'intent-item';
+            customItem.innerText = '+ Custom';
+            customItem.onclick = () => {
+                const custom = prompt('Enter your custom intent:');
+                if (custom && custom.trim()) {
+                    chosenIntent = custom.trim();
+                    chosenIsCustom = true;
+                    renderOptions();
+                }
+            };
+            grid.appendChild(customItem);
+            dynamicContent.appendChild(grid);
+        }
 
-        // No GPS check – bottom sheet opens immediately
-        window.openIntentPanel = () => {
-            document.getElementById('react-intent-panel').style.display = 'flex';
-        };
+        function renderOptions() {
+            dynamicContent.innerHTML = '';
+            const intentObj = chosenIntent;
+            const isSocial = currentCat === 'social' && !chosenIsCustom && vibeChecks[intentObj];
+            // Type selector
+            const typeLabel = document.createElement('div');
+            typeLabel.innerText = 'Type:';
+            typeLabel.style.color = '#FFD700';
+            typeLabel.style.marginBottom = '8px';
+            typeLabel.style.fontSize = '12px';
+            const typeRow = document.createElement('div');
+            typeRow.style.display = 'flex';
+            typeRow.style.gap = '10px';
+            typeRow.style.justifyContent = 'center';
+            const oneOnOneBtn = document.createElement('button');
+            oneOnOneBtn.innerText = '🔒 1‑on‑1';
+            oneOnOneBtn.className = 'option-btn' + (tempNodeType === 'one_on_one' ? ' selected' : '');
+            oneOnOneBtn.onclick = () => {
+                tempNodeType = 'one_on_one';
+                renderOptions();
+            };
+            const groupBtn = document.createElement('button');
+            groupBtn.innerText = '👥 Group';
+            groupBtn.className = 'option-btn' + (tempNodeType === 'group' ? ' selected' : '');
+            groupBtn.onclick = () => {
+                tempNodeType = 'group';
+                renderOptions();
+            };
+            typeRow.appendChild(oneOnOneBtn);
+            typeRow.appendChild(groupBtn);
+            dynamicContent.appendChild(typeLabel);
+            dynamicContent.appendChild(typeRow);
 
-        window.setNodeCreationParams = (category, intentText, isCustom, nodeType, vibeAnswer) => {
-            selectedCategory = category;
-            if (isCustom) {
-                selectedIntentText = 'Custom';
-                customIntentText = intentText;
+            // Vibe options (if social)
+            if (isSocial) {
+                const vibeLabel = document.createElement('div');
+                vibeLabel.innerText = vibeChecks[intentObj].q;
+                vibeLabel.style.color = '#FFD700';
+                vibeLabel.style.marginTop = '12px';
+                vibeLabel.style.marginBottom = '8px';
+                vibeLabel.style.fontSize = '12px';
+                const vibeOptions = document.createElement('div');
+                vibeOptions.className = 'vibe-options';
+                const optA = document.createElement('button');
+                optA.innerText = vibeChecks[intentObj].a;
+                optA.className = 'option-btn' + (tempVibeAnswer === 'a' ? ' selected' : '');
+                optA.onclick = () => { tempVibeAnswer = 'a'; renderOptions(); };
+                const optB = document.createElement('button');
+                optB.innerText = vibeChecks[intentObj].b;
+                optB.className = 'option-btn' + (tempVibeAnswer === 'b' ? ' selected' : '');
+                optB.onclick = () => { tempVibeAnswer = 'b'; renderOptions(); };
+                vibeOptions.appendChild(optA);
+                vibeOptions.appendChild(optB);
+                dynamicContent.appendChild(vibeLabel);
+                dynamicContent.appendChild(vibeOptions);
             } else {
-                selectedIntentText = intentText;
-                customIntentText = '';
+                tempVibeAnswer = null;
             }
-            selectedNodeType = nodeType;
-            selectedVibeAnswer = vibeAnswer;
+
+            // Create button
+            const createBtn = document.createElement('button');
+            createBtn.innerText = 'Create';
+            createBtn.className = 'create-btn';
+            createBtn.onclick = () => {
+                // Set global creation variables
+                selectedCategory = currentCat;
+                if (chosenIsCustom) {
+                    selectedIntentText = 'Custom';
+                    customIntentText = chosenIntent;
+                } else {
+                    selectedIntentText = chosenIntent;
+                    customIntentText = '';
+                }
+                selectedNodeType = tempNodeType;
+                selectedVibeAnswer = tempVibeAnswer;
+                sheet.style.display = 'none';
+                // Reset temporary state
+                chosenIntent = null;
+                chosenIsCustom = false;
+                tempNodeType = 'one_on_one';
+                tempVibeAnswer = null;
+                startCreation();
+            };
+            dynamicContent.appendChild(createBtn);
+
+            // Back button
+            const backBtn = document.createElement('button');
+            backBtn.innerText = 'Back';
+            backBtn.className = 'back-btn';
+            backBtn.onclick = () => {
+                chosenIntent = null;
+                renderIntentsGrid();
+            };
+            dynamicContent.appendChild(backBtn);
+        }
+
+        function openSheet() {
+            currentCat = 'social';
+            chosenIntent = null;
+            tempNodeType = 'one_on_one';
+            tempVibeAnswer = null;
+            renderCategoryButtons();
+            renderIntentsGrid();
+            sheet.style.display = 'flex';
+        }
+
+        function closeSheet() {
+            sheet.style.display = 'none';
+        }
+
+        cancelBtn.onclick = closeSheet;
+
+        // Override openIntentPanel
+        window.openIntentPanel = () => {
+            if (!gpsReady) { setStatus('warning', 'GPS not ready'); return; }
+            openSheet();
         };
     </script>
 </body>

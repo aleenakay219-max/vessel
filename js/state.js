@@ -1,4 +1,3 @@
-// Global state (no DOM)
 window.state = {
     myUserId: localStorage.getItem('vessel_user_id'),
     currentMode: 'browse',
@@ -20,7 +19,9 @@ window.state = {
     selectedMaxParticipants: null,
     selectedVibeAnswer: null,
     pendingNodeProps: null,
-    seekerVibeAnswer: null
+    seekerVibeAnswer: null,
+    heatmapOn: false,
+    reverseGeocodeCache: new Map()
 };
 
 if (!window.state.myUserId) {

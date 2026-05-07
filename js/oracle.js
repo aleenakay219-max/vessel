@@ -1,4 +1,3 @@
-// Oracle functions (haversine, bbox, runOracleBrain)
 function haversine(lat1,lng1,lat2,lng2) {
     const R=6371;
     const dLat=(lat2-lat1)*Math.PI/180;
@@ -16,10 +15,10 @@ async function runOracleBrain(s) {
     const queries=['cafe','coffee shop','restaurant','mall','park'];
     let bestVenue=null;
     for(const q of queries){
-        for(const r of [3,6,10,15,MAX_VENUE_DISTANCE_KM]){
+        for(const r of [3,6,10,15,window.MAX_VENUE_DISTANCE_KM]){
             if(bestVenue) break;
             const box=bbox(midLat,midLng,r);
-            const url=`https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}&proximity=${midLng},${midLat}&bbox=${box}&limit=10&access_token=${MAPBOX_TOKEN}`;
+            const url=`https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(q)}&proximity=${midLng},${midLat}&bbox=${box}&limit=10&access_token=${window.MAPBOX_TOKEN}`;
             try{
                 const res=await fetch(url);
                 const d=await res.json();
@@ -29,7 +28,7 @@ async function runOracleBrain(s) {
                         lat: f.geometry.coordinates[1],
                         lng: f.geometry.coordinates[0],
                         dist: haversine(midLat,midLng,f.geometry.coordinates[1],f.geometry.coordinates[0])
-                    })).filter(v=>v.dist<=MAX_VENUE_DISTANCE_KM).sort((a,b)=>a.dist-b.dist);
+                    })).filter(v=>v.dist<=window.MAX_VENUE_DISTANCE_KM).sort((a,b)=>a.dist-b.dist);
                     if(nearby.length>0) bestVenue=nearby[0];
                 }
             }catch(e){}
@@ -37,24 +36,24 @@ async function runOracleBrain(s) {
         if(bestVenue) break;
     }
     if(bestVenue){
-        await supabaseClient.from('oracle_sessions').update({
+        await window.supabaseClient.from('oracle_sessions').update({
             status:'matched',
             options_generated:true,
             error_state:null,
             selected_venue_name:bestVenue.name,
             selected_lat:bestVenue.lat,
             selected_lng:bestVenue.lng,
-            meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()
+            meet_expires_at:new Date(Date.now()+window.MEET_DURATION_MINUTES*60*1000).toISOString()
         }).eq('bridge_id', window.state.currentN.id);
     } else {
-        await supabaseClient.from('oracle_sessions').update({
+        await window.supabaseClient.from('oracle_sessions').update({
             status:'matched',
             options_generated:true,
             error_state:null,
             selected_venue_name:'Midpoint Meeting Spot',
             selected_lat:midLat,
             selected_lng:midLng,
-            meet_expires_at:new Date(Date.now()+MEET_DURATION_MINUTES*60*1000).toISOString()
+            meet_expires_at:new Date(Date.now()+window.MEET_DURATION_MINUTES*60*1000).toISOString()
         }).eq('bridge_id', window.state.currentN.id);
     }
 }
